@@ -1,0 +1,38 @@
+{
+  "corpus_version": "2026-11-02.1",
+  "sources": [
+    {
+      "id": "AU-ESAFETY-EVIDENCE-2026",
+      "title": "How to collect evidence",
+      "publisher": "eSafety Commissioner, Australian Government",
+      "url": "https://www.esafety.gov.au/report/how-to-collect-evidence",
+      "published_or_updated": "2026-05-14",
+      "ingested_at": "2026-11-02",
+      "geography": "AU",
+      "content_version": "2026-11-02.1",
+      "text": "لحفظ الأدلة ومعلومات عن إساءة أو تواصل إلكتروني، توصي eSafety الأسترالية بتسجيل المنصة المستخدمة، وروابط المحتوى أو الحسابات، وأسماء المستخدمين، والتواريخ والأوقات، والسياق أو تكرار التواصل. يمكن أن تساعد لقطات الشاشة في توثيق المحتوى والحساب. إرشادات الجهة مرتبطة باستراليا، وهي لا تعني أن النظام فحص أي دليل أو أن هذه الخطوات مناسبة لكل اختصاص."
+    },
+    {
+      "id": "AU-ESAFETY-IMAGE-ABUSE-2026",
+      "title": "Report image-based abuse",
+      "publisher": "eSafety Commissioner, Australian Government",
+      "url": "https://www.esafety.gov.au/key-topics/image-based-abuse/report-image-based-abuse",
+      "published_or_updated": "2026-01-02",
+      "ingested_at": "2026-11-02",
+      "geography": "AU",
+      "content_version": "2026-11-02.1",
+      "text": "توضح eSafety الأسترالية أنها تقدم مساعدة ضمن نطاقها للأشخاص المتأثرين بمشاركة أو التهديد بمشاركة صور حميمة. وتوصي صفحتها بعدم دفع مزيد من المال أو مواصلة التواصل مع المبتز في سياق ابتزاز الصور، وتقترح الاستعانة بشخص موثوق. شروط الأهلية والخدمات مرتبطة باستراليا؛ لا يجوز عرضها كجهة محلية للمستخدم خارجها."
+    },
+    {
+      "id": "US-FTC-SCAM-2026",
+      "title": "What To Do if You Were Scammed",
+      "publisher": "Federal Trade Commission, United States",
+      "url": "https://consumer.ftc.gov/articles/what-do-if-you-were-scammed",
+      "published_or_updated": "2026-06",
+      "ingested_at": "2026-11-02",
+      "geography": "US",
+      "content_version": "2026-11-02.1",
+      "text": "توصي لجنة التجارة الفيدرالية الأمريكية من دفع لمحتال بالتواصل فورًا مع البنك أو تطبيق الدفع أو الجهة التي عالجت التحويل، وسؤالهم إن كان بالإمكان إلغاء العملية أو استرداد المال. النتيجة غير مضمونة، والخطوات المحددة تعتمد على طريقة الدفع. هذه إرشادات أمريكية ولا تثبت حدوث الاحتيال في حالة المستخدم."
+    }
+  ]
+}

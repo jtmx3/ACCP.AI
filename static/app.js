@@ -4,16 +4,21 @@
   const labels = {
     narrative: 'وصف الواقعة', threat: 'وجود تهديد', impersonation: 'انتحال شخصية', platform: 'المنصة', details: 'تفاصيل الواقعة',
     additional_details: 'تفاصيل إضافية', publication_threat: 'تهديد بالنشر', direct_danger: 'الخطر المباشر الحالي',
-    active_unauthorized_funds: 'أموال معرضة لتصرف دون إذن', fraud_description: 'وصف خداع مالي',
-    initial_time: 'وقت البداية', latest_time: 'أحدث تواصل',
-    repeated: 'استمرار أو تكرار التواصل', requested_amount: 'المبلغ المطلوب', paid_amount: 'المبلغ المدفوع',
+    active_unauthorized_funds: 'أموال معرضة لتصرف دون إذن', fraud_description: 'وصف خداع مالي', harassment: 'مضايقة مذكورة',
+    contact_repeated: 'تكرار التواصل دون استنتاج تهديد', initial_time: 'وقت البداية', latest_time: 'أحدث تواصل',
+    repeated: 'تكرار التهديد أو المضايقة', requested_amount: 'المبلغ المطلوب', paid_amount: 'المبلغ المدفوع',
     payment_method: 'وسيلة الدفع', deadline: 'مهلة الدفع', published: 'حدوث النشر', identity: 'هوية الشخص',
     contact: 'معرّف التواصل', evidence: 'الأدلة المذكورة', account_access: 'دخول غير مصرح به'
   };
-  let current = null;
-  let session = null;
+  let active = null; // { id, token, label, generation, session }
+  let activeGeneration = 0;
   let kind = 'answer';
-  let busy = false;
+  let externalConfigured = false;
+  let creating = false;
+  const caseCache = new Map();
+  const caseOps = new Map();
+  const requestSequence = new Map();
+  const appliedSequence = new Map();
 
   function savedCases() {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
@@ -25,23 +30,76 @@
   }
   function renderCaseList() {
     const list = $('case-list');
+    const selected = active?.id || list.value;
     list.replaceChildren(new Option('اختر جلسة محفوظة', ''));
     for (const item of savedCases()) list.add(new Option(`${item.label || 'إفادة'} · ${item.id.slice(0, 8)}`, item.id));
+    if (selected && savedCases().some(item => item.id === selected)) list.value = selected;
+    $('resume-case').disabled = !list.value;
   }
-  function setBusy(value) {
-    busy = value;
-    $('send').disabled = value;
-    $('start-case').disabled = value;
-    $('new-case').disabled = value;
-  }
-  function status(text = '', ok = false) {
+  function setStatus(text = '', ok = false, ctx = null) {
+    if (ctx && !isActive(ctx)) return;
     const element = $('status-message');
     element.textContent = text;
     element.style.color = ok ? '#075a56' : '';
   }
-  async function api(path, options = {}) {
-    const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
-    if (current?.token) headers['X-Case-Token'] = current.token;
+  function isActive(ctx) {
+    return !!ctx && !!active && active.id === ctx.id && active.generation === ctx.generation && activeGeneration === ctx.generation;
+  }
+  function snapshotActive() {
+    if (!active || !active.session) return null;
+    return Object.freeze({ id: active.id, token: active.token, label: active.label, generation: active.generation,
+      revision: active.session.revision, sessionId: active.session.session_id });
+  }
+  function updateControls() {
+    const id = active?.id;
+    const locked = !!id && caseOps.has(id);
+    const ready = !!(active?.session && active.session.session_id === active.id);
+    $('send').disabled = !ready || locked;
+    $('pause-case').disabled = !ready || locked;
+    $('confirm-summary').disabled = !ready || locked || !!active?.session?.confirmed;
+    $('jurisdiction').disabled = !ready || locked;
+    $('resume-case').disabled = !$('case-list').value;
+    $('start-case').disabled = creating;
+    $('new-case').disabled = creating;
+  }
+  function nextRequest(ctx) {
+    const value = (requestSequence.get(ctx.id) || 0) + 1;
+    requestSequence.set(ctx.id, value);
+    return value;
+  }
+  function requestIsLatest(ctx, sequence) {
+    return sequence >= (appliedSequence.get(ctx.id) || 0);
+  }
+  function cacheState(state) {
+    if (!state || !state.session_id || !Number.isInteger(state.revision)) return;
+    const old = caseCache.get(state.session_id);
+    if (!old || state.revision > old.revision) caseCache.set(state.session_id, state);
+    else if (state.revision === old.revision) caseCache.set(state.session_id, state);
+  }
+  function commitState(ctx, state, sequence) {
+    if (!ctx || !state || state.session_id !== ctx.id) return false;
+    const cached = caseCache.get(ctx.id);
+    if (cached && state.revision < cached.revision) {
+      if (isActive(ctx) && active.session == null) {
+        active.session = cached;
+        renderState(ctx, cached);
+      }
+      return false;
+    }
+    if (!requestIsLatest(ctx, sequence) && (!cached || state.revision <= cached.revision)) return false;
+    cacheState(state);
+    appliedSequence.set(ctx.id, Math.max(sequence, appliedSequence.get(ctx.id) || 0));
+    if (!isActive(ctx)) return false;
+    const freshest = caseCache.get(ctx.id) || state;
+    active.session = freshest;
+    renderState(ctx, freshest);
+    updateControls();
+    return true;
+  }
+  async function api(path, options = {}, ctx = null) {
+    const headers = { ...(options.headers || {}) };
+    if (options.body != null && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+    if (ctx?.token) headers['X-Case-Token'] = ctx.token;
     const response = await fetch(path, { ...options, headers });
     let payload;
     try { payload = await response.json(); }
@@ -55,6 +113,17 @@
     }
     return payload;
   }
+  function beginMutation(ctx) {
+    if (!ctx || caseOps.has(ctx.id)) return null;
+    const owner = Symbol(ctx.id);
+    caseOps.set(ctx.id, owner);
+    updateControls();
+    return owner;
+  }
+  function endMutation(ctx, owner) {
+    if (ctx && caseOps.get(ctx.id) === owner) caseOps.delete(ctx.id);
+    updateControls();
+  }
   function addBubble(message) {
     const bubble = document.createElement('article');
     bubble.className = `bubble ${message.role === 'user' ? 'user' : 'assistant'}`;
@@ -65,12 +134,21 @@
       const links = document.createElement('div');
       links.className = 'citation-list';
       for (const citation of message.citations) {
+        const item = document.createElement('div');
+        item.className = 'citation-item';
         const anchor = document.createElement('a');
         anchor.href = citation.url;
         anchor.target = '_blank';
         anchor.rel = 'noopener noreferrer';
         anchor.textContent = `${citation.publisher}: ${citation.title}`;
-        links.append(anchor);
+        item.append(anchor);
+        if (citation.excerpt) {
+          const excerpt = document.createElement('div');
+          excerpt.className = 'citation-excerpt';
+          excerpt.textContent = `المقتطف المستخدم: «${citation.excerpt}»`;
+          item.append(excerpt);
+        }
+        links.append(item);
       }
       bubble.append(links);
     }
@@ -87,11 +165,13 @@
     if (!show) return;
     const assessment = state.assessment || {};
     $('priority-chip').textContent = `أولوية المراجعة: ${assessment.priority_score == null ? 'غير محددة' : `${assessment.priority_score}/100`} · ${assessment.priority_label || ''}`;
-    $('assessment-reasons').textContent = `${assessment.reasons?.length ? `الأسباب: ${assessment.reasons.join('؛ ')}` : 'لم تتوفر إشارة كافية لتحديد الأولوية.'}\nاكتمال المعلومات: ${assessment.completeness_percent ?? 0}% — ${assessment.completeness_note || ''}\nجودة الاستخراج: ${assessment.extraction_quality || 'غير متاحة'}؛ لا يوجد تحقق مستقل.`;
+    const rule = assessment.priority_rule ? `\nقاعدة الدرجة: ${assessment.priority_rule}؛ الوقائع الداعمة: ${(assessment.supporting_fields || []).map(key => labels[key] || key).join('، ')}` : '';
+    const relevant = (assessment.relevant_fields || []).map(key => labels[key] || key).join('، ');
+    $('assessment-reasons').textContent = `${assessment.reasons?.length ? `الأسباب: ${assessment.reasons.join('؛ ')}` : 'لم تتوفر إشارة كافية لتحديد الأولوية.'}${rule}\nالحقول ذات الصلة: ${relevant || 'وصف الواقعة فقط'}\nاكتمال المعلومات: ${assessment.completeness_percent ?? 0}% — ${assessment.completeness_note || ''}\nجودة الاستخراج: ${assessment.extraction_quality || 'غير متاحة'}؛ لا يوجد تحقق مستقل.`;
     const factsList = $('facts-list');
     factsList.replaceChildren();
     const facts = state.facts || {};
-    const order = ['narrative', 'threat', 'impersonation', 'platform', 'details', 'additional_details', 'publication_threat', 'direct_danger', 'active_unauthorized_funds', 'fraud_description', 'initial_time', 'latest_time', 'repeated', 'requested_amount', 'paid_amount', 'payment_method', 'deadline', 'published', 'identity', 'contact', 'evidence', 'account_access'];
+    const order = ['narrative', 'threat', 'impersonation', 'platform', 'details', 'additional_details', 'publication_threat', 'direct_danger', 'active_unauthorized_funds', 'fraud_description', 'harassment', 'contact_repeated', 'initial_time', 'latest_time', 'repeated', 'requested_amount', 'paid_amount', 'payment_method', 'deadline', 'published', 'identity', 'contact', 'evidence', 'account_access'];
     for (const key of order) {
       const fact = facts[key];
       if (!fact) continue;
@@ -138,10 +218,11 @@
       factsList.append(wrapper);
     }
     $('confirmation-state').textContent = state.confirmed ? 'تم تأكيد إصدار الملخص المعروض. أي تعديل لاحق يتطلب مراجعة جديدة.' : 'لم يتم تأكيد الملخص بعد.';
-    $('confirm-summary').disabled = !!state.confirmed;
+    $('confirm-summary').disabled = !!state.confirmed || caseOps.has(state.session_id);
   }
-  function renderState(state) {
-    session = state;
+  function renderState(ctx, state) {
+    if (!isActive(ctx) || !state || state.session_id !== ctx.id) return false;
+    active.session = state;
     $('welcome').classList.add('hidden');
     $('case-view').classList.remove('hidden');
     $('case-title').textContent = `الحالة ${state.session_id.slice(0, 8)}`;
@@ -152,131 +233,204 @@
     $('jurisdiction').value = state.jurisdiction || '';
     renderSummary(state);
     $('chat').scrollTop = $('chat').scrollHeight;
+    updateControls();
+    return true;
+  }
+  function makeContext(entry, generation) {
+    return Object.freeze({ id: entry.id, token: entry.token, label: entry.label || 'إفادة', generation });
   }
   async function createCase() {
-    if (busy) return;
-    setBusy(true);
-    status('يتم إنشاء جلسة…', true);
+    if (creating) return;
+    creating = true;
+    const generationAtStart = activeGeneration;
+    updateControls();
+    setStatus('يتم إنشاء جلسة…', true);
     try {
       const result = await api('/api/sessions', { method: 'POST', body: '{}' });
-      current = { id: result.session.session_id, token: result.token, label: 'إفادة جديدة' };
-      saveCases([current, ...savedCases().filter(item => item.id !== current.id)]);
-      renderState(result.session);
-      status('بدأت جلسة جديدة. رمز الدخول محفوظ في هذا المتصفح فقط.', true);
-      $('message').focus();
-    } catch (error) { status(error.message); }
-    finally { setBusy(false); }
+      const entry = { id: result.session.session_id, token: result.token, label: 'إفادة جديدة' };
+      saveCases([entry, ...savedCases().filter(item => item.id !== entry.id)]);
+      cacheState(result.session);
+      if (activeGeneration === generationAtStart) {
+        $('message').value = '';
+        await openCase(entry.id);
+        setStatus('بدأت جلسة جديدة. رمز الدخول محفوظ في هذا المتصفح فقط.', true, active);
+        $('message').focus();
+      }
+    } catch (error) {
+      if (activeGeneration === generationAtStart) setStatus(error.message);
+    } finally {
+      creating = false;
+      updateControls();
+    }
   }
   async function openCase(id) {
     const entry = savedCases().find(item => item.id === id);
     if (!entry) return;
-    current = entry;
-    setBusy(true);
+    const ctx = makeContext(entry, ++activeGeneration);
+    active = { ...ctx, session: null };
+    $('case-list').value = id;
+    $('welcome').classList.add('hidden');
+    $('case-view').classList.remove('hidden');
+    $('case-title').textContent = `الحالة ${id.slice(0, 8)}`;
+    $('stage-badge').textContent = 'جارٍ التحميل';
+    $('chat').replaceChildren();
+    $('review').classList.add('hidden');
+    const cached = caseCache.get(id);
+    if (cached) {
+      active.session = cached;
+      renderState(ctx, cached);
+    }
+    updateControls();
+    const sequence = nextRequest(ctx);
     try {
-      const result = await api(`/api/sessions/${entry.id}`);
-      renderState(result.session);
-      status('تم تحميل الجلسة المحفوظة.', true);
-    } catch (error) { status(`${error.message} قد يكون رمز الجلسة غير موجود في هذا المتصفح.`); }
-    finally { setBusy(false); }
+      const result = await api(`/api/sessions/${ctx.id}`, {}, ctx);
+      commitState(ctx, result.session, sequence);
+      setStatus('تم تحميل الجلسة المحفوظة.', true, ctx);
+    } catch (error) {
+      if (isActive(ctx)) setStatus(`${error.message} قد يكون رمز الجلسة غير موجود في هذا المتصفح.`);
+    }
+  }
+  async function refreshCase(ctx) {
+    const sequence = nextRequest(ctx);
+    try {
+      const latest = await api(`/api/sessions/${ctx.id}`, {}, ctx);
+      commitState(ctx, latest.session, sequence);
+      return latest.session;
+    } catch { return null; }
   }
   async function sendMessage(event) {
     event.preventDefault();
-    if (busy || !current || !session) return;
+    const ctx = snapshotActive();
+    if (!ctx) return;
+    const owner = beginMutation(ctx);
+    if (!owner) return;
     const textarea = $('message');
     const text = textarea.value;
-    if (!text.trim()) return;
-    setBusy(true);
-    status('جارٍ الحفظ…', true);
+    if (!text.trim()) { endMutation(ctx, owner); return; }
+    const consent = $('model-consent').checked;
+    const sequence = nextRequest(ctx);
+    setStatus('جارٍ الحفظ…', true, ctx);
     try {
-      const payload = { expected_revision: session.revision, text, kind,
-        allow_external: kind === 'question' && $('model-consent').checked };
-      const result = await api(`/api/sessions/${current.id}/messages`, { method: 'POST', body: JSON.stringify(payload) });
-      renderState(result.session);
-      textarea.value = '';
-      $('model-consent').checked = false;
-      status('تم حفظ الرسالة وتحديث الحالة.', true);
+      const payload = { expected_revision: ctx.revision, text, kind,
+        allow_external: kind === 'question' && consent,
+        allow_external_extraction: kind === 'answer' && consent };
+      const result = await api(`/api/sessions/${ctx.id}/messages`, { method: 'POST', body: JSON.stringify(payload) }, ctx);
+      const rendered = commitState(ctx, result.session, sequence);
+      if (rendered && $('message').value === text) $('message').value = '';
+      if (rendered) {
+        if (result.external_data_sent) {
+          const purpose = kind === 'question' ? 'نص السؤال الحالي ومقتطفات المصادر المختارة' : 'نص الرسالة الحالية فقط لاستخراج حقائق منظمة';
+          setStatus(result.external_model_used ? `أُرسل ${purpose} لمزود خارجي بموافقتك، واستُخدمت نتيجة موثقة.` : `أُرسل ${purpose} لمزود خارجي بموافقتك؛ لم تُستخدم نتيجة صالحة، فاستُخدمت القواعد/الإجابة المحلية.`, true, ctx);
+        } else setStatus('تم حفظ الرسالة وتحديث الحالة.', true, ctx);
+      }
     } catch (error) {
       if (error.status === 409) {
-        try {
-          const latest = await api(`/api/sessions/${current.id}`);
-          renderState(latest.session);
-          status('حُفظ نصك في الحقل. تم تحديث الحالة الأحدث؛ راجعها ثم أعد الإرسال.', false);
-        } catch { status('تعذر تحديث الحالة. بقي نصك في الحقل؛ لا ترسل مرة أخرى قبل إعادة تحميل الجلسة.'); }
+        await refreshCase(ctx);
+        setStatus('تغيّرت الحالة. حدّثنا النسخة الأحدث؛ بقي نصك في الحقل ولم نعد الإرسال تلقائيًا.', false, ctx);
       } else {
-        try {
-          const latest = await api(`/api/sessions/${current.id}`);
-          renderState(latest.session);
-          status(`لم يكتمل الإرسال: ${error.message} بقي نصك في الحقل. قرأنا أحدث حالة؛ راجعها قبل إعادة المحاولة.`);
-        } catch { status('تعذر تأكيد حالة الحفظ بعد الخطأ. بقي نصك في الحقل؛ أعد فتح الجلسة قبل إعادة المحاولة.'); }
+        await refreshCase(ctx);
+        setStatus(`تعذر تأكيد نتيجة الحفظ: ${error.message} بقي نصك في الحقل؛ راجع الحالة الأحدث قبل إعادة المحاولة.`, false, ctx);
       }
-    } finally { setBusy(false); }
+    } finally {
+      $('model-consent').checked = false;
+      endMutation(ctx, owner);
+    }
   }
   async function pauseOrResume() {
-    if (!current || !session || busy) return;
-    if (session.stage === 'paused') {
-      setBusy(true);
-      try {
-        const result = await api(`/api/sessions/${current.id}/resume`, { method: 'POST', body: JSON.stringify({ expected_revision: session.revision }) });
-        renderState(result.session);
-        status('استُكملت الجلسة من موضعها السابق.', true);
-      } catch (error) { status(error.message); }
-      finally { setBusy(false); }
-      return;
-    }
+    const ctx = snapshotActive();
+    if (!ctx) return;
+    const owner = beginMutation(ctx);
+    if (!owner) return;
+    const sequence = nextRequest(ctx);
     const draft = $('message').value;
-    setBusy(true);
     try {
-      const result = await api(`/api/sessions/${current.id}/messages`, { method: 'POST', body: JSON.stringify({ expected_revision: session.revision, text: 'احفظ الجلسة', kind: 'answer' }) });
-      renderState(result.session);
-      $('message').value = draft;
-      status('حُفظت الجلسة؛ يمكنك استكمالها لاحقًا.', true);
-    } catch (error) { status(error.message); }
-    finally { setBusy(false); }
+      if (active.session.stage === 'paused') {
+        const result = await api(`/api/sessions/${ctx.id}/resume`, { method: 'POST', body: JSON.stringify({ expected_revision: ctx.revision }) }, ctx);
+        commitState(ctx, result.session, sequence);
+        setStatus('استُكملت الجلسة من موضعها السابق.', true, ctx);
+      } else {
+        const result = await api(`/api/sessions/${ctx.id}/messages`, { method: 'POST', body: JSON.stringify({ expected_revision: ctx.revision, text: 'احفظ الجلسة', kind: 'answer' }) }, ctx);
+        commitState(ctx, result.session, sequence);
+        if (isActive(ctx)) $('message').value = draft;
+        setStatus('حُفظت الجلسة؛ يمكنك استكمالها لاحقًا.', true, ctx);
+      }
+    } catch (error) {
+      if (error.status === 409) await refreshCase(ctx);
+      setStatus(error.message, false, ctx);
+    } finally { endMutation(ctx, owner); }
   }
   async function confirmSummary() {
-    if (!current || !session) return;
-    setBusy(true);
+    const ctx = snapshotActive();
+    if (!ctx) return;
+    const owner = beginMutation(ctx);
+    if (!owner) return;
+    const sequence = nextRequest(ctx);
     try {
-      const result = await api(`/api/sessions/${current.id}/confirm`, { method: 'POST', body: JSON.stringify({ expected_revision: session.revision }) });
-      renderState(result.session);
-      status('تم تأكيد الملخص الحالي.', true);
-    } catch (error) { status(error.message); }
-    finally { setBusy(false); }
+      const result = await api(`/api/sessions/${ctx.id}/confirm`, { method: 'POST', body: JSON.stringify({ expected_revision: ctx.revision }) }, ctx);
+      commitState(ctx, result.session, sequence);
+      setStatus('تم تأكيد الملخص الحالي.', true, ctx);
+    } catch (error) {
+      if (error.status === 409) await refreshCase(ctx);
+      setStatus(error.message, false, ctx);
+    } finally { endMutation(ctx, owner); }
   }
   async function changeJurisdiction() {
-    if (!current || !session) return;
+    const ctx = snapshotActive();
+    if (!ctx) return;
+    const owner = beginMutation(ctx);
+    if (!owner) return;
+    const jurisdiction = $('jurisdiction').value;
+    const sequence = nextRequest(ctx);
     try {
-      const result = await api(`/api/sessions/${current.id}/jurisdiction`, { method: 'PUT', body: JSON.stringify({ expected_revision: session.revision, jurisdiction: $('jurisdiction').value }) });
-      renderState(result.session);
-      status('تم تحديث الاختصاص المستخدم لفلترة المصادر.', true);
-    } catch (error) { status(error.message); $('jurisdiction').value = session.jurisdiction || ''; }
+      const result = await api(`/api/sessions/${ctx.id}/jurisdiction`, { method: 'PUT', body: JSON.stringify({ expected_revision: ctx.revision, jurisdiction }) }, ctx);
+      commitState(ctx, result.session, sequence);
+      setStatus('تم تحديث الاختصاص المستخدم لفلترة المصادر.', true, ctx);
+    } catch (error) {
+      if (error.status === 409) await refreshCase(ctx);
+      if (isActive(ctx)) $('jurisdiction').value = active.session?.jurisdiction || '';
+      setStatus(error.message, false, ctx);
+    } finally { endMutation(ctx, owner); }
   }
   async function downloadReport() {
-    if (!current) return;
+    const ctx = snapshotActive();
+    if (!ctx) return;
     try {
-      const response = await fetch(`/api/sessions/${current.id}/report.md`, { headers: { 'X-Case-Token': current.token } });
+      const response = await fetch(`/api/sessions/${ctx.id}/report.md`, { headers: { 'X-Case-Token': ctx.token } });
       if (!response.ok) throw new Error('تعذر تنزيل التقرير.');
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = `ACCP-${current.id.slice(0, 8)}-summary.md`;
+      anchor.download = `ACCP-${ctx.id.slice(0, 8)}-summary.md`;
       anchor.click();
-      URL.revokeObjectURL(url);
-      status('تم تنزيل التقرير.', true);
-    } catch (error) { status(error.message); }
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setStatus('تم تنزيل التقرير.', true, ctx);
+    } catch (error) { setStatus(error.message, false, ctx); }
+  }
+  async function loadMetadata() {
+    try {
+      const result = await api('/api/metadata');
+      const select = $('jurisdiction');
+      const oldValue = select.value;
+      select.replaceChildren(new Option('غير محدد', ''));
+      for (const item of result.jurisdictions || []) select.add(new Option(item.label, item.code));
+      if ([...select.options].some(option => option.value === oldValue)) select.value = oldValue;
+    } catch { /* If metadata is unavailable, only the empty/unscoped option remains. */ }
   }
   async function checkHealth() {
     try {
-      const response = await fetch('/api/health');
-      const health = await response.json();
-      const configured = !!health.external_model_configured;
-      $('model-consent-row').dataset.configured = String(configured);
-      $('model-consent-row').classList.toggle('hidden', !(kind === 'question' && configured));
-    } catch {
-      $('model-consent-row').dataset.configured = 'false';
-      $('model-consent-row').classList.add('hidden');
-    }
+      const health = await api('/api/health');
+      externalConfigured = !!health.external_model_configured;
+    } catch { externalConfigured = false; }
+    $('model-consent-row').dataset.configured = String(externalConfigured);
+    updateConsentVisibility();
+  }
+  function updateConsentVisibility() {
+    $('model-consent-row').classList.toggle('hidden', !externalConfigured);
+    $('model-consent').checked = false;
+    $('model-consent-copy').textContent = kind === 'question'
+      ? 'أوافق على إرسال نص هذا السؤال الحالي ومقتطفات المصادر المختارة فقط إلى مزود خارجي لهذا الرد. لن يُرسل سجل المقابلة.'
+      : 'أوافق على إرسال نص رسالتي الحالية فقط لاستخراج حقائق منظمة. قد يتضمن النص بيانات شخصية؛ لن يُرسل سجل المحادثة أو إجابات سابقة.';
   }
 
   $('start-case').addEventListener('click', createCase);
@@ -293,9 +447,11 @@
     $('mode-label').textContent = kind === 'answer' ? 'وضع المقابلة: إجابة' : 'وضع السؤال للبوت';
     $('toggle-mode').textContent = kind === 'answer' ? 'عندي سؤال للبوت' : 'العودة للإجابة';
     $('message').placeholder = kind === 'answer' ? 'اكتب إجابتك هنا…' : 'اكتب سؤالك هنا…';
-    $('model-consent-row').classList.toggle('hidden', kind !== 'question' || $('model-consent-row').dataset.configured !== 'true');
+    updateConsentVisibility();
   });
   renderCaseList();
+  updateControls();
+  loadMetadata();
   checkHealth();
   const recent = savedCases()[0];
   if (recent) openCase(recent.id);

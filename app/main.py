@@ -1,20 +1,22 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
-from typing import Literal
 
 from fastapi import FastAPI, Header, HTTPException, Response
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from app.core import _assessment, _add_message, _explain_why, _record, _next_slot, QUESTIONS, handle_turn, is_immediate_danger_disclosure, render_report, resume_state, report_data, summary_digest
-from app.rag import answer_question, load_corpus
-from app.model import generate_grounded_answer, model_configured
+from app.core import (
+    QUESTIONS, _add_message, _assessment, _explain_why, _next_slot, _record,
+    _user_intent, classify_current_danger, handle_turn, render_report,
+    report_data, resume_state, screen_current_danger, summary_digest,
+)
+from app.rag import answer_question, available_jurisdictions, load_corpus
+from app.model import generate_grounded_answer, generate_interview_extraction, model_configured
 from app.store import Forbidden, NotFound, StaleRevision, Store
 
-app = FastAPI(title="ACCP.AI", version="0.1.0", description="Local-first Arabic incident intake and review prototype")
+app = FastAPI(title="ACCP.AI", version="0.2.0", description="Local-first Arabic incident intake and review prototype")
 store = Store()
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
@@ -22,8 +24,13 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 class TurnRequest(BaseModel):
     expected_revision: int = Field(ge=0)
     text: str = Field(min_length=1, max_length=5000)
-    kind: Literal["answer", "question"] = "answer"
+    kind: str = "answer"
     allow_external: bool = False
+    allow_external_extraction: bool = False
+
+    def model_post_init(self, __context):
+        if self.kind not in {"answer", "question"}:
+            raise ValueError("نوع الرسالة غير مدعوم.")
 
 
 class RevisionRequest(BaseModel):
@@ -32,7 +39,7 @@ class RevisionRequest(BaseModel):
 
 class JurisdictionRequest(BaseModel):
     expected_revision: int = Field(ge=0)
-    jurisdiction: Literal["", "AU", "US", "JO"]
+    jurisdiction: str = ""
 
 
 def _state_for(session_id: str, token: str):
@@ -42,6 +49,13 @@ def _state_for(session_id: str, token: str):
         raise HTTPException(404, "الحالة غير موجودة.")
     except Forbidden:
         raise HTTPException(403, "بيانات الدخول إلى الحالة غير صحيحة.")
+
+
+def _preflight(session_id: str, token: str, expected_revision: int):
+    state = _state_for(session_id, token)
+    if state["revision"] != expected_revision:
+        raise HTTPException(409, {"message": "تغيّرت الحالة بعد تحميلها. حدّث العرض قبل إعادة المحاولة.", "current_revision": state["revision"]})
+    return state
 
 
 def _mutate(session_id: str, token: str, rev: int, event: str, fn):
@@ -64,6 +78,11 @@ def health():
             "external_model_configured": configured, "version": app.version}
 
 
+@app.get("/api/metadata")
+def metadata():
+    return {"jurisdictions": available_jurisdictions(), "corpus_version": load_corpus()["corpus_version"]}
+
+
 @app.post("/api/sessions")
 def create_session():
     state, token = store.create()
@@ -84,57 +103,68 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
     if not text:
         raise HTTPException(422, "اكتب رسالة قبل الإرسال.")
 
+    # Authenticate and check revision before any optional network operation.
+    snapshot = _preflight(session_id, x_case_token, body.expected_revision)
+    pending = snapshot.get("pending_slot")
+    intent = _user_intent(text) if body.kind == "answer" else None
+    urgent = classify_current_danger(text, pending) is True
+    local_qa = None
+    external_answer = None
+    model_facts = None
+    external_extraction_sent = False
+    external_question_sent = False
+
+    if body.kind == "question" and not urgent and intent != "why":
+        local_qa = answer_question(text, snapshot.get("jurisdiction"))
+        if body.allow_external and model_configured() and local_qa["citations"]:
+            external_question_sent = True
+            corpus = load_corpus()
+            source_map = {item["id"]: item for item in corpus["sources"]}
+            selected_sources = []
+            for citation in local_qa["citations"]:
+                source = source_map.get(citation["id"])
+                if source:
+                    selected_sources.append({**source, "excerpt": citation.get("excerpt", "")})
+            external_answer = generate_grounded_answer(text, selected_sources)
+
+    if body.kind == "answer" and body.allow_external_extraction and model_configured() and not urgent and intent is None:
+        # Send only the current user message and pending slot; never the transcript or saved facts.
+        external_extraction_sent = True
+        model_facts = generate_interview_extraction(text, pending)
+
     def mutate(state):
         if body.kind == "question":
-            question = text
-            user_msg = _add_message(state, "user", question, "question")
+            user_msg = _add_message(state, "user", text, "question")
             state["updated_at"] = user_msg["created_at"]
-            normalized = question.casefold()
-            pending = state.get("pending_slot")
-            if is_immediate_danger_disclosure(question):
-                if _record(state, "direct_danger", "reported", True, question, user_msg["id"], None):
-                    state["confirmed"] = False
-                    state["confirmed_digest"] = None
-                    state["summary_version"] += 1
-                state["stage"] = "urgent_stop"
-                state["pending_slot"] = None
-                state["assessment"] = _assessment(state)
-                response = _add_message(state, "assistant", "سلامتك أولًا. إذا كنت بخطر مباشر، ابتعد لمكان آمن إن أمكن، وتواصل مع خدمات الطوارئ المحلية أو شخص موثوق قريب منك الآن. ما بقدر أحدد رقم طوارئ من دون معرفة بلدك.", "safety")
-                response["citations"] = []
-                response["external_model_used"] = False
+            if screen_current_danger(state, text, user_msg, pending):
                 return
-            response_external = False
-            if any(word in normalized for word in ("ليش بتسأل", "ليش بدك تعرف", "لماذا تسأل", "ليش السؤال")):
+            if intent == "why":
                 reply = _explain_why(pending or "") + ("\n\n" + QUESTIONS[pending] if pending in QUESTIONS else "")
                 citations = []
             else:
-                result = answer_question(question, state.get("jurisdiction"))
-                reply, citations = result["text"], result["citations"]
-                if body.allow_external and model_configured() and citations:
-                    corpus = load_corpus()
-                    source_map = {item["id"]: item for item in corpus["sources"]}
-                    selected_sources = [source_map[item["id"]] for item in citations if item["id"] in source_map]
-                    draft = generate_grounded_answer(question, selected_sources)
-                    if draft:
-                        reply = draft + "\n\nتمت صياغة هذا الرد عبر مزود خارجي بناءً على المصادر الظاهرة فقط؛ راجع الروابط ولا تعتبره نصيحة قانونية."
-                        response_external = True
-                    else:
-                        response_external = False
-                else:
-                    response_external = False
+                result = local_qa or answer_question(text, state.get("jurisdiction"))
+                reply = external_answer["text"] if external_answer else result["text"]
+                if external_answer:
+                    reply += "\n\nصيغ الرد من مقتطفات حرفية موثقة، ولم يُرسل سجل المقابلة. راجع المصدر ولا تعتبره نصيحة قانونية."
+                used_ids = set(external_answer["source_ids"]) if external_answer else set()
+                citations = [citation for citation in result["citations"] if not used_ids or citation["id"] in used_ids]
             response = _add_message(state, "assistant", reply, "answer")
             response["citations"] = citations
-            if body.kind == "question":
-                response["external_model_used"] = response_external if not any(word in question.casefold() for word in ("ليش بتسأل", "ليش بدك تعرف", "لماذا تسأل", "ليش السؤال")) else False
+            response["external_model_used"] = bool(external_answer)
             if state.get("stage") == "interview" and pending in QUESTIONS:
-                follow = _add_message(state, "assistant", "نكمل من السؤال السابق: " + QUESTIONS[pending], "question")
+                _add_message(state, "assistant", "نكمل من السؤال السابق: " + QUESTIONS[pending], "question")
                 state["pending_slot"] = pending
             state["assessment"] = _assessment(state)
-        else:
-            handle_turn(state, text)
-            state["assessment"] = _assessment(state)
+            return
+
+        handle_turn(state, text, model_facts=model_facts)
+        state["assessment"] = _assessment(state)
+
     state = _mutate(session_id, x_case_token, body.expected_revision, "user_message", mutate)
-    return {"session": state, "report": report_data(state)}
+    return {"session": state, "report": report_data(state),
+            "external_model_used": bool(external_answer) or bool(model_facts),
+            "external_data_sent": external_question_sent or external_extraction_sent,
+            "external_model_purpose": "grounded_question" if external_question_sent else "current_message_extraction" if external_extraction_sent else None}
 
 
 @app.post("/api/sessions/{session_id}/resume")
@@ -145,8 +175,13 @@ def resume(session_id: str, body: RevisionRequest, x_case_token: str = Header(de
 
 @app.put("/api/sessions/{session_id}/jurisdiction")
 def set_jurisdiction(session_id: str, body: JurisdictionRequest, x_case_token: str = Header(default="")):
+    available = {item["code"] for item in available_jurisdictions()}
+    if body.jurisdiction and body.jurisdiction not in available:
+        raise HTTPException(422, "هذا الاختصاص غير متاح لعدم وجود مصادر محلية معتمدة.")
+
     def mutate(state):
         state["jurisdiction"] = body.jurisdiction or None
+
     state = _mutate(session_id, x_case_token, body.expected_revision, "jurisdiction_changed", mutate)
     return {"session": state, "report": report_data(state)}
 
@@ -162,6 +197,7 @@ def confirm(session_id: str, body: RevisionRequest, x_case_token: str = Header(d
         state["confirmed"] = True
         state["confirmed_digest"] = summary_digest(state)
         _add_message(state, "assistant", "تم تأكيد إصدار الملخص الحالي بحسب اختيارك. هذا التأكيد لا يقدّم بلاغًا رسميًا ولا يتحقق من صحة الوقائع.", "confirmation")
+
     state = _mutate(session_id, x_case_token, body.expected_revision, "summary_confirmed", mutate)
     return {"session": state, "report": report_data(state)}
 

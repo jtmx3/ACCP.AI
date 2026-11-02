@@ -14,7 +14,7 @@ QUESTIONS: dict[str, str] = {
     "direct_danger": "هل أنت بخطر مباشر الآن؟",
     "details": "شو قال لك تحديدًا أو شو صار؟",
     "initial_time": "متى بدأت الواقعة أو وصلك أول تواصل؟ اذكر الوقت كما تتذكره.",
-    "repeated": "هل التهديد أو التواصل لسه مستمر أو تكرر؟",
+    "repeated": "هل تكرر التهديد أو المضايقة المؤثرة؟ ليس مجرد استمرار الرسائل أو التواصل.",
     "requested_amount": "هل طُلب منك مبلغ؟ إذا نعم، كم كان المبلغ المطلوب؟",
     "paid_amount": "هل دفعت أو حولت أي مبلغ؟ إذا نعم، كم؟",
     "payment_method": "بأي وسيلة دفعت؟ لا ترسل كلمة مرور أو رمز تحقق.",
@@ -25,10 +25,12 @@ QUESTIONS: dict[str, str] = {
 }
 
 LABELS = {
-    "narrative": "وصف الواقعة", "threat": "وجود تهديد", "publication_threat": "تهديد بالنشر",
+    "narrative": "وصف الواقعة", "threat": "وجود تهديد", "impersonation": "انتحال شخصية", "harassment": "مضايقة مذكورة",
+    "contact_repeated": "تكرار التواصل دون استنتاج تهديد", "publication_threat": "تهديد بالنشر",
     "direct_danger": "الخطر المباشر الحالي", "active_unauthorized_funds": "أموال معرضة حاليًا لتصرف غير مأذون",
     "fraud_description": "وصف خداع مالي", "details": "تفاصيل الواقعة",
-    "initial_time": "وقت البداية", "latest_time": "أحدث تواصل", "repeated": "استمرار أو تكرار التواصل",
+    "initial_time": "وقت البداية", "latest_time": "أحدث تواصل", "repeated": "تكرار التهديد أو المضايقة",
+    "contact_repeated": "تكرار التواصل دون استنتاج تهديد", "harassment": "مضايقة مذكورة",
     "requested_amount": "المبلغ المطلوب", "paid_amount": "المبلغ المدفوع", "payment_method": "وسيلة الدفع",
     "deadline": "مهلة الدفع", "published": "حدوث النشر", "identity": "هوية الشخص",
     "contact": "معرّف التواصل", "evidence": "الأدلة المذكورة", "additional_details": "تفاصيل إضافية من المستخدم",
@@ -182,6 +184,51 @@ def _append_additional_detail(state: dict[str, Any], text: str, message_id: str,
     return True
 
 
+def _threat_polarity(text: str, already_reported: bool) -> bool | None:
+    clauses = _clauses(_strip_quoted_spans(text))
+    result: bool | None = None
+    for clause in clauses:
+        if not any(term in clause for term in ("تهديد", "هدد", "يهدد", "بهدد", "ابتزاز", "يبتز")):
+            continue
+        denied = bool(re.search(r"(?:ما\s+(?:فيه?\s+)?|مش\s+(?:فيه?\s+)?|مو\s+(?:فيه?\s+)?|لا\s+يوجد\s+)(?:اي\s+)?(?:تهديد|ابتزاز)", clause) or
+                       re.search(r"(?:ما|مش|مو|لم|لا)\s+(?:هددني|هدد|يهددني|يهدد|ابتزني|يبتزني)", clause))
+        if denied:
+            result = False
+        elif any(term in clause for term in ("هددني", "يهددني", "بهددني", "هددني", "ابتزني", "يبتزني", "التهديد مش مستمر", "التهديد غير مستمر")) or (already_reported and "التهديد" in clause):
+            result = True
+    return result
+
+
+def _evidence_polarity(text: str) -> tuple[bool, bool, list[str]]:
+    positive: list[str] = []
+    categories = {
+        "صور أو لقطات شاشة": ("صور", "صوري", "لقطات", "سكرين"),
+        "رسائل أو محادثات": ("رسائل", "رسالة", "محادث", "مسجات"),
+        "إيصال أو سجل دفع": ("ايصال", "إيصال", "حوالة", "تحويل"),
+    }
+    negative_mentions = False
+    for clause in _clauses(text):
+        for label, terms in categories.items():
+            if not any(term in normalize(clause) for term in terms):
+                continue
+            if re.search(r"(?:ما\s+عندي|ليس\s+لدي|مش\s+عندي|ما\s+في|لا\s+يوجد|ولا\s+عندي)\s+[^،؛.]*", normalize(clause)):
+                negative_mentions = True
+            elif any(term in normalize(clause) for term in terms):
+                positive.append(label)
+    return bool(positive), negative_mentions, list(dict.fromkeys(positive))
+
+
+def _specific_contact_identifier(text: str) -> str | None:
+    handle = re.search(r"(?<!\w)@[A-Za-z0-9_.-]{2,}", text)
+    if handle:
+        return handle.group(0)
+    phone = re.search(r"(?<!\w)(?:\+|00)?[0-9٠-٩][0-9٠-٩\s().-]{5,}[0-9٠-٩](?!\w)", text)
+    if phone:
+        return re.sub(r"\s+", " ", phone.group(0)).strip()
+    named = re.search(r"(?:اسم المستخدم|username)\s*[:=]?\s*([\w.-]{2,})", text, re.IGNORECASE)
+    return named.group(1) if named else None
+
+
 def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) -> set[str]:
     t = normalize(text)
     changed: set[str] = set()
@@ -189,14 +236,21 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
     question_id = state["messages"][-2]["id"] if len(state["messages"]) >= 2 and state["messages"][-2]["role"] == "assistant" else None
 
     # Preserve exact user wording as provenance; short answers are anchored to question_id.
-    if any(k in t for k in ("تهديد", "بهدد", "هددني", "يهددني", "ابتزاز", "blackmail")):
-        if pending == "narrative" or not state["facts"].get("narrative"):
+    threat_polarity = _threat_polarity(text, state["facts"].get("threat", {}).get("value") is True)
+    if threat_polarity is not None:
+        if threat_polarity and (pending == "narrative" or not state["facts"].get("narrative")):
             _set_answer(state, "narrative", text, "reported", text, mid, question_id, changed)
-        _set_answer(state, "threat", True, "reported", text, mid, question_id, changed)
-    if any(k in t for k in ("منتحل", "انتحال شخصية", "حساب مزيف ينتحل")):
+        _set_answer(state, "threat", threat_polarity, "reported" if threat_polarity else "denied", text, mid, question_id, changed)
+    impersonation_denied = any(term in t for term in ("ما في حساب منتحل", "مش حساب منتحل", "لا يوجد حساب منتحل", "ما في حد منتحل"))
+    impersonation_context = any(term in t for term in ("انتحال", "منتحل", "ينتحل", "ينتحلني", "عامل حساب", "حساب مزيف")) and any(term in t for term in ("باسمي", "اسمي", "صورتي", "ينتحل", "اصحابي", "اصدقائي"))
+    if impersonation_denied:
+        _set_answer(state, "impersonation", False, "denied", text, mid, question_id, changed)
+    elif impersonation_context:
         _set_answer(state, "impersonation", True, "reported", text, mid, question_id, changed)
-    if "واتساب" in t or "whatsapp" in t:
-        _set_answer(state, "platform", "واتساب", "reported", text, mid, question_id, changed)
+    platform_names = (("واتساب", "واتساب"), ("whatsapp", "واتساب"), ("انستغرام", "إنستغرام"), ("انستجرام", "إنستغرام"), ("instagram", "إنستغرام"), ("فيسبوك", "فيسبوك"), ("facebook", "فيسبوك"), ("سناب", "سناب شات"), ("snapchat", "سناب شات"), ("تيك توك", "تيك توك"), ("tiktok", "تيك توك"))
+    platform = next((name for token, name in platform_names if token in t), None)
+    if platform:
+        _set_answer(state, "platform", platform, "reported", text, mid, question_id, changed)
     if any(k in t for k in ("محادثات", "صوري", "صور خاصة", "ينشر", "ينشرها", "نشر", "فضح")):
         if any(k in t for k in ("إذا ما", "اذا ما", "رح ينشر", "تهديد بالنشر")) or ("ينشر" in t and any(k in t for k in ("بهدد", "يهدد", "هددني"))):
             _set_answer(state, "details", text, "reported", text, mid, question_id, changed)
@@ -218,37 +272,34 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
     if any(k in t for k in ("نصب علي", "اننصب علي", "خدعني حتى ادفع", "خداع مالي واضح", "احتيال مالي واضح")):
         _set_answer(state, "fraud_description", True, "reported", text, mid, question_id, changed)
 
-    # Safety: distinguish a threat from an actual current danger.
-    if pending == "direct_danger":
-        publication_topic = any(k in t for k in ("نشر", "ينشر", "نزل", "انتشرت"))
-        if unknown_status and not publication_topic:
-            _set_answer(state, "direct_danger", None, unknown_status, text, mid, question_id, changed)
-        else:
-            yn = _yes_no(text)
-            if yn is not None:
-                _set_answer(state, "direct_danger", yn, "reported" if yn else "denied", text, mid, question_id, changed)
-            elif any(k in t for k in ("بخطر", "رح يأذيني", "هددني بالقتل", "معه سلاح", "جاي لعندي")):
-                _set_answer(state, "direct_danger", True, "reported", text, mid, question_id, changed)
-    elif any(k in t for k in ("بخطر مباشر", "خطر مباشر علي", "انا بخطر", "رح يأذيني الآن", "رح يأذيني هسا", "هددني بالقتل", "معه سلاح", "جاي لعندي")):
-        if unknown_status:
-            _set_answer(state, "direct_danger", None, unknown_status, text, mid, question_id, changed)
-        elif any(k in t for k in ("ما في خطر مباشر", "مش بخطر", "ما في خطر علي", "لا يوجد خطر مباشر")):
-            _set_answer(state, "direct_danger", False, "denied", text, mid, question_id, changed)
-        else:
-            _set_answer(state, "direct_danger", True, "reported", text, mid, question_id, changed)
-
     if pending == "narrative" and not state["facts"].get("narrative"):
         _set_answer(state, "narrative", text, "reported", text, mid, question_id, changed)
 
     # Independently extract facts volunteered before their question.
-    if re.search(r"أمس|امس|اليوم|البارحة|مبارح|الاسبوع الماضي|قبل يوم", text):
-        if any(k in t for k in ("اول", "بدا", "وصلني", "بداية", "اول تهديد")) or pending == "initial_time":
+    has_time_reference = bool(re.search(r"أمس|امس|اليوم|البارحة|مبارح|الاسبوع الماضي|قبل يوم", text))
+    if has_time_reference:
+        if any(k in t for k in ("اول", "بدا", "وصلني", "بداية", "اول تهديد")) or pending in {"initial_time", "narrative"}:
             _set_answer(state, "initial_time", text, "reported", text, mid, question_id, changed)
-        if any(k in t for k in ("اليوم", "رجع", "كرر", "مرة ثانية", "مره ثانيه", "بعتلي")):
+        if any(k in t for k in ("اخر تواصل", "اخر مره", "رجع", "كرر", "مرة ثانية", "مره ثانيه", "بعتلي", "ارسللي", "تواصل معي مجددا")):
             _set_answer(state, "latest_time", text, "reported", text, mid, question_id, changed)
 
-    if any(k in t for k in ("لسه مستمر", "ما زال مستمر", "مستمر", "رجع بعت", "رجع ارسل", "كرر", "مرة ثانية", "مره ثانيه")):
+    if any(term in t for term in ("مضايقة", "تحرش", "بلاحقني", "ملاحقة", "بضايقني")) and not any(term in t for term in ("ما في مضايقة", "مش مضايقة", "ما بتحرش")):
+        _set_answer(state, "harassment", True, "reported", text, mid, question_id, changed)
+    repeat_positive = False
+    repeat_negative = False
+    for clause in _clauses(_strip_quoted_spans(text)):
+        if any(term in clause for term in ("مستمر", "تكرر", "كرر", "مرة ثانية", "مره ثانيه", "رجع بعت", "رجع ارسل")):
+            if re.search(r"(?:ما|لم|مش|مو|لا)\s+(?:يتكرر|تكرر|كرر|مستمر|رجع)", clause) or "مش مستمر" in clause or "غير مستمر" in clause:
+                repeat_negative = True
+            else:
+                repeat_positive = True
+    has_harm_context = state["facts"].get("threat", {}).get("value") is True or state["facts"].get("harassment", {}).get("value") is True
+    if repeat_positive and has_harm_context:
         _set_answer(state, "repeated", True, "reported", text, mid, question_id, changed)
+    elif repeat_positive:
+        _set_answer(state, "contact_repeated", True, "reported", text, mid, question_id, changed)
+    elif repeat_negative and (has_harm_context or pending == "repeated"):
+        _set_answer(state, "repeated", False, "denied", text, mid, question_id, changed)
     elif pending == "repeated" and (yn := _yes_no(text)) is not None:
         _set_answer(state, "repeated", yn, "reported" if yn else "denied", text, mid, question_id, changed)
     elif pending == "repeated" and unknown_status:
@@ -259,7 +310,7 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
     paid_amount = _amount_after_marker(text, ("دفعت", "حولتله", "حولت له", "حوالة", "حولت مبلغ", "تم التحويل", "حولت"))
     conditional_transfer = "اذا ما حولت" in t or "اذا لم تحول" in t
     denied_request_signal = any(k in t for k in ("ما طلب", "لم يطلب", "لم اطلب", "ما طلب مني", "ما طلبت"))
-    requested_signal = not denied_request_signal and not any(k in t for k in ("ما دفعت", "لم ادفع")) and any(k in t for k in ("طلب", "طالب", "ادفع", "ادفعله", "ادفع له", "مطلوب", "بدك تحول", "اذا ما حولت"))
+    requested_signal = not denied_request_signal and any(k in t for k in ("طلب", "طالب", "ادفع", "ادفعله", "ادفع له", "مطلوب", "بدك تحول", "اذا ما حولت"))
     denied_payment_signal = any(k in t for k in ("ما دفعت", "لم ادفع", "ما حولت", "لم احول", "ما حولتله", "ما حولت له")) and not conditional_transfer
     paid_signal = not denied_payment_signal and (any(k in t for k in ("دفعت", "حوالة", "حولت مبلغ", "تم التحويل")) or (
         not conditional_transfer and any(k in t for k in ("حولتله", "حولت له"))
@@ -267,7 +318,9 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
     if requested_signal:
         _set_answer(state, "requested_amount", requested_amount or amount or text, "reported", text, mid, question_id, changed)
     existing_paid = state["facts"].get("paid_amount")
-    if paid_signal:
+    if denied_payment_signal:
+        _set_answer(state, "paid_amount", None, "denied", text, mid, question_id, changed)
+    elif paid_signal:
         if paid_amount:
             _set_answer(state, "paid_amount", paid_amount, "reported", text, mid, question_id, changed)
         elif pending == "paid_amount" or not existing_paid or existing_paid.get("status") == "denied":
@@ -324,7 +377,9 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
         if unknown_status:
             _set_answer(state, "identity", None, unknown_status, text, mid, question_id, changed)
         elif any(k in t for k in ("رقم", "حساب", "اسم مستخدم", "username")):
-            _set_answer(state, "contact", text, "reported", text, mid, question_id, changed)
+            identifier = _specific_contact_identifier(text)
+            contact_value = identifier or "ذُكر وجود رقم أو حساب تواصل دون إدخال معرّفه"
+            _set_answer(state, "contact", contact_value, "reported", text, mid, question_id, changed)
             if any(k in t for k in ("بس", "فقط", "ما بعرف مين", "ما بعرف هويته")):
                 _set_answer(state, "identity", None, "unknown", text, mid, question_id, changed)
             elif any(k in t for k in ("بعرف هويته", "اعرف هويته", "بعرف الشخص")):
@@ -333,20 +388,21 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
             _set_answer(state, "identity", "معروف بحسب الإفادة" if yn else None, "reported" if yn else "denied", text, mid, question_id, changed)
         elif len(text) > 2:
             _set_answer(state, "identity", text, "reported", text, mid, question_id, changed)
-    elif any(k in t for k in ("رقم", "حساب", "اسم مستخدم", "username")):
-        _set_answer(state, "contact", text, "reported", text, mid, question_id, changed)
-        if any(k in t for k in ("بعرف رقم", "اعرف رقم", "بس", "فقط")):
-            _set_answer(state, "identity", None, "unknown", text, mid, question_id, changed)
+    elif (identifier := _specific_contact_identifier(text)):
+        _set_answer(state, "contact", identifier, "reported", text, mid, question_id, changed)
 
-    if pending == "evidence":
+    evidence_positive, evidence_denied, evidence_types = _evidence_polarity(text)
+    evidence_possession = pending == "evidence" or any(term in t for term in ("عندي", "معي", "احتفظت", "حفظت الرسالة", "صورت الشاشة", "اخذت لقطة", "أخذت لقطة", "مسجل عندي", "لدي لقطات"))
+    evidence_positive = evidence_positive and evidence_possession
+    if pending == "evidence" or evidence_positive or evidence_denied:
         if unknown_status:
             _set_answer(state, "evidence", None, unknown_status, text, mid, question_id, changed)
-        elif any(k in t for k in ("صور", "لقطات", "سكرين", "ايصال", "إيصال", "رسالة", "محادث", "دليل")):
-            _set_answer(state, "evidence", text, "reported", text, mid, question_id, changed)
+        elif evidence_positive:
+            _set_answer(state, "evidence", "; ".join(evidence_types), "reported", text, mid, question_id, changed)
+        elif evidence_denied:
+            _set_answer(state, "evidence", None, "denied", text, mid, question_id, changed)
         elif (yn := _yes_no(text)) is not None:
             _set_answer(state, "evidence", "متوفر، النوع غير محدد" if yn else None, "reported" if yn else "denied", text, mid, question_id, changed)
-    elif any(k in t for k in ("عندي صور", "لقطات شاشة", "سكرين شوت", "ايصال التحويل", "إيصال التحويل", "دليل عندي")):
-        _set_answer(state, "evidence", text, "reported", text, mid, question_id, changed)
 
     # Generic terminal answer states, with provenance tied to the asked slot.
     if pending in QUESTIONS and pending not in changed and unknown_status and pending not in ("narrative", "details"):
@@ -373,13 +429,89 @@ def _user_intent(text: str) -> str | None:
     return None
 
 
-def is_immediate_danger_disclosure(text: str) -> bool:
-    t = normalize(text)
-    return any(phrase in t for phrase in (
-        "انا بخطر مباشر", "انا في خطر مباشر", "انا بخطر الان", "انا في خطر الان",
-        "وصل لعندي الان ومعه سلاح", "وصل لعندي ومعه سلاح", "واقف برة البيت ومعه سلاح",
-        "هو عندي الان ومعه سلاح", "جاي لعندي الان ومعه سلاح", "رح يأذيني الان",
-    ))
+def _strip_quoted_spans(text: str) -> str:
+    return re.sub(r"«[^»]*»|“[^”]*”|\"[^\"]*\"|'[^']*'", " ", text)
+
+
+def _clauses(text: str) -> list[str]:
+    return [part.strip() for part in re.split(r"[,،؛.!?؟\n]+|\b(?:بس|لكن|غير أن|إلا أن)\b", normalize(text)) if part.strip()]
+
+
+def _is_hypothetical_or_metalinguistic(clause: str) -> bool:
+    return any(marker in clause for marker in ("معني كلمة", "معني عبارة", "ماذا تعني", "ما معني", "مثال علي", "افترض", "تخيل", "لو كنت", "اذا كنت", "لو كان", "اذا كان", "هل تعني عبارة"))
+
+
+def _danger_denial(clause: str) -> bool:
+    return bool(re.search(r"(?:انا\s*)?(?:مش|مو|لست|ما\s+في|ما\s+عندي|لا\s+يوجد|لا\s+اشعر)\s+(?:في\s+)?(?:اي\s+)?ب?خطر(?:\s+مباشر)?", clause) or
+                    re.search(r"(?:ما\s+في|لا\s+يوجد)\s+(?:اي\s+)?خطر\s+(?:مباشر\s+)?(?:علي|الان|هسا)", clause))
+
+
+def _danger_affirmation(clause: str) -> bool:
+    if _is_hypothetical_or_metalinguistic(clause) or _danger_denial(clause):
+        return False
+    first_person = any(marker in clause for marker in ("انا", "علي", "عندي", "بيتي", "قريب مني"))
+    immediate = any(marker in clause for marker in ("مباشر", "الان", "هسا", "هلا", "هلأ", "حاليا", "اللحظة", "وصل", "جاي", "واقف", "قدام"))
+    if ("خطر" in clause or "بخطر" in clause) and first_person and immediate:
+        return True
+    if any(marker in clause for marker in ("معه سلاح", "بيده سلاح", "رح يأذيني", "راح يأذيني", "سيؤذيني")) and immediate:
+        return True
+    return False
+
+
+def classify_current_danger(text: str, pending: str | None = None) -> bool | None:
+    """Return True/False only for a clear current first-person risk disclosure/answer."""
+    text_without_quotes = _strip_quoted_spans(text)
+    clauses = _clauses(text_without_quotes)
+    # A concrete current physical danger in any clause takes priority over a separate denial.
+    if any(_danger_affirmation(clause) for clause in clauses):
+        return True
+    if pending == "direct_danger":
+        unknown = _is_unknown(text)
+        if unknown:
+            return None
+        if (answer := _yes_no(text)) is not None and len(normalize(text).split()) <= 8:
+            return answer
+    if any(_danger_denial(clause) for clause in clauses):
+        return False
+    return None
+
+
+def is_immediate_danger_disclosure(text: str, pending: str | None = None) -> bool:
+    return classify_current_danger(text, pending) is True
+
+
+def screen_current_danger(state: dict[str, Any], text: str, message: dict[str, Any], pending: str | None) -> bool:
+    classification = classify_current_danger(text, pending)
+    if classification is None:
+        return False
+    question_id = state["messages"][-2]["id"] if len(state["messages"]) >= 2 and state["messages"][-2]["role"] == "assistant" else None
+    status = "reported" if classification else "denied"
+    if _record(state, "direct_danger", status, classification, text, message["id"], question_id):
+        state["confirmed"] = False
+        state["confirmed_digest"] = None
+        state["summary_version"] += 1
+    if not classification:
+        state["assessment"] = _assessment(state)
+        return False
+    state["stage"] = "urgent_stop"
+    state["pending_slot"] = None
+    state["assessment"] = _assessment(state)
+    if (state.get("jurisdiction") or "").upper() == "JO":
+        text_reply = "سلامتك أولًا. إذا كنت داخل الأردن وفي خطر مباشر، اتصل الآن بالرقم الموحد 911 أو اطلب مساعدة شخص موثوق قريب منك. لم يجرِ التطبيق اتصالًا أو بلاغًا نيابة عنك."
+        try:
+            from app.rag import load_corpus
+            source = next(item for item in load_corpus()["sources"] if item["id"] == "JO-PSD-EMERGENCY-911-2026")
+            citation = {key: source.get(key) for key in ("id", "title", "publisher", "url", "published_or_updated", "ingested_at", "geography", "content_version")}
+            citations = [citation]
+        except (StopIteration, OSError, ValueError, KeyError):
+            citations = []
+    else:
+        text_reply = "سلامتك أولًا. إذا كنت بخطر مباشر، ابتعد لمكان آمن إن أمكن، وتواصل الآن مع خدمات الطوارئ المحلية أو شخص موثوق قريب منك. لا أستطيع تحديد رقم طوارئ من دون معرفة موقعك."
+        citations = []
+    response = _add_message(state, "assistant", text_reply, "safety")
+    response["citations"] = citations
+    response["external_model_used"] = False
+    return True
 
 
 def _has(state: dict[str, Any], key: str) -> bool:
@@ -387,23 +519,65 @@ def _has(state: dict[str, Any], key: str) -> bool:
     return bool(fact and fact.get("status") in TERMINAL)
 
 
+def _reported_true(state: dict[str, Any], key: str) -> bool:
+    fact = state["facts"].get(key, {})
+    return fact.get("status") == "reported" and fact.get("value") is True
+
+
+def _incident_profile(state: dict[str, Any]) -> dict[str, bool]:
+    facts = state["facts"]
+    context = normalize(" ".join(str(facts.get(key, {}).get("value", "")) for key in ("narrative", "details", "additional_details", "fraud_description")))
+    threat = _reported_true(state, "threat")
+    impersonation = _reported_true(state, "impersonation")
+    harassment = _reported_true(state, "harassment")
+    account_access = _reported_true(state, "account_access")
+    financial = any(_reported_true(state, key) for key in ("active_unauthorized_funds", "fraud_description"))
+    financial = financial or any(facts.get(key, {}).get("status") == "reported" for key in ("requested_amount", "paid_amount"))
+    financial = financial or any(word in context for word in ("دينار", "دولار", "ريال", "مبلغ", "فلوس", "مال", "ادفع", "دفعت", "تحويل", "حولت", "بنك", "محفظة", "دفع"))
+    publication = _reported_true(state, "publication_threat") or facts.get("published", {}).get("status") in {"reported", "denied"}
+    publication = publication or any(word in context for word in ("ينشر", "نشر", "انتشرت", "صور خاصة", "محادثات خاصة"))
+    incident = threat or impersonation or harassment or account_access or financial or publication
+    return {"threat": threat, "impersonation": impersonation, "harassment": harassment, "account_access": account_access,
+            "financial": financial, "publication": publication, "incident": incident}
+
+
+def _relevant_slots(state: dict[str, Any]) -> list[str]:
+    profile = _incident_profile(state)
+    slots = ["narrative"]
+    if profile["threat"]:
+        slots.append("direct_danger")
+    if profile["threat"] or profile["impersonation"] or profile["account_access"] or profile["financial"]:
+        slots.extend(("details", "initial_time"))
+    elif profile["incident"]:
+        slots.append("initial_time")
+    if profile["threat"] or profile["harassment"]:
+        slots.append("repeated")
+    if profile["financial"]:
+        slots.extend(("requested_amount", "paid_amount"))
+        if state["facts"].get("paid_amount", {}).get("status") == "reported" and state["facts"].get("paid_amount", {}).get("value"):
+            slots.append("payment_method")
+        if state["facts"].get("requested_amount", {}).get("status") == "reported" and state["facts"].get("requested_amount", {}).get("value"):
+            slots.append("deadline")
+    if profile["publication"]:
+        slots.append("published")
+    if profile["threat"] or profile["impersonation"] or profile["account_access"]:
+        slots.append("identity")
+    if profile["incident"]:
+        slots.append("evidence")
+    return list(dict.fromkeys(slots))
+
+
+def _has_known(state: dict[str, Any], key: str) -> bool:
+    fact = state["facts"].get(key)
+    return bool(fact and fact.get("status") in {"reported", "denied"})
+
+
 def _next_slot(state: dict[str, Any]) -> str | None:
     facts = state["facts"]
     for key, fact in facts.items():
         if fact.get("status") == "conflict" and key in QUESTIONS:
             return key
-    # No questions about evidence are asked until basic safety and incident context have been collected.
-    if facts.get("threat", {}).get("value") is True and not _has(state, "direct_danger"):
-        return "direct_danger"
-    if not _has(state, "narrative"):
-        return "narrative"
-    if (facts.get("threat", {}).get("value") is True or facts.get("impersonation", {}).get("value") is True) and not _has(state, "details"):
-        return "details"
-    for key in FIELD_ORDER[3:]:
-        if key == "payment_method" and not facts.get("paid_amount", {}).get("value"):
-            continue
-        if key == "deadline" and not facts.get("requested_amount", {}).get("value"):
-            continue
+    for key in _relevant_slots(state):
         if not _has(state, key):
             return key
     return None
@@ -437,7 +611,10 @@ def _explain_why(slot: str) -> str:
 
 def _assessment(state: dict[str, Any]) -> dict[str, Any]:
     facts = state["facts"]
+    profile = _incident_profile(state)
     score: int | None = None
+    priority_rule: str | None = None
+    supporting_fields: list[str] = []
     route = "استيضاح أو مراجعة بشرية"
     reasons: list[str] = []
     danger = facts.get("direct_danger", {})
@@ -447,20 +624,27 @@ def _assessment(state: dict[str, Any]) -> dict[str, Any]:
     impersonation = facts.get("impersonation", {})
     if danger.get("status") == "reported" and danger.get("value") is True:
         score, route = 100, "توقف السلامة وتوجيه عاجل مناسب"
+        priority_rule, supporting_fields = "R100_DIRECT_DANGER", ["direct_danger"]
         reasons.append("خطر مباشر حالي بحسب إفادة المستخدم")
-    elif facts.get("active_unauthorized_funds", {}).get("value") is True:
+    elif _reported_true(state, "active_unauthorized_funds"):
         score, route = 95, "مراجعة عاجلة وفق السياسة"
+        priority_rule, supporting_fields = "R95_ACTIVE_FUNDS", ["active_unauthorized_funds"]
         reasons.append("أموال معرضة حاليًا لتحويل أو سحب دون إذن")
-    elif repeated.get("status") == "reported" and repeated.get("value") is True:
+    elif repeated.get("status") == "reported" and repeated.get("value") is True and (profile["threat"] or profile["harassment"]):
         score, route = 90, "مراجعة بشرية بأولوية مرتفعة"
-        reasons.append("تهديد أو تواصل مستمر/متكرر بحسب الإفادة")
-    elif facts.get("account_access", {}).get("value") is True or facts.get("fraud_description", {}).get("value") is True:
+        priority_rule, supporting_fields = "R90_REPEATED_HARM", (["threat", "repeated"] if profile["threat"] else ["harassment", "repeated"])
+        reasons.append("تكرار تهديد أو مضايقة مؤثرة مذكور صراحة بحسب الإفادة")
+    elif _reported_true(state, "account_access") or _reported_true(state, "fraud_description"):
         score, route = 90, "مراجعة بشرية بأولوية مرتفعة"
+        priority_rule = "R90_ACCOUNT_OR_FRAUD"
+        supporting_fields = [key for key in ("account_access", "fraud_description") if _reported_true(state, key)]
         reasons.append("وصف مدعوم لدخول غير مصرح به أو خداع مالي")
-    elif (threat.get("value") is True or impersonation.get("value") is True) and details.get("status") == "reported" and details.get("value"):
+    elif (profile["threat"] or profile["impersonation"]) and details.get("status") == "reported" and details.get("value") and any(term in normalize(str(details.get("value"))) for term in ("رسالة", "ينشر", "نشر", "حساب", "اسمي", "صورتي", "ابتزاز", "لاحق", "قتل", "سلاح", "دينار", "محفظة", "رقم")):
         score, route = 85, "مراجعة بشرية"
+        priority_rule = "R85_DETAILED_THREAT_OR_IMPERSONATION"
+        supporting_fields = (["threat", "details"] if profile["threat"] else ["impersonation", "details"])
         reasons.append("تهديد أو انتحال شخصية مدعوم بتفاصيل بحسب الإفادة")
-    elif threat.get("value") is True or impersonation.get("value") is True:
+    elif profile["threat"] or profile["impersonation"]:
         reasons.append("وردت إشارة إلى تهديد أو انتحال، لكن التفاصيل غير كافية لتطبيق درجة 85")
     elif not facts:
         reasons.append("المعلومات غير كافية لتحديد درجة")
@@ -476,11 +660,12 @@ def _assessment(state: dict[str, Any]) -> dict[str, Any]:
     if unresolved_fields:
         reasons.append("بقيت حقول غير محسومة بعد محاولة التوضيح: " + "، ".join(unresolved_fields))
     # Completeness is about known fields, not confidence or proof.
-    relevant = [k for k in ("narrative", "direct_danger", "details", "initial_time", "repeated", "requested_amount", "paid_amount", "payment_method", "deadline", "published", "identity", "evidence") if k in QUESTIONS]
-    answered = sum(1 for k in relevant if _has(state, k))
-    return {"policy_version": POLICY_VERSION, "priority_score": score, "priority_label": "عاجلة" if score == 100 else "مرتفعة" if score and score >= 90 else "عادية/تحتاج مراجعة" if score else "غير محددة",
+    relevant = _relevant_slots(state)
+    answered = sum(1 for k in relevant if _has_known(state, k))
+    return {"policy_version": POLICY_VERSION, "priority_score": score, "priority_rule": priority_rule, "supporting_fields": supporting_fields,
+            "priority_label": "عاجلة" if score == 100 else "مرتفعة" if score and score >= 90 else "عادية/تحتاج مراجعة" if score else "غير محددة",
             "route": route, "reasons": reasons, "completeness_percent": round(100 * answered / len(relevant)),
-            "completeness_note": f"{answered} من {len(relevant)} حقول المقابلة لها حالة موثقة.",
+            "relevant_fields": relevant, "completeness_note": f"{answered} من {len(relevant)} الحقول ذات الصلة لها إفادة أو نفي صريح؛ المجهول وغير المحسوم لا يُحسبان كحقائق مثبتة.",
             "extraction_quality": "إفادة نصية تحتاج مراجعة المستخدم؛ لا يوجد تحقق مستقل",
             "independent_verification": False, "calibrated_probability": False}
 
@@ -492,16 +677,18 @@ def _add_message(state: dict[str, Any], role: str, text: str, kind: str = "chat"
     return msg
 
 
-def handle_turn(state: dict[str, Any], text: str) -> dict[str, Any]:
+def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     text = text.strip()
     if not text:
         raise ValueError("اكتب رسالة قبل الإرسال.")
     if len(text) > 5000:
         raise ValueError("الرسالة أطول من الحد المسموح (5000 حرف).")
-    intent = _user_intent(text)
     pending = state.get("pending_slot")
     previous_stage = state.get("stage")
     user_msg = _add_message(state, "user", text)
+    if screen_current_danger(state, text, user_msg, pending):
+        return state
+    intent = _user_intent(text)
     if intent == "pause":
         state["stage"] = "paused"
         state["pending_slot"] = pending
@@ -520,6 +707,13 @@ def handle_turn(state: dict[str, Any], text: str) -> dict[str, Any]:
         return state
 
     changed = _extract(state, text, user_msg["id"], pending)
+    question_id = state["messages"][-2]["id"] if len(state["messages"]) >= 2 and state["messages"][-2]["role"] == "assistant" else None
+    for candidate in model_facts or []:
+        key = candidate.get("field")
+        if key in {"direct_danger", "priority_score", "confirmed", "stage"} or key in changed:
+            continue
+        if _record(state, key, candidate["status"], candidate["value"], candidate["quote"], user_msg["id"], question_id, "optional_model_extraction"):
+            changed.add(key)
     addition_marker = any(marker in normalize(text) for marker in ("اضيف", "تفصيل اضافي", "معلومة اضافية", "نسيت اقول"))
     if pending is None and state.get("stage") in {"review", "urgent_stop"} and intent is None and (not changed or addition_marker):
         if _append_additional_detail(state, text, user_msg["id"], None):
@@ -641,7 +835,7 @@ def render_report(state: dict[str, Any]) -> str:
               f"- المسار المقترح: {assessment['route']}", f"- اكتمال المعلومات: {assessment['completeness_percent']}% — {assessment['completeness_note']}",
               f"- جودة الاستخراج: {assessment['extraction_quality']}", "- التحقق المستقل: غير متوفر", "- الدرجة ليست احتمالًا لوقوع الواقعة أو ثبوتها.", ""]
     lines += ["### أسباب النتيجة", ""] + [f"- {r}" for r in assessment["reasons"] or ["لا توجد إشارة كافية لتحديد درجة."]] + ["", "## النواقص والتعارضات", ""]
-    missing = [LABELS.get(k, k) for k in FIELD_ORDER if not _has(state, k)]
+    missing = [LABELS.get(k, k) for k in _relevant_slots(state) if not _has(state, k)]
     lines += ["- " + (", ".join(missing) if missing else "لا توجد حقول مقابلة أساسية غير محسومة.")]
     conflicts = [LABELS.get(k, k) for k, f in facts.items() if f.get("status") == "conflict"]
     unresolved = [LABELS.get(k, k) for k, f in facts.items() if f.get("status") == "unresolved"]

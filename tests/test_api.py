@@ -1,10 +1,16 @@
 import tempfile
+import os
+import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
+from fastapi import HTTPException
 
 from app import main
+from app.main import TurnRequest
 from app.store import Store
 
 
@@ -138,6 +144,92 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertFalse(corrected["confirmed"])
         self.assertEqual(corrected["facts"]["requested_amount"]["value"], "120 دينار")
         self.assertTrue(corrected["facts"]["requested_amount"]["history"])
+
+    def test_two_consented_extraction_calls_overlap_across_sessions(self):
+        second_state, second_token = main.store.create()
+        barrier = threading.Barrier(2, timeout=4)
+        calls = []
+        calls_lock = threading.Lock()
+
+        def slow_extract(text, pending):
+            with calls_lock:
+                calls.append((text, pending))
+            barrier.wait()
+            return []
+
+        with patch.dict(os.environ, {"MODEL_PROVIDER": "openai-compatible", "MODEL_API_KEY": "test-only"}), \
+             patch("app.main.generate_interview_extraction", side_effect=slow_extract):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                futures = [
+                    pool.submit(main.post_message, self.case_id, TurnRequest(expected_revision=0, text="شخص يهددني برسالة", allow_external_extraction=True), self.token),
+                    pool.submit(main.post_message, second_state["session_id"], TurnRequest(expected_revision=0, text="حساب مزيف باسمي", allow_external_extraction=True), second_token),
+                ]
+                results = [future.result(timeout=8) for future in futures]
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(all(result["external_data_sent"] for result in results))
+        self.assertEqual({result["session"]["revision"] for result in results}, {1})
+
+    def test_stale_result_after_provider_wait_is_discarded_without_retry(self):
+        entered = threading.Event()
+        release = threading.Event()
+        call_count = 0
+
+        def slow_extract(text, pending):
+            nonlocal call_count
+            call_count += 1
+            entered.set()
+            self.assertTrue(release.wait(timeout=5))
+            return [{"field": "platform", "status": "reported", "value": "واتساب", "quote": "واتساب"}]
+
+        with patch.dict(os.environ, {"MODEL_PROVIDER": "openai-compatible", "MODEL_API_KEY": "test-only"}), \
+             patch("app.main.generate_interview_extraction", side_effect=slow_extract):
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                first = pool.submit(main.post_message, self.case_id,
+                                    TurnRequest(expected_revision=0, text="شخص يهددني على واتساب", allow_external_extraction=True), self.token)
+                self.assertTrue(entered.wait(timeout=3))
+                concurrent = main.post_message(self.case_id, TurnRequest(expected_revision=0, text="شخص يهددني على واتساب"), self.token)
+                self.assertEqual(concurrent["session"]["revision"], 1)
+                release.set()
+                with self.assertRaises(HTTPException) as stale:
+                    first.result(timeout=5)
+        self.assertEqual(stale.exception.status_code, 409)
+        self.assertEqual(call_count, 1)
+        saved = main.store.get(self.case_id, self.token)
+        self.assertEqual(saved["revision"], 1)
+
+    def test_slow_grounded_answer_does_not_block_a_different_session_write(self):
+        second_state, second_token = main.store.create()
+        for session_id, token in ((self.case_id, self.token), (second_state["session_id"], second_token)):
+            main.store.mutate(session_id, token, 0, "set_jurisdiction", lambda state: state.update({"jurisdiction": "AU"}))
+        entered = threading.Event()
+        release = threading.Event()
+        second_done = threading.Event()
+
+        def slow_answer(question, sources):
+            entered.set()
+            self.assertTrue(release.wait(timeout=5))
+            return None
+
+        def write_second():
+            result = main.post_message(second_state["session_id"], TurnRequest(expected_revision=1, text="شخص يهددني برسالة"), second_token)
+            second_done.set()
+            return result
+
+        with patch.dict(os.environ, {"MODEL_PROVIDER": "openai-compatible", "MODEL_API_KEY": "test-only"}), \
+             patch("app.main.generate_grounded_answer", side_effect=slow_answer):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                first = pool.submit(main.post_message, self.case_id,
+                                    TurnRequest(expected_revision=1, text="كيف أحفظ الأدلة واللقطات؟", kind="question", allow_external=True), self.token)
+                self.assertTrue(entered.wait(timeout=3))
+                second = pool.submit(write_second)
+                wrote_while_waiting = second_done.wait(timeout=2)
+                release.set()
+                a_result = first.result(timeout=5)
+                b_result = second.result(timeout=5)
+        self.assertTrue(wrote_while_waiting, "a slow provider call held SQLite's write lock")
+        self.assertTrue(a_result["external_data_sent"])
+        self.assertFalse(a_result["external_model_used"])
+        self.assertEqual(b_result["session"]["revision"], 2)
 
 
 if __name__ == "__main__":

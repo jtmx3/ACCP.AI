@@ -14,7 +14,7 @@
     <div class="header-actions">
       <label class="jurisdiction-label" for="jurisdiction">الاختصاص للمصادر:</label>
       <select id="jurisdiction" aria-label="اختر الاختصاص للمصادر">
-        <option value="">غير محدد</option><option value="JO">الأردن</option><option value="AU">أستراليا</option><option value="US">الولايات المتحدة</option>
+        <option value="">غير محدد</option>
       </select>
       <button id="new-case" class="button button-outline" type="button">حالة جديدة</button>
     </div>
@@ -31,7 +31,8 @@
       </section>
       <section class="privacy-card">
         <h3>الخصوصية والحدود</h3>
-        <p>الافتراضي معالجة محلية بقواعد ثابتة. إذا ضبط المشغّل مزودًا خارجيًا، فلن يُرسل إلا نص سؤالك الحالي ومقتطفات المصادر بعد موافقتك الصريحة لكل سؤال؛ إذا كتبت تفاصيل شخصية داخل سؤالك فستُرسل معه. لا يُرسل سجل المحادثة تلقائيًا.</p>
+        <p>الافتراضي استخراج محلي بقواعد محدودة. إذا ضبط المشغّل مزودًا خارجيًا، فموافقة مستقلة لكل إرسال: في وضع السؤال يُرسل نص السؤال الحالي والمقتطفات المختارة؛ وفي وضع المقابلة يُرسل نص رسالتك الحالية فقط لاستخراج حقائق منظمة مع اقتباساتها.</p>
+        <p>لا يُرسل سجل المحادثة أو الحقائق السابقة أو رمز الجلسة تلقائيًا. أي تفاصيل شخصية تكتبها داخل الرسالة الحالية ستُرسل للمزود عند الموافقة. لا تُرسل كلمة مرور أو رمز تحقق أو معلومات لا تحتاجها.</p>
         <p>لا تكتب كلمات مرور أو رموز تحقق أو معلومات لا تحتاجها المقابلة. لا ترفع أدلة؛ النظام لا يستلمها ولا يفحصها.</p>
         <p>التأكيد يخص الملخص المعروض فقط، وليس بلاغًا رسميًا أو تحققًا مستقلًا.</p>
       </section>
@@ -54,7 +55,7 @@
           <div id="chat" class="chat" aria-live="polite" aria-label="رسائل المقابلة"></div>
           <form id="chat-form" class="composer">
             <div class="composer-tools"><span id="mode-label">وضع المقابلة</span><button id="toggle-mode" class="text-button" type="button">عندي سؤال للبوت</button></div>
-            <label id="model-consent-row" class="model-consent hidden"><input id="model-consent" type="checkbox"> أوافق على إرسال هذا السؤال ومقتطفات المصادر فقط إلى مزود خارجي لهذا الرد.</label>
+            <label id="model-consent-row" class="model-consent hidden"><input id="model-consent" type="checkbox"> <span id="model-consent-copy">أوافق على إرسال البيانات المذكورة لهذا الطلب فقط إلى مزود خارجي.</span></label>
             <label for="message" class="sr-only">اكتب رسالتك</label>
             <textarea id="message" rows="2" maxlength="5000" placeholder="اكتب إجابتك هنا…" required></textarea>
             <div class="composer-bottom"><span class="muted small">لا تشارك كلمات مرور أو رموز تحقق.</span><button id="send" class="button button-primary" type="submit">إرسال</button></div>

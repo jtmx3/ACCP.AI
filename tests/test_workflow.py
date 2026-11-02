@@ -106,6 +106,97 @@ class InterviewWorkflowTests(unittest.TestCase):
         self.assertEqual(self.state["assessment"]["priority_score"], 100)
         self.assertTrue(self.state["facts"]["direct_danger"]["history"])
 
+    def test_immediate_danger_precedes_pause_and_non_safety_question(self):
+        state = new_state("danger-before-pause")
+        for text in ("في شخص يهددني على واتساب", "لا", "قال رح ينشر صوري"):
+            handle_turn(state, text)
+        self.assertEqual(state["pending_slot"], "initial_time")
+        handle_turn(state, "احفظ الجلسة، أنا بخطر مباشر الآن")
+        self.assertEqual(state["stage"], "urgent_stop")
+        self.assertEqual(state["messages"][-1]["kind"], "safety")
+        self.assertEqual(_assessment(state)["priority_score"], 100)
+
+    def test_quoted_hypothetical_and_denied_danger_do_not_trigger_stop(self):
+        quoted = new_state("quoted-danger")
+        handle_turn(quoted, "ما معنى عبارة «أنا بخطر مباشر»؟")
+        self.assertNotEqual(quoted["stage"], "urgent_stop")
+        self.assertNotIn("direct_danger", quoted["facts"])
+
+        hypothetical = new_state("hypothetical-danger")
+        handle_turn(hypothetical, "لو كنت بخطر مباشر، شو لازم أعمل؟")
+        self.assertNotEqual(hypothetical["stage"], "urgent_stop")
+        self.assertNotIn("direct_danger", hypothetical["facts"])
+
+        denied = new_state("denied-danger")
+        handle_turn(denied, "أنا مش بخطر مباشر الآن")
+        self.assertEqual(denied["facts"]["direct_danger"]["status"], "denied")
+        self.assertNotEqual(denied["stage"], "urgent_stop")
+
+    def test_negated_threat_question_does_not_create_threat(self):
+        state = new_state("negated-threat")
+        handle_turn(state, "ما في تهديد، بس عندي سؤال عن واتساب")
+        self.assertEqual(state["facts"]["threat"]["status"], "denied")
+        self.assertIs(state["facts"]["threat"]["value"], False)
+        self.assertEqual(state["facts"]["platform"]["value"], "واتساب")
+        self.assertIsNone(_assessment(state)["priority_score"])
+
+    def test_denied_recurrence_does_not_receive_repeat_priority(self):
+        state = new_state("not-repeated")
+        handle_turn(state, "في شخص يهددني")
+        handle_turn(state, "لا")
+        handle_turn(state, "التهديد مش مستمر وما تكرر")
+        self.assertEqual(state["facts"]["repeated"]["status"], "denied")
+        self.assertIs(_assessment(state)["priority_score"], None)
+
+    def test_no_possessed_evidence_is_denied_not_reported(self):
+        state = new_state("no-evidence")
+        for text in ("شخص هددني برسالة", "لا", "هددني بنشر صور خاصة", "أمس"):
+            handle_turn(state, text)
+        self.assertEqual(state["pending_slot"], "repeated")
+        handle_turn(state, "لا")
+        self.assertEqual(state["pending_slot"], "published")
+        handle_turn(state, "ما بعرف")
+        self.assertEqual(state["pending_slot"], "identity")
+        handle_turn(state, "ما بعرف")
+        self.assertEqual(state["pending_slot"], "evidence")
+        handle_turn(state, "ما عندي صور ولا رسائل")
+        self.assertEqual(state["facts"]["evidence"]["status"], "denied")
+
+    def test_requested_money_and_denied_payment_are_independent(self):
+        state = new_state("request-no-payment")
+        handle_turn(state, "طلب مني 100 دينار وأنا ما دفعت")
+        self.assertEqual(state["facts"]["requested_amount"]["value"], "100 دينار")
+        self.assertEqual(state["facts"]["paid_amount"]["status"], "denied")
+        self.assertEqual(state["facts"]["requested_amount"]["quote"], "طلب مني 100 دينار وأنا ما دفعت")
+        self.assertEqual(state["facts"]["paid_amount"]["quote"], "طلب مني 100 دينار وأنا ما دفعت")
+
+    def test_instagram_identity_impersonation_is_not_account_compromise(self):
+        state = new_state("instagram-impersonation")
+        text = "اليوم شخص عامل حساب على إنستغرام باسمي وصورتي وبحكي للناس إنه أنا"
+        handle_turn(state, text)
+        self.assertIs(state["facts"]["impersonation"]["value"], True)
+        self.assertEqual(state["facts"]["platform"]["value"], "إنستغرام")
+        self.assertNotIn("account_access", state["facts"])
+        self.assertNotIn("contact", state["facts"])
+        self.assertIn("initial_time", state["facts"])
+        self.assertNotIn("latest_time", state["facts"])
+
+    def test_nonfinancial_threat_does_not_ask_payment_or_publication_fields(self):
+        state = new_state("nonfinancial-threat")
+        handle_turn(state, "في شخص هددني على واتساب")
+        handle_turn(state, "لا")
+        handle_turn(state, "هددني برسالة مزعجة")
+        for text in ("أمس", "لا", "ما بعرف", "ما عندي صور ولا رسائل"):
+            handle_turn(state, text)
+            self.assertNotIn(state["pending_slot"], {"requested_amount", "paid_amount", "payment_method", "deadline", "published"})
+
+    def test_repeated_contact_without_harm_does_not_trigger_repeated_threat_score(self):
+        state = new_state("contact-only")
+        handle_turn(state, "شخص رجع بعتلي اليوم عشر رسائل عن موضوع عادي")
+        self.assertTrue(state["facts"]["contact_repeated"]["value"])
+        self.assertNotIn("repeated", state["facts"])
+        self.assertIsNone(_assessment(state)["priority_score"])
+
     def test_detailed_threat_and_unauthorized_funds_follow_separate_rules(self):
         self.say("شخص يهددني")
         self.assertIsNone(_assessment(self.state)["priority_score"])
@@ -167,9 +258,21 @@ class InterviewWorkflowTests(unittest.TestCase):
         self.assertIn("ما عندي مصدر موثوق", irrelevant["text"])
         weak = answer_question("How can I do this?", "AU")
         self.assertEqual(weak["citations"], [])
+        near_word = answer_question("ما هو معنى كلمة صور في اللغة العربية؟", "AU")
+        self.assertEqual(near_word["citations"], [])
         us = retrieve("استرداد المال بعد الدفع إلى محتَال عبر البنك أو التطبيق", "US")
         self.assertTrue(any(s["id"] == "US-FTC-SCAM-2026" for s in us))
         self.assertEqual(retrieve("استرداد المال بعد الدفع إلى محتَال", "JO"), [])
+        jordan_police = answer_question("ما هي وسائل التواصل مع وحدة الجرائم الإلكترونية بالأردن؟", "JO")
+        self.assertTrue(any(c["id"] == "JO-PSD-CYBERCRIME-UNIT-2026" for c in jordan_police["citations"]))
+        jocert = answer_question("ما هي خدمة الإبلاغ عن حادث أمني سيبراني بالأردن؟", "JO")
+        self.assertTrue(any(c["id"] == "JO-NCSC-INCIDENT-REPORT-2026" for c in jocert["citations"]))
+        emergency = answer_question("ما رقم الطوارئ للأردن؟", "JO")
+        self.assertTrue(any(c["id"] == "JO-PSD-EMERGENCY-911-2026" for c in emergency["citations"]))
+        self.assertFalse(any(c["id"] == "JO-PSD-CYBERCRIME-UNIT-2026" for c in emergency["citations"]))
+        no_local_evidence_steps = answer_question("كيف أحفظ الأدلة واللقطات؟", "JO")
+        self.assertEqual(no_local_evidence_steps["citations"], [])
+        self.assertTrue(all(c["excerpt"] in jocert["text"] for c in jocert["citations"]))
 
 
 if __name__ == "__main__":

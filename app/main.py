@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from app.core import (
     QUESTIONS, _add_message, _assessment, _explain_why, _next_slot, _record,
-    _user_intent, classify_current_danger, handle_turn, render_report,
+    _user_intent, classify_current_danger, confirmation_is_current, handle_turn, now_iso, render_report,
     report_data, resume_state, screen_current_danger, summary_digest,
 )
 from app.rag import answer_question, available_jurisdictions, load_corpus
@@ -59,8 +59,22 @@ def _preflight(session_id: str, token: str, expected_revision: int):
 
 
 def _mutate(session_id: str, token: str, rev: int, event: str, fn):
+    def apply_and_reconcile(state):
+        fn(state)
+        if state.get("confirmed") and not confirmation_is_current(state):
+            old_digest = state.get("confirmed_digest")
+            history = state.setdefault("confirmation_history", [])
+            if old_digest and not any(item.get("digest") == old_digest for item in history):
+                confirmed_message = next((message for message in reversed(state.get("messages", [])) if message.get("kind") == "confirmation"), {})
+                history.append({"summary_version": state["summary_version"], "digest": old_digest,
+                                "confirmed_at": confirmed_message.get("created_at"), "legacy": True})
+            state["confirmed"] = False
+            state["confirmed_digest"] = None
+            state["summary_version"] += 1
+            state["assessment"] = _assessment(state)
+
     try:
-        return store.mutate(session_id, token, rev, event, fn)
+        return store.mutate(session_id, token, rev, event, apply_and_reconcile)
     except NotFound:
         raise HTTPException(404, "الحالة غير موجودة.")
     except Forbidden:
@@ -94,7 +108,12 @@ def create_session():
 def get_session(session_id: str, x_case_token: str = Header(default="")):
     state = _state_for(session_id, x_case_token)
     state["assessment"] = _assessment(state)
-    return {"session": state, "report": report_data(state)}
+    report = report_data(state)
+    state["confirmed"] = report["confirmed"]
+    state["confirmation_history"] = report["confirmation_history"]
+    if not state["confirmed"]:
+        state["confirmed_digest"] = None
+    return {"session": state, "report": report}
 
 
 @app.post("/api/sessions/{session_id}/messages")
@@ -106,7 +125,9 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
     # Authenticate and check revision before any optional network operation.
     snapshot = _preflight(session_id, x_case_token, body.expected_revision)
     pending = snapshot.get("pending_slot")
-    intent = _user_intent(text) if body.kind == "answer" else None
+    intent = _user_intent(text)
+    if body.kind == "question" and intent != "why":
+        intent = None
     urgent = classify_current_danger(text, pending) is True
     local_qa = None
     external_answer = None
@@ -196,6 +217,8 @@ def confirm(session_id: str, body: RevisionRequest, x_case_token: str = Header(d
         state["assessment"] = _assessment(state)
         state["confirmed"] = True
         state["confirmed_digest"] = summary_digest(state)
+        state.setdefault("confirmation_history", []).append({"summary_version": state["summary_version"],
+                                                                "digest": state["confirmed_digest"], "confirmed_at": now_iso()})
         _add_message(state, "assistant", "تم تأكيد إصدار الملخص الحالي بحسب اختيارك. هذا التأكيد لا يقدّم بلاغًا رسميًا ولا يتحقق من صحة الوقائع.", "confirmation")
 
     state = _mutate(session_id, x_case_token, body.expected_revision, "summary_confirmed", mutate)

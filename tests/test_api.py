@@ -145,6 +145,92 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertEqual(corrected["facts"]["requested_amount"]["value"], "120 دينار")
         self.assertTrue(corrected["facts"]["requested_amount"]["history"])
 
+    def test_confirmation_is_invalidated_when_resumed_turn_changes_facts_before_clarification_return(self):
+        self.turn("في شخص يهددني")
+        self.turn("اعرض الملخص")
+        confirmed = self.client.post(f"/api/sessions/{self.case_id}/confirm", headers=self.headers, json={"expected_revision": self.revision})
+        self.assertEqual(confirmed.status_code, 200)
+        self.revision = confirmed.json()["session"]["revision"]
+        prior = confirmed.json()["session"]
+        self.assertTrue(prior["confirmed"])
+        prior_version = prior["summary_version"]
+        prior_digest = prior["confirmed_digest"]
+
+        paused = self.turn("احفظ الجلسة")
+        self.assertEqual(paused["stage"], "paused")
+        self.assertTrue(paused["confirmed"])
+        resumed = self.client.post(f"/api/sessions/{self.case_id}/resume", headers=self.headers, json={"expected_revision": self.revision})
+        self.assertEqual(resumed.status_code, 200)
+        self.revision = resumed.json()["session"]["revision"]
+        self.assertEqual(resumed.json()["session"]["pending_slot"], "direct_danger")
+        self.assertTrue(resumed.json()["session"]["confirmed"])
+
+        updated = self.turn("طلب مني 100 دينار")
+        self.assertEqual(updated["facts"]["requested_amount"]["value"], "100 دينار")
+        self.assertEqual(updated["pending_slot"], "direct_danger")
+        self.assertFalse(updated["confirmed"])
+        self.assertIsNone(updated["confirmed_digest"])
+        self.assertGreater(updated["summary_version"], prior_version)
+        self.assertEqual(updated["confirmation_history"][0]["digest"], prior_digest)
+
+        current = self.client.get(f"/api/sessions/{self.case_id}", headers=self.headers).json()
+        self.assertFalse(current["session"]["confirmed"])
+        self.assertFalse(current["report"]["confirmed"])
+        self.assertEqual(current["report"]["confirmation_history"][0]["summary_version"], prior_version)
+        exported = self.client.get(f"/api/sessions/{self.case_id}/report.md", headers=self.headers)
+        self.assertEqual(exported.status_code, 200)
+        self.assertIn("**التأكيد:** غير مؤكد", exported.text)
+        self.assertIn("تأكيد سابق؛ لا يؤكد محتوى هذا الإصدار", exported.text)
+        self.assertNotIn("**التأكيد:** مؤكد من المستخدم", exported.text)
+
+    def test_read_and_export_never_claim_confirmation_for_a_mismatched_legacy_digest(self):
+        self.turn("في شخص يهددني")
+        self.turn("اعرض الملخص")
+        confirmed = self.client.post(f"/api/sessions/{self.case_id}/confirm", headers=self.headers, json={"expected_revision": self.revision})
+        self.assertEqual(confirmed.status_code, 200)
+        self.revision = confirmed.json()["session"]["revision"]
+        confirmed_version = confirmed.json()["session"]["summary_version"]
+
+        def legacy_unversioned_change(state):
+            state["facts"]["additional_details"] = {"field": "additional_details", "status": "reported",
+                                                       "value": "تفصيل أضيف خارج مسار الإصدار", "quote": "تفصيل أضيف خارج مسار الإصدار",
+                                                       "message_id": "legacy-change", "history": []}
+
+        stale = main.store.mutate(self.case_id, self.token, self.revision, "legacy_unversioned_change", legacy_unversioned_change)
+        self.revision = stale["revision"]
+        fetched = self.client.get(f"/api/sessions/{self.case_id}", headers=self.headers).json()
+        self.assertFalse(fetched["session"]["confirmed"])
+        self.assertFalse(fetched["report"]["confirmed"])
+        self.assertEqual(fetched["report"]["confirmation_history"][0]["summary_version"], confirmed_version)
+        report = self.client.get(f"/api/sessions/{self.case_id}/report.md", headers=self.headers).text
+        self.assertIn("**التأكيد:** غير مؤكد", report)
+        self.assertIn("تأكيد سابق؛ لا يؤكد محتوى هذا الإصدار", report)
+
+    def test_why_question_bypasses_rag_and_does_not_answer_the_safety_slot(self):
+        before = self.turn("في شخص يهددني")
+        self.assertEqual(before["pending_slot"], "direct_danger")
+        facts_before = before["facts"]
+        version_before = before["summary_version"]
+        with patch("app.main.answer_question", side_effect=AssertionError("why intent must not call RAG")):
+            response = self.client.post(f"/api/sessions/{self.case_id}/messages", headers=self.headers,
+                                        json={"expected_revision": self.revision, "text": "ليش بتسأل عن الخطر؟", "kind": "question"})
+        self.assertEqual(response.status_code, 200, response.text)
+        payload = response.json()
+        state = payload["session"]
+        self.revision = state["revision"]
+        self.assertFalse(payload["external_data_sent"])
+        self.assertFalse(payload["external_model_used"])
+        self.assertEqual(state["pending_slot"], "direct_danger")
+        self.assertEqual(state["facts"], facts_before)
+        self.assertEqual(state["summary_version"], version_before)
+        self.assertIn("خطوة سلامة عاجلة", state["messages"][-2]["text"])
+
+        answer_mode = self.turn("ليش بتسأل عن الخطر؟", kind="answer")
+        self.assertEqual(answer_mode["pending_slot"], "direct_danger")
+        self.assertEqual(answer_mode["facts"], facts_before)
+        self.assertEqual(answer_mode["summary_version"], version_before)
+        self.assertIn("خطوة سلامة عاجلة", answer_mode["messages"][-1]["text"])
+
     def test_two_consented_extraction_calls_overlap_across_sessions(self):
         second_state, second_token = main.store.create()
         barrier = threading.Barrier(2, timeout=4)

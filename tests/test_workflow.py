@@ -247,6 +247,64 @@ class InterviewWorkflowTests(unittest.TestCase):
             handle_turn(no_payment, text)
         self.assertEqual(no_payment["facts"]["paid_amount"]["status"], "denied")
 
+    def test_category_only_narratives_request_one_description_without_inventing_a_threat(self):
+        for index, text in enumerate(("ابتزاز", "تهديد", "احتيال إلكتروني", "مضايقة")):
+            with self.subTest(text=text):
+                state = new_state(f"category-only-{index}")
+                handle_turn(state, text)
+                self.assertEqual(state["stage"], "interview")
+                self.assertEqual(state["pending_slot"], "narrative")
+                self.assertEqual(state["messages"][-1]["kind"], "clarification")
+                self.assertIn("احكيلي شو صار معك", state["messages"][-1]["text"])
+                self.assertNotIn("threat", state["facts"])
+                self.assertNotIn("impersonation", state["facts"])
+                self.assertNotIn("harassment", state["facts"])
+                self.assertIsNone(_assessment(state)["priority_score"])
+                self.assertLess(_assessment(state)["completeness_percent"], 100)
+
+    def test_unclassified_narrative_gets_a_clarification_and_cannot_reach_100_percent(self):
+        state = new_state("unclassified-story")
+        handle_turn(state, "وصلتني رسالة تطلب تحديث بيانات حسابي وبعدها توقف الدخول")
+        self.assertEqual(state["pending_slot"], "unclassified_details")
+        self.assertIn("ما قدرت أحدد نوع الواقعة", state["messages"][-1]["text"])
+        self.assertIsNone(_assessment(state)["priority_score"])
+        self.assertLess(_assessment(state)["completeness_percent"], 100)
+        self.assertNotIn("requested_amount", state["facts"])
+
+        handle_turn(state, "بعد إدخال البيانات ظهرت رسالة خطأ ولم أعرف الجهة")
+        self.assertEqual(state["stage"], "review")
+        self.assertIn("unclassified_details", state["facts"])
+        self.assertIn("incident_type_review", _assessment(state)["relevant_fields"])
+        self.assertLess(_assessment(state)["completeness_percent"], 100)
+        self.assertIsNone(_assessment(state)["priority_score"])
+
+    def test_conditional_demand_is_not_payment_then_explicit_payment_is_separate(self):
+        state = new_state("conditional-payment")
+        handle_turn(state, "هددني إذا ما دفعت 100 دينار رح ينشر صوري")
+        self.assertEqual(state["facts"]["requested_amount"]["value"], "100 دينار")
+        self.assertNotIn("paid_amount", state["facts"])
+        self.assertEqual(_assessment(state)["priority_score"], 85)
+
+        handle_turn(state, "دفعت 130 دينار بعد ذلك")
+        self.assertEqual(state["facts"]["requested_amount"]["value"], "100 دينار")
+        self.assertEqual(state["facts"]["paid_amount"]["value"], "130 دينار")
+
+    def test_negated_payment_is_not_a_demand_and_correction_preserves_each_amount(self):
+        no_request = new_state("negated-payment-no-demand")
+        handle_turn(no_request, "لم يحدث تهديد ولم أدفع أي مبلغ")
+        self.assertNotIn("requested_amount", no_request["facts"])
+        self.assertEqual(no_request["facts"]["paid_amount"]["status"], "denied")
+        self.assertNotEqual(no_request["facts"].get("requested_amount", {}).get("value"), "لم يحدث تهديد ولم أدفع أي مبلغ")
+
+        corrected = new_state("payment-correction")
+        handle_turn(corrected, "طلب مني 100 دينار وأنا ما دفعت")
+        self.assertEqual(corrected["facts"]["requested_amount"]["value"], "100 دينار")
+        self.assertEqual(corrected["facts"]["paid_amount"]["status"], "denied")
+        handle_turn(corrected, "تصحيح: دفعت 130 دينار")
+        self.assertEqual(corrected["facts"]["requested_amount"]["value"], "100 دينار")
+        self.assertEqual(corrected["facts"]["paid_amount"]["value"], "130 دينار")
+        self.assertEqual(corrected["facts"]["paid_amount"]["history"][-1]["reason"], "explicit_correction")
+
     def test_local_rag_requires_supported_jurisdiction_and_returns_citations(self):
         generic = answer_question("كيف أحفظ الأدلة واللقطات؟", None)
         self.assertEqual(generic["citations"], [])

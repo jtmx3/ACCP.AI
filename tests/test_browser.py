@@ -183,9 +183,20 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_model_consent_is_optional_and_changes_scope_by_mode(self):
         env = {"MODEL_PROVIDER": "openai-compatible", "MODEL_API_KEY": "test-only", "MODEL_BASE_URL": "https://provider.example/v1", "MODEL_NAME": "test"}
+        outbound = []
+
+        def fake_chat(messages):
+            payload = json.loads(messages[1]["content"])
+            outbound.append(payload)
+            if not payload["sources"]:
+                return json.dumps({"claims": []})
+            source = payload["sources"][0]
+            return json.dumps({"claims": [{"source_id": source["source_id"], "quote": source["excerpt"][:40]}]}, ensure_ascii=False)
+
         with patch.dict("os.environ", env), \
              patch("app.main.generate_interview_extraction", return_value=[]) as extract, \
-             patch("app.main.generate_grounded_answer", return_value=None) as answer:
+             patch("app.main.generate_grounded_answer", wraps=main.generate_grounded_answer) as answer, \
+             patch("app.model._chat", side_effect=fake_chat) as provider:
             await self.page.goto(self.base_url)
             await self.page.locator("#start-case").click()
             await expect(self.page.locator("#model-consent-row")).to_be_visible()
@@ -203,15 +214,27 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
             await expect(self.page.locator("#status-message")).to_contain_text("تم تحديث الاختصاص")
             await self.page.locator("#toggle-mode").click()
             await expect(self.page.locator("#model-consent-copy")).to_contain_text("مقتطفات المصادر المختارة")
+            await self._send("كيف أحفظ الأدلة واللقطات؟")
+            await expect(self.page.locator("#status-message")).to_contain_text("تم حفظ الرسالة وتحديث الحالة.")
+            answer.assert_not_called()
+            provider.assert_not_called()
+            self.assertFalse(await self.page.locator("#model-consent").is_checked())
+
             await self.page.locator("#model-consent").check()
             await self._send("كيف أحفظ الأدلة واللقطات؟")
+            await expect(self.page.locator("#status-message")).to_contain_text("نص السؤال الحالي")
+            await expect(self.page.locator("#model-consent")).not_to_be_checked()
             answer.assert_called_once()
+            provider.assert_called_once()
             question, sources = answer.call_args.args
             self.assertEqual(question, "كيف أحفظ الأدلة واللقطات؟")
             self.assertTrue(sources)
             self.assertTrue(all(source.get("excerpt") for source in sources))
-            await expect(self.page.locator("#status-message")).to_contain_text("نص السؤال الحالي")
-            self.assertFalse(await self.page.locator("#model-consent").is_checked())
+            self.assertTrue(all(source.get("geography") == "AU" for source in sources))
+            self.assertEqual(outbound[0]["question"], "كيف أحفظ الأدلة واللقطات؟")
+            self.assertNotIn("في شخص يهددني على واتساب", json.dumps(outbound[0], ensure_ascii=False))
+            self.assertTrue(all(set(source) == {"source_id", "title", "excerpt"} for source in outbound[0]["sources"]))
+            self.assertTrue(all(source["excerpt"] for source in outbound[0]["sources"]))
 
 
 if __name__ == "__main__":

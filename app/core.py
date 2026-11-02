@@ -11,6 +11,7 @@ SCHEMA_VERSION = 1
 
 QUESTIONS: dict[str, str] = {
     "narrative": "احكيلي شو صار معك.",
+    "unclassified_details": "ما قدرت أحدد نوع الواقعة من الوصف وحده. ممكن توضح شو حدث خطوة بخطوة أو شو الرسالة أو التصرف اللي وصلك؟",
     "direct_danger": "هل أنت بخطر مباشر الآن؟",
     "details": "شو قال لك تحديدًا أو شو صار؟",
     "initial_time": "متى بدأت الواقعة أو وصلك أول تواصل؟ اذكر الوقت كما تتذكره.",
@@ -25,7 +26,8 @@ QUESTIONS: dict[str, str] = {
 }
 
 LABELS = {
-    "narrative": "وصف الواقعة", "threat": "وجود تهديد", "impersonation": "انتحال شخصية", "harassment": "مضايقة مذكورة",
+    "narrative": "وصف الواقعة", "unclassified_details": "توضيح واقعة غير مصنفة", "incident_type_review": "تصنيف نوع الواقعة (يحتاج مراجعة)",
+    "threat": "وجود تهديد", "impersonation": "انتحال شخصية", "harassment": "مضايقة مذكورة",
     "contact_repeated": "تكرار التواصل دون استنتاج تهديد", "publication_threat": "تهديد بالنشر",
     "direct_danger": "الخطر المباشر الحالي", "active_unauthorized_funds": "أموال معرضة حاليًا لتصرف غير مأذون",
     "fraud_description": "وصف خداع مالي", "details": "تفاصيل الواقعة",
@@ -58,7 +60,8 @@ def new_state(session_id: str) -> dict[str, Any]:
     return {"schema_version": SCHEMA_VERSION, "session_id": session_id, "stage": "interview", "revision": 0,
             "created_at": stamp, "updated_at": stamp, "messages": [opening], "facts": {},
             "pending_slot": "narrative", "clarifications": {}, "assessment": None,
-            "confirmed": False, "confirmed_digest": None, "summary_version": 1, "last_response": opening["text"]}
+            "confirmed": False, "confirmed_digest": None, "confirmation_history": [],
+            "summary_version": 1, "last_response": opening["text"]}
 
 
 def _is_unknown(text: str) -> str | None:
@@ -218,6 +221,18 @@ def _evidence_polarity(text: str) -> tuple[bool, bool, list[str]]:
     return bool(positive), negative_mentions, list(dict.fromkeys(positive))
 
 
+_NARRATIVE_STOPWORDS = {"في", "من", "على", "عن", "الى", "انا", "هو", "هي", "كان", "كانت", "هذا", "هذه", "مع", "بس", "لكن", "عندي", "علي", "ما", "لا", "لم", "مش", "مو"}
+_NARRATIVE_LABELS = {"ابتزاز", "الابتزاز", "تهديد", "التهديد", "احتيال", "الاحتيال", "نصب", "اختراق", "انتحال", "مضايقة", "تحرش", "نشر"}
+
+
+def _narrative_has_description(text: Any) -> bool:
+    if not isinstance(text, str) or not text.strip():
+        return False
+    tokens = re.findall(r"[\u0600-\u06ff0-9a-zA-Z]+", normalize(text))
+    informative = {token for token in tokens if len(token) > 1 and token not in _NARRATIVE_STOPWORDS and token not in _NARRATIVE_LABELS}
+    return len(informative) >= 2
+
+
 def _specific_contact_identifier(text: str) -> str | None:
     handle = re.search(r"(?<!\w)@[A-Za-z0-9_.-]{2,}", text)
     if handle:
@@ -238,7 +253,7 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
     # Preserve exact user wording as provenance; short answers are anchored to question_id.
     threat_polarity = _threat_polarity(text, state["facts"].get("threat", {}).get("value") is True)
     if threat_polarity is not None:
-        if threat_polarity and (pending == "narrative" or not state["facts"].get("narrative")):
+        if threat_polarity and (pending == "narrative" or not state["facts"].get("narrative")) and _narrative_has_description(text):
             _set_answer(state, "narrative", text, "reported", text, mid, question_id, changed)
         _set_answer(state, "threat", threat_polarity, "reported" if threat_polarity else "denied", text, mid, question_id, changed)
     impersonation_denied = any(term in t for term in ("ما في حساب منتحل", "مش حساب منتحل", "لا يوجد حساب منتحل", "ما في حد منتحل"))
@@ -272,8 +287,10 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
     if any(k in t for k in ("نصب علي", "اننصب علي", "خدعني حتى ادفع", "خداع مالي واضح", "احتيال مالي واضح")):
         _set_answer(state, "fraud_description", True, "reported", text, mid, question_id, changed)
 
-    if pending == "narrative" and not state["facts"].get("narrative"):
+    if pending == "narrative" and not state["facts"].get("narrative") and _narrative_has_description(text):
         _set_answer(state, "narrative", text, "reported", text, mid, question_id, changed)
+    if pending == "unclassified_details" and _narrative_has_description(text):
+        _set_answer(state, "unclassified_details", text, "reported", text, mid, question_id, changed)
 
     # Independently extract facts volunteered before their question.
     has_time_reference = bool(re.search(r"أمس|امس|اليوم|البارحة|مبارح|الاسبوع الماضي|قبل يوم", text))
@@ -283,7 +300,7 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
         if any(k in t for k in ("اخر تواصل", "اخر مره", "رجع", "كرر", "مرة ثانية", "مره ثانيه", "بعتلي", "ارسللي", "تواصل معي مجددا")):
             _set_answer(state, "latest_time", text, "reported", text, mid, question_id, changed)
 
-    if any(term in t for term in ("مضايقة", "تحرش", "بلاحقني", "ملاحقة", "بضايقني")) and not any(term in t for term in ("ما في مضايقة", "مش مضايقة", "ما بتحرش")):
+    if any(term in t for term in ("بلاحقني", "ملاحقة", "بضايقني", "تعرضت لمضايقة", "عم بتعرض لمضايقة", "تحرش بي", "بتحرش فيني")) and not any(term in t for term in ("ما في مضايقة", "مش مضايقة", "ما بتحرش")):
         _set_answer(state, "harassment", True, "reported", text, mid, question_id, changed)
     repeat_positive = False
     repeat_negative = False
@@ -306,17 +323,21 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
         _set_answer(state, "repeated", None, unknown_status, text, mid, question_id, changed)
 
     amount = _first_amount(text)
-    requested_amount = _amount_after_marker(text, ("طلب", "طالب", "ادفع", "مطلوب", "اذا ما حولت", "اذا لم تحول"))
-    paid_amount = _amount_after_marker(text, ("دفعت", "حولتله", "حولت له", "حوالة", "حولت مبلغ", "تم التحويل", "حولت"))
-    conditional_transfer = "اذا ما حولت" in t or "اذا لم تحول" in t
-    denied_request_signal = any(k in t for k in ("ما طلب", "لم يطلب", "لم اطلب", "ما طلب مني", "ما طلبت"))
-    requested_signal = not denied_request_signal and any(k in t for k in ("طلب", "طالب", "ادفع", "ادفعله", "ادفع له", "مطلوب", "بدك تحول", "اذا ما حولت"))
-    denied_payment_signal = any(k in t for k in ("ما دفعت", "لم ادفع", "ما حولت", "لم احول", "ما حولتله", "ما حولت له")) and not conditional_transfer
-    paid_signal = not denied_payment_signal and (any(k in t for k in ("دفعت", "حوالة", "حولت مبلغ", "تم التحويل")) or (
-        not conditional_transfer and any(k in t for k in ("حولتله", "حولت له"))
-    ) or ("حولت " in t and not conditional_transfer))
+    payment_clauses = _payment_clauses(text)
+    request_clauses = [clause for clause in payment_clauses if _is_request_clause(clause)]
+    requested_signal = bool(request_clauses)
+    request_markers = ("طلب", "طالب", "ادفع", "مطلوب", "اذا ما حولت", "اذا لم تحول", "اذا ما دفعت", "اذا لم تدفع", "لو ما دفعت", "لو لم تدفع")
+    requested_amount = next((_amount_after_marker(clause, request_markers) or _first_amount(clause)
+                             for clause in request_clauses if _amount_after_marker(clause, request_markers) or _first_amount(clause)), None)
+    paid_markers = ("دفعت", "حولتله", "حولت له", "حوالة", "حولت مبلغ", "تم التحويل", "حولت")
+    paid_clauses = [clause for clause in payment_clauses if _is_completed_payment_clause(clause)]
+    paid_signal = bool(paid_clauses)
+    paid_amount = next((_amount_after_marker(clause, paid_markers) for clause in paid_clauses if _amount_after_marker(clause, paid_markers)), None)
+    denied_request_signal = any(_denied_request(clause) for clause in payment_clauses)
+    denied_payment_signal = not paid_signal and any(_negated_payment(clause) and not _conditional_payment(clause) for clause in payment_clauses)
     if requested_signal:
-        _set_answer(state, "requested_amount", requested_amount or amount or text, "reported", text, mid, question_id, changed)
+        requested_value = requested_amount or (amount if not paid_signal else None) or "المبلغ المطلوب غير محدد بحسب الإفادة"
+        _set_answer(state, "requested_amount", requested_value, "reported", text, mid, question_id, changed)
     existing_paid = state["facts"].get("paid_amount")
     if denied_payment_signal:
         _set_answer(state, "paid_amount", None, "denied", text, mid, question_id, changed)
@@ -420,11 +441,11 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
 
 def _user_intent(text: str) -> str | None:
     t = normalize(text)
-    if any(w in t for w in ("ليش بتسأل", "ليش بدك تعرف", "لماذا تسال", "ليش السؤال")):
+    if any(normalize(w) in t for w in ("ليش بتسأل", "ليش بدك تعرف", "لماذا تسأل", "ليش السؤال")):
         return "why"
-    if any(w in t for w in ("احفظ الجلسة", "وقف المقابلة", "توقف المقابلة", "بدي اوقف المقابلة", "خلص بدي اوقف", "بكمل بعدين", "نكمل لاحقا")):
+    if any(normalize(w) in t for w in ("احفظ الجلسة", "وقف المقابلة", "توقف المقابلة", "بدي أوقف المقابلة", "خلص بدي أوقف", "بكمل بعدين", "نكمل لاحقًا")):
         return "pause"
-    if any(w in t for w in ("اعرض المعلومات", "ورجيني الملخص", "اعرض الملخص", "شو سجلت", "المعلومات اللي عندك")):
+    if any(normalize(w) in t for w in ("اعرض المعلومات", "ورجيني الملخص", "اعرض الملخص", "شو سجلت", "المعلومات اللي عندك")):
         return "show"
     return None
 
@@ -435,6 +456,41 @@ def _strip_quoted_spans(text: str) -> str:
 
 def _clauses(text: str) -> list[str]:
     return [part.strip() for part in re.split(r"[,،؛.!?؟\n]+|\b(?:بس|لكن|غير أن|إلا أن)\b", normalize(text)) if part.strip()]
+
+
+def _payment_clauses(text: str) -> list[str]:
+    parts: list[str] = []
+    for clause in _clauses(text):
+        parts.extend(part.strip() for part in re.split(r"\s+(?=وانا\b|واني\b|وهو\b|وهي\b|ثم\b|بعدها\b|بعد ذلك\b)", clause) if part.strip())
+    return parts
+
+
+def _conditional_payment(clause: str) -> bool:
+    return bool(re.search(r"\b(?:و)?(?:اذا|لو)\s+(?:ما|لم)\s+(?:ادفع|دفعت|احول|حولت(?:له|لها)?|حولت\s+له|تحول|تدفع)\b", clause))
+
+
+def _negated_payment(clause: str) -> bool:
+    return bool(re.search(r"(?:^|\s)(?:و)?(?:ما|لم|مش|مو|لا)\s+(?:(?:رح|راح)\s+)?(?:ادفع|دفعت|احول|حولت|حول)(?=\s|$)", clause))
+
+
+def _denied_request(clause: str) -> bool:
+    return any(marker in clause for marker in ("ما طلب", "لم يطلب", "لم اطلب", "ما طلب مني", "ما طلبت"))
+
+
+def _is_request_clause(clause: str) -> bool:
+    if _denied_request(clause):
+        return False
+    if _conditional_payment(clause):
+        return True
+    if any(marker in clause for marker in ("طلب مني", "طلبت مني", "يطلب مني", "تطلب مني", "طالبني", "مطلوب", "بدك تحول", "ادفع له", "ادفعله")) or re.search(r"(?:^|\s)(?:طلب|طلبت|طالب)(?:\s|$)", clause):
+        return True
+    return "ادفع" in clause and not _negated_payment(clause)
+
+
+def _is_completed_payment_clause(clause: str) -> bool:
+    if _conditional_payment(clause) or _negated_payment(clause):
+        return False
+    return any(marker in clause for marker in ("دفعت", "حولتله", "حولت له", "حوالة", "حولت مبلغ", "تم التحويل")) or bool(re.search(r"\bحولت\s", clause))
 
 
 def _is_hypothetical_or_metalinguistic(clause: str) -> bool:
@@ -516,6 +572,12 @@ def screen_current_danger(state: dict[str, Any], text: str, message: dict[str, A
 
 def _has(state: dict[str, Any], key: str) -> bool:
     fact = state["facts"].get(key)
+    if key == "narrative":
+        if not fact:
+            return False
+        if fact.get("status") in {"unknown", "not_remembered", "declined", "unresolved"}:
+            return True
+        return fact.get("status") == "reported" and _narrative_has_description(fact.get("value"))
     return bool(fact and fact.get("status") in TERMINAL)
 
 
@@ -526,16 +588,15 @@ def _reported_true(state: dict[str, Any], key: str) -> bool:
 
 def _incident_profile(state: dict[str, Any]) -> dict[str, bool]:
     facts = state["facts"]
-    context = normalize(" ".join(str(facts.get(key, {}).get("value", "")) for key in ("narrative", "details", "additional_details", "fraud_description")))
+    context = normalize(" ".join(str(facts.get(key, {}).get("value", "")) for key in ("narrative", "details", "additional_details")))
     threat = _reported_true(state, "threat")
     impersonation = _reported_true(state, "impersonation")
     harassment = _reported_true(state, "harassment")
     account_access = _reported_true(state, "account_access")
     financial = any(_reported_true(state, key) for key in ("active_unauthorized_funds", "fraud_description"))
-    financial = financial or any(facts.get(key, {}).get("status") == "reported" for key in ("requested_amount", "paid_amount"))
-    financial = financial or any(word in context for word in ("دينار", "دولار", "ريال", "مبلغ", "فلوس", "مال", "ادفع", "دفعت", "تحويل", "حولت", "بنك", "محفظة", "دفع"))
+    financial = financial or any(facts.get(key, {}).get("status") == "reported" for key in ("requested_amount", "paid_amount", "payment_method"))
     publication = _reported_true(state, "publication_threat") or facts.get("published", {}).get("status") in {"reported", "denied"}
-    publication = publication or any(word in context for word in ("ينشر", "نشر", "انتشرت", "صور خاصة", "محادثات خاصة"))
+    publication = publication or (_narrative_has_description(context) and any(word in context for word in ("ينشر", "نشر", "انتشرت", "صور خاصة", "محادثات خاصة")))
     incident = threat or impersonation or harassment or account_access or financial or publication
     return {"threat": threat, "impersonation": impersonation, "harassment": harassment, "account_access": account_access,
             "financial": financial, "publication": publication, "incident": incident}
@@ -544,6 +605,10 @@ def _incident_profile(state: dict[str, Any]) -> dict[str, bool]:
 def _relevant_slots(state: dict[str, Any]) -> list[str]:
     profile = _incident_profile(state)
     slots = ["narrative"]
+    if not profile["incident"]:
+        if state["facts"].get("narrative", {}).get("status") != "unresolved":
+            slots.append("unclassified_details")
+        slots.append("incident_type_review")
     if profile["threat"]:
         slots.append("direct_danger")
     if profile["threat"] or profile["impersonation"] or profile["account_access"] or profile["financial"]:
@@ -569,6 +634,8 @@ def _relevant_slots(state: dict[str, Any]) -> list[str]:
 
 def _has_known(state: dict[str, Any], key: str) -> bool:
     fact = state["facts"].get(key)
+    if key == "narrative":
+        return bool(fact and fact.get("status") == "reported" and _narrative_has_description(fact.get("value")))
     return bool(fact and fact.get("status") in {"reported", "denied"})
 
 
@@ -578,6 +645,8 @@ def _next_slot(state: dict[str, Any]) -> str | None:
         if fact.get("status") == "conflict" and key in QUESTIONS:
             return key
     for key in _relevant_slots(state):
+        if key not in QUESTIONS:
+            continue
         if not _has(state, key):
             return key
     return None
@@ -594,6 +663,7 @@ def _short_answer(text: str) -> str:
 
 def _explain_why(slot: str) -> str:
     reasons = {
+        "unclassified_details": "لأن الكلمة أو الوصف الحالي لا يكفي لتحديد ما حدث، ولا أريد افتراض نوع الواقعة.",
         "direct_danger": "حتى نعرف إذا في حاجة لخطوة سلامة عاجلة الآن.",
         "details": "حتى نوثق الكلام أو التصرف كما ورد، من دون ما نستنتج تفاصيل ما ذكرتها.",
         "initial_time": "حتى نفرّق بين وقت بداية الواقعة وأحدث تواصل.",
@@ -648,6 +718,8 @@ def _assessment(state: dict[str, Any]) -> dict[str, Any]:
         reasons.append("وردت إشارة إلى تهديد أو انتحال، لكن التفاصيل غير كافية لتطبيق درجة 85")
     elif not facts:
         reasons.append("المعلومات غير كافية لتحديد درجة")
+    elif not profile["incident"]:
+        reasons.append("لم يتحدد نوع الواقعة من القواعد؛ يلزم توضيح أو مراجعة بشرية، ولا تعني نسبة الاكتمال إثبات التصنيف")
     if facts.get("publication_threat", {}).get("value") is True:
         reasons.append("تهديد بالنشر مذكور؛ لا يثبت حدوث النشر")
     if impersonation.get("value") is True:
@@ -675,6 +747,14 @@ def _add_message(state: dict[str, Any], role: str, text: str, kind: str = "chat"
     state["messages"].append(msg)
     state["last_response"] = text
     return msg
+
+
+def _finalize_changed_facts(state: dict[str, Any], changed: set[str]) -> None:
+    if changed:
+        state["confirmed"] = False
+        state["confirmed_digest"] = None
+        state["summary_version"] += 1
+    state["assessment"] = _assessment(state)
 
 
 def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, Any]] | None = None) -> dict[str, Any]:
@@ -723,15 +803,13 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
         attempts = state["clarifications"].get(pending, 0)
         if attempts < 1:
             state["clarifications"][pending] = attempts + 1
+            _finalize_changed_facts(state, changed)
             _add_message(state, "assistant", _short_answer(text) + QUESTIONS[pending], "clarification")
             return state
         if _record(state, pending, "unresolved", None, text, user_msg["id"], state["messages"][-2]["id"] if len(state["messages"]) > 1 else None, "clarification_limit"):
             changed.add(pending)
 
-    if changed:
-        state["confirmed"] = False
-        state["confirmed_digest"] = None
-        state["summary_version"] += 1
+    _finalize_changed_facts(state, changed)
 
     if state["facts"].get("direct_danger", {}).get("status") == "reported" and state["facts"].get("direct_danger", {}).get("value") is True:
         state["stage"] = "urgent_stop"
@@ -792,9 +870,17 @@ def display_value(fact: dict[str, Any] | None) -> str:
 
 
 def report_data(state: dict[str, Any]) -> dict[str, Any]:
-    assessment = state.get("assessment") or _assessment(state)
+    assessment = _assessment(state)
+    current_confirmation = confirmation_is_current(state)
+    history = list(state.get("confirmation_history") or [])
+    old_digest = state.get("confirmed_digest")
+    if state.get("confirmed") and old_digest and not current_confirmation and not any(item.get("digest") == old_digest for item in history):
+        confirmed_message = next((message for message in reversed(state.get("messages", [])) if message.get("kind") == "confirmation"), {})
+        history.append({"summary_version": state["summary_version"], "digest": old_digest,
+                        "confirmed_at": confirmed_message.get("created_at"), "legacy": True})
     return {"case_id": state["session_id"], "summary_version": state["summary_version"], "stage": state["stage"],
-            "facts": state["facts"], "assessment": assessment, "confirmed": state["confirmed"],
+            "facts": state["facts"], "assessment": assessment, "confirmed": current_confirmation,
+            "confirmation_history": history,
             "generated_at": now_iso(), "notice": "هذا ملخص لإفادة المستخدم للمراجعة فقط. لا يمثل بلاغًا رسميًا أو تحققًا مستقلًا أو إثباتًا للواقعة."}
 
 
@@ -802,11 +888,19 @@ def render_report(state: dict[str, Any]) -> str:
     data = report_data(state)
     facts = state["facts"]
     lines = [f"# ملخص الحالة {state['session_id']}", "", f"**إصدار الملخص:** {state['summary_version']}  ",
-             f"**تاريخ إنشاء التقرير:** {data['generated_at']}  ", f"**التأكيد:** {'مؤكد من المستخدم' if state['confirmed'] else 'غير مؤكد'}", "",
-             "## وصف الواقعة", "", display_value(facts.get("narrative")), "", "## التسلسل الزمني", "",
+             f"**تاريخ إنشاء التقرير:** {data['generated_at']}  ", f"**التأكيد:** {'مؤكد من المستخدم' if data['confirmed'] else 'غير مؤكد'}", "",
+             "## سجل التأكيد", ""]
+    if data["confirmation_history"]:
+        for item in data["confirmation_history"]:
+            is_current = data["confirmed"] and item.get("digest") == state.get("confirmed_digest")
+            status = "تأكيد النسخة الحالية" if is_current else "تأكيد سابق؛ لا يؤكد محتوى هذا الإصدار"
+            lines.append(f"- الإصدار {item.get('summary_version', 'غير معروف')}: {status}؛ الوقت: {item.get('confirmed_at') or 'غير متاح'}")
+    else:
+        lines.append("- لا توجد تأكيدات سابقة محفوظة.")
+    lines += ["", "## وصف الواقعة", "", display_value(facts.get("narrative")), "", "## التسلسل الزمني", "",
              f"- بداية الواقعة: {display_value(facts.get('initial_time'))}",
              f"- أحدث تواصل: {display_value(facts.get('latest_time'))}", "", "## الوقائع ومصادرها", ""]
-    ordered = ["threat", "impersonation", "platform", "details", "additional_details", "publication_threat", "initial_time", "latest_time", "repeated", "requested_amount", "paid_amount", "payment_method", "deadline", "published", "identity", "contact", "evidence", "account_access", "fraud_description", "active_unauthorized_funds", "direct_danger"]
+    ordered = ["threat", "impersonation", "platform", "details", "unclassified_details", "additional_details", "publication_threat", "initial_time", "latest_time", "repeated", "requested_amount", "paid_amount", "payment_method", "deadline", "published", "identity", "contact", "evidence", "account_access", "fraud_description", "active_unauthorized_funds", "direct_danger"]
     for key in ordered:
         fact = facts.get(key)
         if not fact:
@@ -855,6 +949,11 @@ def render_report(state: dict[str, Any]) -> str:
 
 
 def summary_digest(state: dict[str, Any]) -> str:
-    canonical = json.dumps({"facts": state["facts"], "assessment": state.get("assessment") or _assessment(state),
+    canonical = json.dumps({"facts": state["facts"], "assessment": _assessment(state),
                             "summary_version": state["summary_version"]}, sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def confirmation_is_current(state: dict[str, Any]) -> bool:
+    stored_digest = state.get("confirmed_digest")
+    return bool(state.get("confirmed") and isinstance(stored_digest, str) and stored_digest == summary_digest(state))

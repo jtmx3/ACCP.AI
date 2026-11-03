@@ -101,6 +101,12 @@ class OptionalModelTests(unittest.TestCase):
 
     def test_narrative_value_must_match_its_verbatim_quote(self):
         text = "في شخص هددني برسالة."
+        empty_value = {"facts": [{"field": "narrative", "status": "reported", "value": None, "quote": text}]}
+        empty_diagnostic = validate_interview_facts_diagnostic(
+            text, json.dumps(empty_value, ensure_ascii=False))
+        self.assertTrue(empty_diagnostic["accepted"])
+        self.assertEqual(empty_diagnostic["facts"], [])
+        self.assertEqual(empty_diagnostic["filtered_facts"][0]["filter_code"], "value_inconsistent")
         paraphrase = {"facts": [{"field": "narrative", "status": "reported",
                                  "value": "تعرضت لتهديد برسالة", "quote": text}]}
         self.assertEqual(validate_interview_facts(text, json.dumps(paraphrase, ensure_ascii=False)), [])
@@ -202,6 +208,80 @@ class OptionalModelTests(unittest.TestCase):
         self.assertEqual(trace["filtered_fact_fields"], ["identity"])
         self.assertNotIn("filtered_fact_proposals", trace)
 
+    def test_ollama_extraction_uses_project_prompt_and_separates_empty_filtered_and_extracted(self):
+        text = "في شخص عم يهددني على واتساب."
+        outputs = [
+            {"facts": []},
+            {"facts": [{"field": "narrative", "status": "reported", "value": None, "quote": text}]},
+            {"facts": [{"field": "narrative", "status": "reported", "value": text, "quote": text}]},
+        ]
+        request_bodies = []
+
+        def fake_urlopen(request, timeout):
+            request_bodies.append(json.loads(request.data.decode("utf-8")))
+            content = json.dumps(outputs[len(request_bodies) - 1], ensure_ascii=False)
+            return io.BytesIO(json.dumps({"choices": [{"message": {"content": content}}]}).encode("utf-8"))
+
+        env = {"MODEL_PROVIDER": "ollama", "MODEL_BASE_URL": "http://127.0.0.1:11434/v1",
+               "MODEL_NAME": "fixture:latest", "MODEL_REASONING_EFFORT": "high"}
+        with patch.dict(os.environ, env, clear=True), patch("app.model.urllib.request.urlopen", side_effect=fake_urlopen):
+            empty = generate_interview_extraction(text, "narrative")
+            empty_trace = last_call_trace()
+            filtered = generate_interview_extraction(text, "narrative")
+            filtered_trace = last_call_trace()
+            extracted = generate_interview_extraction(text, "narrative")
+            extracted_trace = last_call_trace()
+
+        self.assertEqual(empty, [])
+        self.assertEqual(empty_trace["extraction_outcome"], "valid_empty")
+        self.assertTrue(empty_trace["response_valid"])
+        self.assertFalse(empty_trace["result_accepted"])
+        self.assertEqual(filtered, [])
+        self.assertEqual(filtered_trace["extraction_outcome"], "all_facts_filtered")
+        self.assertEqual(filtered_trace["filtered_fact_code_counts"], {"value_inconsistent": 1})
+        self.assertFalse(filtered_trace["result_accepted"])
+        self.assertEqual(extracted_trace["extraction_outcome"], "extracted")
+        self.assertTrue(extracted_trace["result_accepted"])
+        for body in request_bodies:
+            self.assertEqual(body["reasoning_effort"], "none")
+            self.assertNotIn("reasoning", body)
+            system_prompt = body["messages"][0]["content"]
+            self.assertIn('"value":true', system_prompt)
+            self.assertIn('"value":null', system_prompt)
+            self.assertIn("narrative", system_prompt)
+            request_text = body["messages"][1]["content"]
+            self.assertEqual(json.loads(request_text)["current_user_message"], text)
+
+    def test_ollama_reasoning_effort_is_independent_and_explicitly_configurable(self):
+        text = "في شخص عم يهددني على واتساب."
+        payload = {"facts": [{"field": "narrative", "status": "reported", "value": text, "quote": text}]}
+        bodies = []
+
+        def fake_urlopen(request, timeout):
+            bodies.append(json.loads(request.data.decode("utf-8")))
+            content = json.dumps(payload, ensure_ascii=False)
+            return io.BytesIO(json.dumps({"choices": [{"message": {"content": content}}]}).encode("utf-8"))
+
+        env = {"MODEL_PROVIDER": "ollama", "MODEL_BASE_URL": "http://127.0.0.1:11434/v1",
+               "MODEL_NAME": "fixture:latest", "OLLAMA_REASONING_EFFORT": "low",
+               "MODEL_REASONING_EFFORT": "high"}
+        with patch.dict(os.environ, env, clear=True), patch("app.model.urllib.request.urlopen", side_effect=fake_urlopen):
+            result = generate_interview_extraction(text, "narrative")
+        self.assertEqual(result[0]["field"], "narrative")
+        self.assertEqual(bodies[0]["reasoning_effort"], "low")
+        self.assertNotIn("reasoning", bodies[0])
+
+    def test_empty_provider_content_is_not_confused_with_valid_empty_facts(self):
+        envelope = {"choices": [{"message": {"content": ""}}]}
+        with patch("app.model.urllib.request.urlopen",
+                   return_value=io.BytesIO(json.dumps(envelope).encode("utf-8"))):
+            result = generate_interview_extraction("في شخص عم يهددني على واتساب.", "narrative")
+        trace = last_call_trace()
+        self.assertIsNone(result)
+        self.assertEqual(trace["failure_code"], "empty_response")
+        self.assertEqual(trace["extraction_outcome"], "provider_failed")
+        self.assertFalse(trace["response_valid"])
+
     def test_invalid_provider_envelope_has_safe_failure_code_and_type(self):
         with patch("app.model.urllib.request.urlopen", return_value=io.BytesIO(b"{}")):
             self.assertIsNone(generate_interview_extraction("شخص هددني", "narrative"))
@@ -284,7 +364,8 @@ class OptionalModelTests(unittest.TestCase):
         self.assertEqual(last_extraction_diagnostic()["filtered_facts"][0]["filter_code"], "quote_mismatch")
         self.assertEqual(last_extraction_diagnostic()["raw_response"], raw)
         self.assertNotIn("raw_response", last_call_trace())
-        self.assertEqual(last_call_trace()["failure_code"], "partial_fact_filter")
+        self.assertEqual(last_call_trace()["failure_code"], "all_facts_filtered")
+        self.assertEqual(last_call_trace()["extraction_outcome"], "all_facts_filtered")
         self.assertEqual(last_call_trace()["filtered_fact_count"], 1)
 
 

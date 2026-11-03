@@ -131,8 +131,67 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
             await self.page.locator("#message").fill("ظهر حساب مزيف على إنستغرام")
             await self.page.locator("#model-consent").check()
             await self.page.locator("#send").click()
-            await expect(self.page.locator("#runtime-detail")).to_contain_text("نتيجة مقبولة جزئيًا")
-            await expect(self.page.locator("#runtime-detail")).to_contain_text("استبعد النظام 1 من الحقائق")
+            await expect(self.page.locator("#runtime-detail")).to_contain_text("عدد الوقائع المقبولة 1")
+            await expect(self.page.locator("#runtime-detail")).to_contain_text("عدد المقترحات المصفاة 1")
+
+    async def test_valid_empty_model_response_is_not_shown_as_extraction_success(self):
+        config = {"provider": "ollama", "mode": "local_model", "model": "fixture:latest",
+                  "configuration_complete": True, "configured": True, "local": True,
+                  "ollama_reasoning_effort": "none"}
+        trace = {"attempted": True, "status": "valid_empty", "extraction_outcome": "valid_empty",
+                 "response_valid": True, "result_accepted": False, "fallback_used": True,
+                 "failure_code": "empty_extraction", "fact_fields": [], "filtered_fact_count": 0,
+                 "filtered_fact_code_counts": {}, "latency_ms": 2980}
+        async def intercept(route):
+            if route.request.url.endswith("/api/provider/status"):
+                await route.fulfill(json={"config": config, "probe": {"configured": True,
+                    "service_reachable": True, "model_available": True, "models_count": 1,
+                    "failure_code": None}})
+            else:
+                await route.continue_()
+        await self.page.route("**/api/provider/status", intercept)
+        with patch("app.main.provider_config", return_value=config), \
+             patch("app.main.model_configured", return_value=True), \
+             patch("app.main.generate_interview_extraction", return_value=[]), \
+             patch("app.main.last_call_trace", return_value=trace):
+            await self.page.goto(self.base_url)
+            await self.page.locator("#start-case").click()
+            await self.page.locator("#message").fill("في شخص عم يهددني على واتساب.")
+            await self.page.locator("#model-consent").check()
+            await self.page.locator("#send").click()
+            await expect(self.page.locator("#runtime-mode")).to_contain_text("رد صالح")
+            await expect(self.page.locator("#runtime-mode")).to_contain_text("بلا وقائع مستخرجة")
+            await expect(self.page.locator("#status-message")).to_contain_text("لم يُعد ذلك نجاحًا للاستخراج")
+
+    async def test_all_filtered_model_response_shows_reasons_and_local_fallback(self):
+        config = {"provider": "ollama", "mode": "local_model", "model": "fixture:latest",
+                  "configuration_complete": True, "configured": True, "local": True,
+                  "ollama_reasoning_effort": "none"}
+        trace = {"attempted": True, "status": "all_facts_filtered", "extraction_outcome": "all_facts_filtered",
+                 "response_valid": True, "result_accepted": False, "fallback_used": True,
+                 "failure_code": "all_facts_filtered", "fact_fields": [], "filtered_fact_count": 1,
+                 "filtered_fact_fields": ["narrative"], "filtered_fact_code_counts": {"value_inconsistent": 1},
+                 "latency_ms": 2980}
+        async def intercept(route):
+            if route.request.url.endswith("/api/provider/status"):
+                await route.fulfill(json={"config": config, "probe": {"configured": True,
+                    "service_reachable": True, "model_available": True, "models_count": 1,
+                    "failure_code": None}})
+            else:
+                await route.continue_()
+        await self.page.route("**/api/provider/status", intercept)
+        with patch("app.main.provider_config", return_value=config), \
+             patch("app.main.model_configured", return_value=True), \
+             patch("app.main.generate_interview_extraction", return_value=[]), \
+             patch("app.main.last_call_trace", return_value=trace):
+            await self.page.goto(self.base_url)
+            await self.page.locator("#start-case").click()
+            await self.page.locator("#message").fill("في شخص عم يهددني على واتساب.")
+            await self.page.locator("#model-consent").check()
+            await self.page.locator("#send").click()
+            await expect(self.page.locator("#runtime-mode")).to_contain_text("استُبعدت جميع مقترحات")
+            await expect(self.page.locator("#runtime-detail")).to_contain_text("قيمة غير متسقة: 1")
+            await expect(self.page.locator("#status-message")).to_contain_text("طُبقت القواعد المحلية")
 
     async def test_chat_pause_resume_correction_confirmation_and_download(self):
         await self.page.add_init_script("window.__accpPrintCalled=false;window.print=()=>{window.__accpPrintCalled=true;};")

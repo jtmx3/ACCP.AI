@@ -104,6 +104,40 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertEqual(result["provider_call"]["filtered_fact_fields"], ["identity"])
         self.assertNotIn("filtered_fact_proposals", result["provider_call"])
 
+    def test_valid_empty_and_all_filtered_model_extractions_fall_back_without_claiming_success(self):
+        cases = [
+            ({"status": "valid_empty", "extraction_outcome": "valid_empty", "response_valid": True,
+              "result_accepted": False, "fallback_used": False, "failure_code": "empty_extraction",
+              "filtered_fact_count": 0, "filtered_fact_fields": [], "filtered_fact_code_counts": {}},
+             "valid_empty"),
+            ({"status": "all_facts_filtered", "extraction_outcome": "all_facts_filtered", "response_valid": True,
+              "result_accepted": False, "fallback_used": False, "failure_code": "all_facts_filtered",
+              "filtered_fact_count": 1, "filtered_fact_fields": ["narrative"],
+              "filtered_fact_code_counts": {"value_inconsistent": 1}}, "all_facts_filtered"),
+        ]
+        for trace, expected_outcome in cases:
+            with self.subTest(outcome=expected_outcome), \
+                 patch("app.main.model_configured", return_value=True), \
+                 patch("app.main.provider_config", return_value={"provider": "ollama", "model": "fixture:latest",
+                                                                    "mode": "local_model"}), \
+                 patch("app.main.generate_interview_extraction", return_value=[]), \
+                 patch("app.main.last_call_trace", return_value=trace):
+                response = self.client.post(
+                    f"/api/sessions/{self.case_id}/messages", headers=self.headers,
+                    json={"expected_revision": self.revision, "text": "في شخص عم يهددني على واتساب.",
+                          "kind": "answer", "allow_external_extraction": True})
+            self.assertEqual(response.status_code, 200, response.text)
+            result = response.json()
+            self.revision = result["session"]["revision"]
+            self.assertFalse(result["external_model_result_accepted"])
+            self.assertTrue(result["fallback_used"])
+            self.assertEqual(result["fallback_to"], "rules")
+            self.assertEqual(result["extraction_outcome"], expected_outcome)
+            self.assertTrue(result["provider_call"]["response_valid"])
+            self.assertFalse(result["provider_call"]["result_accepted"])
+            if expected_outcome == "all_facts_filtered":
+                self.assertEqual(result["provider_call"]["filtered_fact_code_counts"], {"value_inconsistent": 1})
+
     def test_clear_question_in_answer_mode_is_answered_locally_then_pending_question_resumes(self):
         before = self.turn("في شخص يهددني على واتساب")
         self.assertEqual(before["pending_slot"], "direct_danger")

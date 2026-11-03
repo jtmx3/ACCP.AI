@@ -399,15 +399,32 @@
           const provider = providerLabel(result.provider_call?.provider || providerConfig?.provider);
           const purpose = result.external_model_purpose === 'grounded_question'
             ? 'نص السؤال الحالي ومقتطفات المصادر المختارة' : 'نص الرسالة الحالية فقط';
-          if (result.external_model_result_accepted) {
+          const extractionOutcome = result.extraction_outcome || result.provider_call?.extraction_outcome;
+          const extractionCall = result.external_model_purpose === 'current_message_extraction';
+          const latency = result.provider_call?.latency_ms ?? 'غير متاح';
+          if (extractionCall && extractionOutcome === 'valid_empty') {
+            $('runtime-mode').textContent = `القواعد المحلية — رد صالح من ${provider} بلا وقائع مستخرجة.`;
+            setStatus(`رد ${provider} صالح بنيويًا لكنه لم يتضمن وقائع؛ لم يُعد ذلك نجاحًا للاستخراج، وطُبقت القواعد المحلية على الرسالة.`, false, ctx);
+            $('runtime-detail').textContent = `آخر عملية: رد صالح بلا مقترحات حقائق؛ القواعد المحلية عالجت الرسالة. زمن الاستجابة ${latency} مللي ثانية.`;
+          } else if (extractionCall && extractionOutcome === 'all_facts_filtered') {
+            const reasonLabels = { quote_mismatch: 'اقتباس غير مطابق', value_inconsistent: 'قيمة غير متسقة',
+              unsupported_status_evidence: 'حالة بلا دليل كافٍ', other_validation: 'تحقق آخر' };
+            const reasonCounts = result.provider_call?.filtered_fact_code_counts || {};
+            const reasons = Object.entries(reasonCounts).map(([code, count]) => `${reasonLabels[code] || 'سبب تحقق آخر'}: ${count}`).join('، ');
+            $('runtime-mode').textContent = `القواعد المحلية — استُبعدت جميع مقترحات ${provider}.`;
+            setStatus(`أعاد ${provider} مقترحات، لكن المدقق استبعدها جميعًا${reasons ? ` (${reasons})` : ''}؛ طُبقت القواعد المحلية.`, false, ctx);
+            $('runtime-detail').textContent = `آخر عملية: استُبعدت جميع المقترحات (${result.provider_call?.filtered_fact_count || 0})؛ ${reasons || 'أسباب التصفية مسجلة في التشخيص'}؛ زمن الاستجابة ${latency} مللي ثانية.`;
+          } else if (result.external_model_result_accepted) {
             const filteredCount = Number(result.provider_call?.filtered_fact_count || 0);
             const runtimeLabel = result.runtime_mode === 'local_model' ? 'نموذج Ollama المحلي' : 'مزود خارجي';
             $('runtime-mode').textContent = `${runtimeLabel} — استُخدم في آخر إرسال بموافقتك.`;
             const filterNote = filteredCount ? `؛ واستبعد النظام ${filteredCount} من الحقائق غير المسندة عن الحالة` : '';
-            setStatus(`أُرسل ${purpose} بموافقتك إلى ${provider}؛ قُبلت البنية وطبّقت قواعد التحقق المحلية${filterNote}.`, true, ctx);
+            const extractedCount = Number(result.provider_call?.fact_fields?.length || 0);
+            const acceptedSummary = extractionCall ? `عدد الوقائع المقبولة: ${extractedCount}` : 'قُبل جواب الاستناد إلى المصادر';
+            setStatus(`أُرسل ${purpose} بموافقتك إلى ${provider}؛ ${acceptedSummary}${filterNote}.`, true, ctx);
             $('runtime-detail').textContent = filteredCount
-              ? `آخر عملية: نتيجة مقبولة جزئيًا من ${provider}؛ استبعد النظام ${filteredCount} من الحقائق غير المسندة؛ زمن الاستجابة ${result.provider_call?.latency_ms ?? 'غير متاح'} مللي ثانية.`
-              : `آخر عملية: نتيجة مقبولة من ${provider}؛ زمن الاستجابة ${result.provider_call?.latency_ms ?? 'غير متاح'} مللي ثانية.`;
+              ? `آخر عملية: ${extractionCall ? `استخراج من ${provider}؛ عدد الوقائع المقبولة ${extractedCount}، وعدد المقترحات المصفاة ${filteredCount}` : `قُبل الجواب الموثق من ${provider}`}؛ زمن الاستجابة ${latency} مللي ثانية.`
+              : `آخر عملية: ${extractionCall ? `استخراج من ${provider}؛ عدد الوقائع المقبولة ${extractedCount}` : `قُبل الجواب الموثق من ${provider}`}؛ زمن الاستجابة ${latency} مللي ثانية.`;
           } else {
             $('runtime-mode').textContent = `القواعد المحلية — عاد الطلب إليها بعد تعذر قبول نتيجة ${provider}.`;
             setStatus(`لم تُقبل نتيجة ${provider} بعد إرسال ${purpose} بموافقتك؛ فعاد الطلب إلى ${result.fallback_to === 'local_rag' ? 'الإجابة المحلية المستندة إلى المصادر' : 'القواعد المحلية'}.`, false, ctx);
@@ -550,8 +567,10 @@
         ? 'لم يبدأ أي اتصال. يلزم استكمال اسم النموذج والإعدادات المطلوبة؛ وجود متغيرات وحده لا يثبت توفر الخدمة.'
         : 'لم يُفحص اتصال خدمة نموذج، ولا يُجرى أي استدعاء في الوضع الافتراضي.';
     } else {
+      const reasoning = providerConfig.local
+        ? `؛ إعداد التفكير الخاص بـOllama: ${providerConfig.ollama_reasoning_effort || 'none'}${(providerConfig.ollama_reasoning_effort || 'none') === 'none' ? ' (معطّل)' : ''}` : '';
       $('runtime-mode').textContent = `إعداد ${providerLabel(providerConfig.provider)} · النموذج: ${providerConfig.model} — لم يُثبت الاتصال بعد.`;
-      $('runtime-detail').textContent = 'الإعداد موجود فقط؛ لم يُفحص اتصال الخدمة أو وجود النموذج أو نجاح التوليد.';
+      $('runtime-detail').textContent = `الإعداد موجود فقط؛ لم يُفحص اتصال الخدمة أو وجود النموذج أو نجاح التوليد.${reasoning}`;
     }
     $('model-consent-row').dataset.configured = String(externalConfigured);
     updateConsentVisibility();
@@ -571,7 +590,9 @@
       $('runtime-detail').textContent = `الخدمة متاحة، لكن النموذج المحدد غير موجود في قائمتها (${probe.failure_code || 'تحقق من اسم النموذج'}).`;
     } else {
       $('runtime-mode').textContent = `الخدمة والنموذج متاحان لدى ${providerLabel(probe.provider)}؛ لم ينجح التوليد بعد.`;
-      $('runtime-detail').textContent = `الخدمة متاحة والنموذج المحدد موجود (${probe.models_count} نموذجًا بالقائمة). لم يُختبر التوليد بعد.`;
+      const reasoning = providerConfig?.local
+        ? ` إعداد التفكير لـOllama: ${providerConfig.ollama_reasoning_effort || 'none'}${(providerConfig.ollama_reasoning_effort || 'none') === 'none' ? ' (معطّل)' : ''}.` : '';
+      $('runtime-detail').textContent = `الخدمة متاحة والنموذج المحدد موجود (${probe.models_count} نموذجًا بالقائمة). لم يُختبر التوليد بعد.${reasoning}`;
     }
   }
   async function checkProvider() {

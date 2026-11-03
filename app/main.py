@@ -205,7 +205,8 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
         state["assessment"] = _assessment(state)
 
     state = _mutate(session_id, x_case_token, body.expected_revision, "user_message", mutate)
-    call_accepted = external_answer is not None or model_facts is not None
+    # An empty/fully-filtered extraction is a valid response at most, not successful extraction.
+    call_accepted = external_answer is not None or bool(model_facts)
     provider_call = last_call_trace()
     provider = provider_config()
     if external_question_sent or external_extraction_sent:
@@ -226,6 +227,7 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
             "external_data_sent": external_question_sent or external_extraction_sent,
             "external_model_purpose": "grounded_question" if external_question_sent else "current_message_extraction" if external_extraction_sent else None,
             "external_model_result_accepted": call_accepted,
+            "extraction_outcome": (provider_call or {}).get("extraction_outcome") if external_extraction_sent else None,
             "fallback_used": bool(external_question_sent or external_extraction_sent) and not call_accepted,
             "fallback_to": ("local_rag" if external_question_sent else "rules") if (external_question_sent or external_extraction_sent) and not call_accepted else None,
             "question_detected": auto_question,

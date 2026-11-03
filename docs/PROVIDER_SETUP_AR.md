@@ -6,11 +6,11 @@
 
 ## Windows PowerShell — Ollama محلي
 
-1. ثبّت Ollama من دليل Windows الرسمي، ثم شغّله واتركه يعمل في الخلفية. يتطلب Windows 10 22H2 أو أحدث بحسب دليل المزود. اسحب نموذجًا مناسبًا لسعة الجهاز؛ `qwen3:4b` مثال على وسم منشور في مكتبة Ollama وليس توصية دقة أو ملاءمة للفرز الأمني. [1] [4]
+1. ثبّت Ollama من دليل Windows الرسمي، ثم شغّله واتركه يعمل في الخلفية. يتطلب Windows 10 22H2 أو أحدث بحسب دليل المزود. في تجربة Windows التي أبلغ عنها المستخدم، اسم النموذج المضبوط هو `qwen3.5:4b-q4_K_M`؛ أبقِ الاسم كما يظهر في `ollama list` ولا تستبدله عند فحص هذا الإصلاح. [1]
 
 ```powershell
 ollama --version
-ollama pull qwen3:4b
+ollama pull qwen3.5:4b-q4_K_M
 ollama list
 ```
 
@@ -21,13 +21,16 @@ Set-Location C:\path\to\accp-ai
 .\.venv\Scripts\Activate.ps1
 $env:MODEL_PROVIDER = "ollama"
 $env:MODEL_BASE_URL = "http://127.0.0.1:11434/v1"
-$env:MODEL_NAME = "qwen3:4b"
+$env:MODEL_NAME = "qwen3.5:4b-q4_K_M"
 $env:MODEL_TIMEOUT_SECONDS = "120"
+$env:OLLAMA_REASONING_EFFORT = "none"
 python -m app.rag --reindex
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 لا يلزم `MODEL_API_KEY` لموائم Ollama المحلي؛ يرسل الموائم قيمة محلية شكلية لأن العميل المتوافق يتوقع ترويسة، ويتجاهلها خادم Ollama المحلي. لا تستخدم هذا الافتراض مع خدمة Ollama سحابية أو مزود بعيد. [2]
+
+`OLLAMA_REASONING_EFFORT` إعداد محلي مستقل يُرسل إلى واجهة Ollama المتوافقة كالحقل `reasoning_effort`، وقيمه المقبولة `none` و`low` و`medium` و`high`. الافتراضي `none` لتعطيل التفكير الممتد في طلبات Ollama، ومنها استخراج الوقائع. لا يقرأ هذا الخيار إعداد المزود الخارجي `MODEL_REASONING_EFFORT` ولا يغيّره؛ يظل الأخير مستقلًا للمزود `openai-compatible`. تعرض لوحة التشغيل إعداد Ollama الفعلي. لا يغيّر هذا الخيار مهلة HTTP؛ ارفع `MODEL_TIMEOUT_SECONDS` إذا احتاج النموذج وقت تحميل، مع العلم أن طول المهلة لا يضمن صحة الاستخراج.
 
 3. افتح `http://127.0.0.1:8000`، ثم استخدم لوحة **مسار التشغيل الفعلي**. زر الفحص يختبر الإعداد واتصال قائمة النماذج وتطابق الاسم؛ لا يرسل رسالة حالة ولا يشغّل توليدًا. بعد نجاحه، زر اختبار التوليد يرسل نص JSON ثابتًا لا يتضمن بيانات المستخدم.
 
@@ -42,6 +45,16 @@ Test-NetConnection 127.0.0.1 -Port 11434
 ```
 
 `/api/health` يعرض الإعداد المختار فقط. `/api/provider/status` يجري فحصًا غير توليدي للخدمة وقائمة النماذج. `/api/provider/test` لا يجري التوليد إلا بعد توافر الإعداد والخدمة والنموذج. النتيجة الناجحة تعني أن اختبار JSON الثابت نجح، ولا تثبت جودة الاستخراج العربي أو السلامة أو صلاحية المنتج.
+
+### أمر تشخيص استخراج واحد على Windows
+
+من جذر المستودع، وبعد تفعيل البيئة الافتراضية وتشغيل Ollama محليًا، انسخ السطر التالي إلى PowerShell. يستخدم اسم النموذج الذي أبلغ عنه المشغل، ويستدعي برومبت الاستخراج والتحقق الحقيقيين في المشروع؛ لا يرسل سجل المقابلة أو إعدادات الحالة السابقة. الرسالة هنا اصطناعية للاختبار:
+
+```powershell
+$env:MODEL_PROVIDER='ollama'; $env:MODEL_BASE_URL='http://127.0.0.1:11434/v1'; $env:MODEL_NAME='qwen3.5:4b-q4_K_M'; $env:OLLAMA_REASONING_EFFORT='none'; python scripts/diagnose_ollama_extraction.py --pending-slot narrative --message 'في شخص عم يهددني على واتساب.'
+```
+
+يطبع الأمر الزمن الكلي وزمن المزود، وإعداد التفكير، وهل كان الرد صالحًا، ونتيجة الاستخراج، والحقائق المقبولة وأسباب تصفية الحقول دون إظهار الرد الخام. `valid_empty` تعني ردًا صالحًا بلا حقائق؛ `all_facts_filtered` تعني وجود مقترحات استبعدها المدقق كلها؛ `extracted` تعني وجود حقيقة مقبولة. لا تعد الحالتان الأوليان نجاحًا للاستخراج. هذا الأمر موثق للتشغيل على Windows ولم يُنفذ في هذه البيئة على Ollama أو على جهاز المستخدم.
 
 ## مزود OpenAI-compatible خارجي
 
@@ -107,4 +120,3 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 [1]: https://docs.ollama.com/windows "Ollama on Windows"
 [2]: https://docs.ollama.com/api/openai-compatibility "Ollama OpenAI compatibility"
 [3]: https://docs.ollama.com/api/tags "Ollama list models API"
-[4]: https://ollama.com/library/qwen3/tags "Qwen3 model tags in the Ollama library"

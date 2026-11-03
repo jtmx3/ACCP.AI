@@ -50,6 +50,10 @@ def provider_config() -> dict[str, Any]:
     valid_provider = provider in {"rules", "ollama", "openai-compatible"}
     configured = provider in {"ollama", "openai-compatible"} and bool(base_url and model and key_present and valid_provider)
     mode = "local_model" if local and configured else "external_model" if provider == "openai-compatible" and configured else "rules"
+    ollama_reasoning_effort = os.getenv("OLLAMA_REASONING_EFFORT", "none").strip().lower()
+    if ollama_reasoning_effort not in {"none", "low", "medium", "high"}:
+        ollama_reasoning_effort = "none"
+    external_reasoning_effort = os.getenv("MODEL_REASONING_EFFORT", "").strip() or None
     return {
         "provider": provider if valid_provider else "invalid",
         "mode": mode,
@@ -60,6 +64,8 @@ def provider_config() -> dict[str, Any]:
         "configuration_complete": configured,
         "configured": configured,
         "valid_provider": valid_provider,
+        "ollama_reasoning_effort": ollama_reasoning_effort if local else None,
+        "external_reasoning_effort": external_reasoning_effort if provider == "openai-compatible" else None,
     }
 
 
@@ -123,7 +129,8 @@ def _chat(messages: list[dict[str, str]]) -> str | None:
         "messages": messages,
     }
     if cfg["local"]:
-        body.update({"temperature": 0, "max_tokens": 1200})
+        body.update({"temperature": 0, "max_tokens": 1200,
+                     "reasoning_effort": cfg["ollama_reasoning_effort"]})
     else:
         body["max_completion_tokens"] = 1200
         effort = os.getenv("MODEL_REASONING_EFFORT", "").strip()
@@ -534,7 +541,25 @@ def generate_interview_extraction(text: str, pending_slot: str | None) -> list[d
         "allowed_fact_fields": schema,
     }
     messages = [
-        {"role": "system", "content": "استخرج الوقائع المصرّح بها في الرسالة الحالية فقط، مع مراعاة النفي والاقتباس والافتراض واختلاف الجمل. أعد JSON فقط بالشكل {\"facts\":[{\"field\":\"...\",\"status\":\"reported|denied|unknown|not_remembered|declined\",\"value\":null,\"quote\":\"...\"}]}. كل quote يجب أن تكون مقطعًا حرفيًا متصلًا من نص المستخدم وبالحروف نفسها. لا تخترع قيمًا. لا تستنتج خطرًا مباشرًا أو درجة أو مرحلة أو تأكيدًا. الحقول الثنائية فقط هي threat وimpersonation وpublication_threat وrepeated وpublished وactive_unauthorized_funds وfraud_description وaccount_access وharassment وcontact_repeated؛ لهذه الحقول استخدم reported مع true أو denied مع false. بقية الحقول نصية: لا تستخدم معها false. لا تصدر حقلًا لا تذكره الرسالة ولا يمثل جوابًا للسؤال المعلّق. لا تستخدم unknown أو not_remembered أو declined لمجرد غياب المعلومة؛ استخدمها فقط إذا صرح المستخدم بعدم المعرفة أو التذكر أو الرفض، وكان الاقتباس متعلقًا بالحقل. حقلا requested_amount وpaid_amount لا يكونان reported إلا إذا ورد المبلغ صراحة في النص؛ اقتبس الرقم كما ورد وبصيغة نصية، ولا تخترع مبلغًا. إذا ذكر المستخدم أنه دفع دون ذكر المبلغ، سجّل paid_amount بحالة unknown وقيمة null فقط إذا دل النص بوضوح على دفع دون مبلغ معلوم. حقل identity يعني هوية الشخص المشتبه به أو صاحب الحساب المنتحل، وليس اسم المستخدم المتضرر أو صورته أو حسابه. أخرج قيمة identity reported فقط إذا ورد اسم أو معرّف المشتبه به حرفيًا في الاقتباس؛ إذا لم تُعرف هويته فلا تستنتج ذلك من غياب الاسم. حقل narrative يجب أن تكون قيمته مطابقة للاقتباس حرفيًا؛ لا تعِد صياغة السرد. حقل repeated يصف تكرار التهديد أو المضايقة صراحة، لا تكرار طلب المال أو الدفع. حقل contact هو معرّف أو وسيلة تواصل متاحة صراحة، وليس نوع رسالة عامًّا مثل رسالة خاصة. أخرج facts فارغة عند غياب معلومة واضحة. يمكن إخراج عدة حقائق إذا وردت في الرسالة، لكن حقيقة واحدة فقط لكل field."},
+        {"role": "system", "content": (
+            "استخرج الوقائع التي صرّح بها المستخدم في الرسالة الحالية فقط. أعد JSON فقط بالشكل "
+            "{\"facts\":[{\"field\":\"اسم الحقل المسموح\",\"status\":\"reported أو denied أو unknown أو not_remembered أو declined\",\"value\":\"قيمة من النوع المحدد أدناه\",\"quote\":\"اقتباس حرفي\"}]}. "
+            "يجب أن يحتوي كل عنصر على الحقول الأربعة field,status,value,quote فقط. كل quote مقطع حرفي متصل من رسالة المستخدم وبالحروف نفسها. "
+            "أنواع القيمة والأمثلة منفصلة: للحقول الثنائية فقط "
+            "(threat, impersonation, publication_threat, repeated, published, active_unauthorized_funds, fraud_description, account_access, harassment, contact_repeated): "
+            "reported تكون value=true، وdenied تكون value=false؛ مثال {\"field\":\"threat\",\"status\":\"reported\",\"value\":true,\"quote\":\"في شخص عم يهددني\"}. "
+            "للحقول النصية (ومنها narrative, platform, details, identity, contact, initial_time, latest_time, requested_amount, paid_amount, payment_method, deadline, evidence): "
+            "reported تتطلب قيمة نصية غير فارغة ومسنَدة حرفيًا؛ مثال {\"field\":\"narrative\",\"status\":\"reported\",\"value\":\"في شخص عم يهددني على واتساب.\",\"quote\":\"في شخص عم يهددني على واتساب.\"}. "
+            "قيمة narrative عند reported يجب أن تساوي quote حرفيًا. لا تضع null أو قيمة فارغة لواقعة reported، ولا تعمم null على الحقول. "
+            "للحالة غير المعلومة الصريحة فقط، استخدم مثالًا منفصلًا مثل "
+            "{\"field\":\"identity\",\"status\":\"unknown\",\"value\":null,\"quote\":\"ما بعرف مين هو\"}; "
+            "وللحقول النصية المنفية استخدم denied مع value=null، وللثنائية المنفية denied مع false. "
+            "لا تستخدم unknown/not_remembered/declined لمجرد غياب المعلومة؛ يجب أن ينص الاقتباس على عدم المعرفة أو التذكر أو الرفض وأن يتعلق بالحقل. "
+            "لا تخترع قيمة أو اقتباسًا. راعِ النفي والسياق، ولا تقبل ادعاءً إيجابيًا يناقض نفيًا صريحًا. "
+            "لا تستنتج خطرًا مباشرًا أو درجة أو مرحلة أو تأكيدًا. لا تصدر حقلًا غير مذكور ولا يمثل جوابًا واضحًا للسؤال المعلق. "
+            "المبالغ reported تتطلب الرقم نفسه في الرسالة؛ هوية المشتبه به ليست اسم المتضرر؛ repeated يصف تكرار الضرر لا تكرار طلب المال؛ contact ليس نوع رسالة عامًّا. "
+            "إذا لم توجد حقيقة واضحة أعد {\"facts\":[]}. حقيقة واحدة فقط لكل field."
+        )},
         {"role": "user", "content": json.dumps(user, ensure_ascii=False)},
     ]
     payload = _chat(messages)
@@ -558,10 +583,29 @@ def generate_interview_extraction(text: str, pending_slot: str | None) -> list[d
     trace = last_call_trace()
     if trace and trace.get("attempted"):
         diag = last_extraction_diagnostic() or {}
-        _update_call_trace(result_accepted=facts is not None,
-                           status=("partially_accepted" if diag.get("filtered_facts") else "accepted") if facts is not None else (trace.get("status") if not payload else "schema_rejected"),
-                           failure_code=("partial_fact_filter" if diag.get("filtered_facts") else None) if facts is not None else (diag.get("rejection_code") or trace.get("failure_code") or "generation_failed"),
+        accepted_count = len(facts or [])
+        filtered = diag.get("filtered_facts", [])
+        response_valid = bool(diag.get("accepted"))
+        if not response_valid:
+            outcome = "provider_failed" if not payload else "response_rejected"
+            status = trace.get("status") if not payload else "response_rejected"
+            failure_code = diag.get("rejection_code") or trace.get("failure_code") or "generation_failed"
+        elif accepted_count and filtered:
+            outcome, status, failure_code = "partially_extracted", "partially_accepted", "partial_fact_filter"
+        elif accepted_count:
+            outcome, status, failure_code = "extracted", "extracted", None
+        elif filtered:
+            outcome, status, failure_code = "all_facts_filtered", "all_facts_filtered", "all_facts_filtered"
+        else:
+            outcome, status, failure_code = "valid_empty", "valid_empty", "empty_extraction"
+        _update_call_trace(result_accepted=accepted_count > 0,
+                           response_valid=response_valid,
+                           extraction_outcome=outcome,
+                           status=status,
+                           failure_code=failure_code,
                            fact_fields=[item["field"] for item in facts] if facts is not None else [],
-                           filtered_fact_count=len(diag.get("filtered_facts", [])),
-                           filtered_fact_fields=[item["field"] for item in diag.get("filtered_facts", [])])
+                           filtered_fact_count=len(filtered),
+                           filtered_fact_fields=[item["field"] for item in filtered],
+                           filtered_fact_code_counts={code: sum(1 for item in filtered if item.get("filter_code") == code)
+                                                      for code in sorted({item.get("filter_code", "other_validation") for item in filtered})})
     return facts

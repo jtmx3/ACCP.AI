@@ -29,7 +29,8 @@ QUESTIONS: dict[str, str] = {
 
 LABELS = {
     "narrative": "وصف الواقعة", "unclassified_details": "توضيح واقعة غير مصنفة", "incident_type_review": "تصنيف نوع الواقعة (يحتاج مراجعة)",
-    "threat": "وجود تهديد", "impersonation": "انتحال شخصية", "harassment": "مضايقة مذكورة",
+    "threat": "وجود تهديد", "impersonation": "انتحال شخصية", "platform": "المنصة",
+    "account_access": "دخول غير مصرح به للحساب الأصلي", "harassment": "مضايقة مذكورة",
     "contact_repeated": "تكرار التواصل دون استنتاج تهديد", "publication_threat": "تهديد بالنشر",
     "direct_danger": "الخطر المباشر الحالي", "active_unauthorized_funds": "أموال معرضة حاليًا لتصرف غير مأذون",
     "fraud_description": "وصف خداع مالي", "details": "تفاصيل الواقعة",
@@ -547,6 +548,32 @@ def _user_intent(text: str) -> str | None:
     return None
 
 
+def is_clear_user_question(text: str) -> bool:
+    """Recognize clear questions in answer mode without reclassifying incident facts."""
+    raw = _strip_quoted_spans(text).strip()
+    if not raw or _is_unknown(raw) or _user_intent(raw) in {"pause", "show"}:
+        return False
+    normalized = normalize(raw)
+    prefixes = ("كيف", "هل", "متى", "وين", "اين", "شو", "ايش", "اش", "ليش", "لماذا", "ماذا", "مين", "من", "كم",
+                "ما معنى", "ما الذي", "ما هي", "ما هو", "ما الخطوات")
+
+    def starts_with_question(clause: str) -> bool:
+        clause = clause.strip()
+        return any(re.match(rf"^{re.escape(prefix)}(?:$|\\s)", clause) for prefix in prefixes)
+
+    clauses = [part.strip() for part in re.split(r"[،,؛;\\n]+", normalized) if part.strip()]
+    if clauses and starts_with_question(clauses[0]):
+        return True
+    fact_markers = ("هددني", "يهددني", "تهديد", "ابتزاز", "ينتحل", "انتحال", "حساب مزيف", "خدعني", "نصب", "احتيال",
+                    "دفعت", "حولت", "طلب مني", "سحب غير", "وصلتني", "نشر صوري")
+    has_incident_assertion = any(normalize(marker) in normalized for marker in fact_markers)
+    if len(clauses) > 1 and starts_with_question(clauses[-1]) and not has_incident_assertion:
+        return True
+    if raw.endswith(("?", "؟")) and not has_incident_assertion:
+        return True
+    return _user_intent(raw) == "why"
+
+
 def _strip_quoted_spans(text: str) -> str:
     return re.sub(r"«[^»]*»|“[^”]*”|\"[^\"]*\"|'[^']*'", " ", text)
 
@@ -975,8 +1002,16 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
     question_id = state["messages"][-2]["id"] if len(state["messages"]) >= 2 and state["messages"][-2]["role"] == "assistant" else None
     for candidate in model_facts or []:
         key = candidate.get("field")
-        if key in {"direct_danger", "priority_score", "confirmed", "stage"} or key in changed:
+        # Amount facts must pass through the money-event relation parser below; otherwise
+        # a model proposal can overwrite the initial request before clarification.
+        if key in {"direct_danger", "priority_score", "confirmed", "stage", "requested_amount", "paid_amount"} or key in changed:
             continue
+        if key == "details" and not _incident_detail_candidate(candidate.get("quote", "")):
+            continue
+        if key == "narrative" and state["facts"].get("narrative") and pending != "narrative":
+            correction_text = normalize(candidate.get("quote", ""))
+            if not any(marker in correction_text for marker in ("تصحيح", "قصدي", "اقصد", "المعلومة الصحيحة")):
+                continue
         if _record(state, key, candidate["status"], candidate["value"], candidate["quote"], user_msg["id"], question_id, "optional_model_extraction"):
             changed.add(key)
     addition_marker = any(marker in normalize(text) for marker in ("اضيف", "تفصيل اضافي", "معلومة اضافية", "نسيت اقول"))
@@ -1039,22 +1074,21 @@ def resume_state(state: dict[str, Any]) -> dict[str, Any]:
     return state
 
 
-def display_value(fact: dict[str, Any] | None) -> str:
+def display_status(fact: dict[str, Any] | None) -> str:
     if not fact:
-        return "لم يُذكر"
-    status = fact.get("status")
-    if status == "denied":
-        return "منفي صراحة بحسب الإفادة"
-    if status == "unknown":
-        return "المستخدم لا يعرف"
-    if status == "not_remembered":
-        return "المستخدم لا يتذكر"
-    if status == "declined":
-        return "المستخدم فضّل عدم الإجابة"
-    if status == "unresolved":
-        return "لم تُحسم بعد محاولة التوضيح"
-    if status == "conflict":
-        return "إفادات متعارضة — تحتاج توضيحًا"
+        return "غير مسجلة"
+    statuses = {
+        "reported": "مذكورة بحسب الإفادة", "denied": "منفية صراحة بحسب الإفادة",
+        "unknown": "غير معروفة للمستخدم", "not_remembered": "لا يتذكرها المستخدم",
+        "declined": "فضّل المستخدم عدم الإجابة", "unresolved": "غير محسومة بعد الاستيضاح",
+        "conflict": "تعارض فعلي يحتاج إلى توضيح",
+    }
+    return statuses.get(fact.get("status"), "حالة غير متاحة")
+
+
+def display_value(fact: dict[str, Any] | None) -> str:
+    if not fact or fact.get("status") != "reported":
+        return "لا توجد قيمة مثبتة لهذا الحقل"
     value = fact.get("value")
     if isinstance(value, bool):
         return "نعم بحسب الإفادة" if value else "لا بحسب الإفادة"
@@ -1064,6 +1098,24 @@ def display_value(fact: dict[str, Any] | None) -> str:
 def report_data(state: dict[str, Any]) -> dict[str, Any]:
     assessment = _assessment(state)
     current_confirmation = confirmation_is_current(state)
+    message_times = {message.get("id"): message.get("created_at") for message in state.get("messages", [])}
+    facts = {}
+    for key, fact in state.get("facts", {}).items():
+        facts[key] = {**fact, "source_message_at": message_times.get(fact.get("message_id")),
+                      "last_updated_at": fact.get("updated_at")}
+    money_events = []
+    for event in state.get("money_events", []):
+        money_events.append({**event,
+            "source_message_at": message_times.get(event.get("message_id")),
+            "relation_message_at": message_times.get(event.get("relation_message_id"))})
+    unknown_statuses = {"unknown", "not_remembered", "declined"}
+    missing_fields = [key for key in _relevant_slots(state) if not _has(state, key)]
+    unknown_fields = [key for key, fact in facts.items() if fact.get("status") in unknown_statuses]
+    unresolved_fields = [key for key, fact in facts.items() if fact.get("status") == "unresolved"]
+    conflicting_fields = [key for key, fact in facts.items() if fact.get("status") == "conflict"]
+    field_keys = sorted(set(facts) | set(_relevant_slots(state)))
+    unresolved_money_events = [event for event in money_events
+                               if event.get("relation") in {"unresolved", "unresolved_after_clarification"}]
     history = list(state.get("confirmation_history") or [])
     old_digest = state.get("confirmed_digest")
     if state.get("confirmed") and old_digest and not current_confirmation and not any(item.get("digest") == old_digest for item in history):
@@ -1071,7 +1123,12 @@ def report_data(state: dict[str, Any]) -> dict[str, Any]:
         history.append({"summary_version": state["summary_version"], "digest": old_digest,
                         "confirmed_at": confirmed_message.get("created_at"), "legacy": True})
     return {"case_id": state["session_id"], "summary_version": state["summary_version"], "stage": state["stage"],
-            "facts": state["facts"], "assessment": assessment, "confirmed": current_confirmation,
+            "case_created_at": state.get("created_at"), "case_updated_at": state.get("updated_at"),
+            "facts": facts, "money_events": money_events, "assessment": assessment,
+            "field_labels": {key: LABELS.get(key, "معلومة إضافية") for key in field_keys},
+            "missing_fields": missing_fields, "unknown_fields": unknown_fields,
+            "unresolved_fields": unresolved_fields, "conflicting_fields": conflicting_fields,
+            "unresolved_money_events": unresolved_money_events, "confirmed": current_confirmation,
             "confirmation_history": history,
             "generated_at": now_iso(), "notice": "هذا ملخص لإفادة المستخدم للمراجعة فقط. لا يمثل بلاغًا رسميًا أو تحققًا مستقلًا أو إثباتًا للواقعة."}
 
@@ -1080,7 +1137,8 @@ def render_report(state: dict[str, Any]) -> str:
     data = report_data(state)
     facts = state["facts"]
     lines = [f"# ملخص الحالة {state['session_id']}", "", f"**إصدار الملخص:** {state['summary_version']}  ",
-             f"**تاريخ إنشاء التقرير:** {data['generated_at']}  ", f"**التأكيد:** {'مؤكد من المستخدم' if data['confirmed'] else 'غير مؤكد'}", "",
+             f"**وقت إنشاء التقرير:** {data['generated_at']}  ", f"**وقت آخر تحديث للحالة:** {data['case_updated_at'] or 'غير متاح'}  ",
+             f"**التأكيد:** {'مؤكد من المستخدم' if data['confirmed'] else 'غير مؤكد'}", "",
              "## سجل التأكيد", ""]
     if data["confirmation_history"]:
         for item in data["confirmation_history"]:
@@ -1097,13 +1155,14 @@ def render_report(state: dict[str, Any]) -> str:
         fact = facts.get(key)
         if not fact:
             continue
-        lines += [f"### {LABELS.get(key, key)}", f"- الحالة: {display_value(fact)}"]
+        lines += [f"### {LABELS.get(key, key)}", f"- الحالة: {display_status(fact)}",
+                  f"- القيمة: {display_value(fact)}"]
         if fact.get("quote"):
             lines.append(f"- نص الإفادة: «{fact['quote']}»")
         if fact.get("message_id"):
             lines.append(f"- مرجع الرسالة: {fact['message_id']}")
-        if fact.get("updated_at"):
-            lines.append(f"- وقت التسجيل: {fact['updated_at']}")
+        lines.append(f"- وقت الرسالة الأصلية: {fact.get('source_message_at') or 'غير متاح'}")
+        lines.append(f"- وقت آخر تحديث للمعلومة: {fact.get('last_updated_at') or 'غير متاح'}")
         for previous in fact.get("history", []):
             old_value = previous.get("value")
             old_quote = previous.get("quote")
@@ -1120,13 +1179,33 @@ def render_report(state: dict[str, Any]) -> str:
               f"- أولوية المراجعة: {assessment['priority_score']}/100" if assessment["priority_score"] is not None else "- أولوية المراجعة: غير محددة",
               f"- المسار المقترح: {assessment['route']}", f"- اكتمال المعلومات: {assessment['completeness_percent']}% — {assessment['completeness_note']}",
               f"- جودة الاستخراج: {assessment['extraction_quality']}", "- التحقق المستقل: غير متوفر", "- الدرجة ليست احتمالًا لوقوع الواقعة أو ثبوتها.", ""]
-    lines += ["### أسباب النتيجة", ""] + [f"- {r}" for r in assessment["reasons"] or ["لا توجد إشارة كافية لتحديد درجة."]] + ["", "## النواقص والتعارضات", ""]
-    missing = [LABELS.get(k, k) for k in _relevant_slots(state) if not _has(state, k)]
-    lines += ["- " + (", ".join(missing) if missing else "لا توجد حقول مقابلة أساسية غير محسومة.")]
-    conflicts = [LABELS.get(k, k) for k, f in facts.items() if f.get("status") == "conflict"]
-    unresolved = [LABELS.get(k, k) for k, f in facts.items() if f.get("status") == "unresolved"]
-    lines += ["- الحقول غير المحسومة بعد التوضيح: " + (", ".join(unresolved) if unresolved else "لا توجد."),
-              "- التعارضات: " + (", ".join(conflicts) if conflicts else "لا توجد تعارضات مسجلة."), "", "## إرشادات موثقة", ""]
+    relation_labels = {"initial": "أولي", "additional": "إضافي", "same": "مماثل لمبلغ سابق",
+                       "correction": "تصحيح", "unresolved": "غير محسوم", "unresolved_after_clarification": "غير محسوم بعد التوضيح",
+                       "unknown": "غير معروف"}
+    kind_labels = {"requested": "مطلوب", "paid": "مدفوع"}
+    lines += ["", "## سجل الأحداث المالية", ""]
+    if data["money_events"]:
+        for event in data["money_events"]:
+            lines.append(f"- مبلغ {kind_labels.get(event.get('kind'), 'مالي')}: {event.get('amount') or 'غير محدد'}؛ العلاقة: {relation_labels.get(event.get('relation'), 'غير معروفة')}؛ وقت الرسالة الأصلية: {event.get('source_message_at') or 'غير متاح'}")
+            if event.get("quote"):
+                lines.append(f"  - نص الإفادة: «{event['quote']}»")
+            if event.get("relation_quote"):
+                lines.append(f"  - نص توضيح العلاقة: «{event['relation_quote']}»؛ الوقت: {event.get('relation_message_at') or 'غير متاح'}")
+    else:
+        lines.append("- لم يُسجل حدث مالي.")
+    lines += ["", "### أسباب النتيجة", ""] + [f"- {r}" for r in assessment["reasons"] or ["لا توجد إشارة كافية لتحديد درجة."]] + ["", "## المعلومات الناقصة أو غير المحسومة", ""]
+    missing = [LABELS.get(k, "معلومة إضافية") for k in data["missing_fields"]]
+    unknown = [LABELS.get(k, "معلومة إضافية") for k in data["unknown_fields"]]
+    unresolved = [LABELS.get(k, "معلومة إضافية") for k in data["unresolved_fields"]]
+    conflicts = [LABELS.get(k, "معلومة إضافية") for k in data["conflicting_fields"]]
+    lines += ["- لم تُسجل بعد: " + (", ".join(missing) if missing else "لا توجد حقول مقابلة أساسية ناقصة."),
+              "- غير معروفة/لم يتذكرها المستخدم/فضّل عدم الإجابة: " + (", ".join(unknown) if unknown else "لا توجد حقول بهذه الحالات."),
+              "- غير محسومة: " + (", ".join(unresolved) if unresolved else "لا توجد."),
+              "- التعارضات الفعلية: " + (", ".join(conflicts) if conflicts else "لا توجد تعارضات مسجلة.")]
+    if data["unresolved_money_events"]:
+        for event in data["unresolved_money_events"]:
+            lines.append(f"- علاقة مبلغ غير محسومة: {kind_labels.get(event.get('kind'), 'مالي')} {event.get('amount') or 'غير محدد'}.")
+    lines += ["", "## إرشادات موثقة", ""]
     citations = {}
     for message in state["messages"]:
         for citation in message.get("citations", []):

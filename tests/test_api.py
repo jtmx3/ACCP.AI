@@ -82,6 +82,30 @@ class ApiIntegrationTests(unittest.TestCase):
         self.revision = resumed.json()["session"]["revision"]
         self.assertEqual(resumed.json()["session"]["stage"], "interview")
 
+    def test_clear_question_in_answer_mode_is_answered_locally_then_pending_question_resumes(self):
+        before = self.turn("في شخص يهددني على واتساب")
+        self.assertEqual(before["pending_slot"], "direct_danger")
+        facts_before = before["facts"]
+        env = {"MODEL_PROVIDER": "openai-compatible", "MODEL_BASE_URL": "https://provider.example/v1",
+               "MODEL_NAME": "fixture-model", "MODEL_API_KEY": "test-only"}
+        with patch.dict(os.environ, env), patch("app.main.generate_interview_extraction",
+                                                side_effect=AssertionError("answer-mode question must not be sent for extraction")):
+            response = self.client.post(f"/api/sessions/{self.case_id}/messages", headers=self.headers,
+                                        json={"expected_revision": self.revision, "text": "كيف أحفظ الأدلة واللقطات؟",
+                                              "kind": "answer", "allow_external_extraction": True})
+        self.assertEqual(response.status_code, 200, response.text)
+        payload = response.json()
+        state = payload["session"]
+        self.revision = state["revision"]
+        self.assertTrue(payload["question_detected"])
+        self.assertFalse(payload["external_data_sent"])
+        self.assertEqual(state["pending_slot"], "direct_danger")
+        self.assertEqual(state["facts"], facts_before)
+        self.assertEqual(state["messages"][-2]["kind"], "answer")
+        self.assertIn("ما عندي مصدر موثوق", state["messages"][-2]["text"])
+        self.assertEqual(state["messages"][-1]["kind"], "question")
+        self.assertIn("هل أنت بخطر مباشر الآن؟", state["messages"][-1]["text"])
+
     def test_immediate_danger_in_question_mode_bypasses_rag(self):
         state = self.turn("الشخص وصل لعندي الآن ومعه سلاح، شو أعمل؟", kind="question")
         self.assertEqual(state["stage"], "urgent_stop")
@@ -95,11 +119,17 @@ class ApiIntegrationTests(unittest.TestCase):
         for text in ("في شخص يهددني", "لا", "قال ادفع 100 دينار", "طلب 120 دينار أيضًا"):
             self.turn(text)
         self.assertEqual(self.turn("اعرض الملخص")["stage"], "review")
+        pending_report = self.client.get(f"/api/sessions/{self.case_id}/report.json", headers=self.headers).json()
+        self.assertTrue(pending_report["unresolved_money_events"])
+        self.assertIn("requested_amount_relation", pending_report["missing_fields"])
+        self.assertIn("علاقة مبلغ غير محسومة", self.client.get(f"/api/sessions/{self.case_id}/report.md", headers=self.headers).text)
         blocked = self.client.post(f"/api/sessions/{self.case_id}/confirm", headers=self.headers, json={"expected_revision": self.revision})
         self.assertEqual(blocked.status_code, 422)
         corrected = self.turn("المبلغ الجديد إضافي")
         self.assertEqual(corrected["facts"]["requested_amount"]["status"], "reported")
         self.assertEqual(corrected["money_events"][-1]["relation"], "additional")
+        resolved_report = self.client.get(f"/api/sessions/{self.case_id}/report.json", headers=self.headers).json()
+        self.assertEqual(resolved_report["unresolved_money_events"], [])
         confirmed = self.client.post(f"/api/sessions/{self.case_id}/confirm", headers=self.headers, json={"expected_revision": self.revision})
         self.assertEqual(confirmed.status_code, 200)
 
@@ -126,6 +156,9 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertEqual(facts["requested_amount"]["value"], "100 دينار")
         self.assertEqual(facts["paid_amount"]["value"], "130 دينار")
         self.assertEqual(facts["published"]["status"], "unknown")
+        self.assertIn("غير معروفة", self.client.get(f"/api/sessions/{self.case_id}/report.md", headers=self.headers).text)
+        self.assertIn("- الحالة:", self.client.get(f"/api/sessions/{self.case_id}/report.md", headers=self.headers).text)
+        self.assertIn("- القيمة:", self.client.get(f"/api/sessions/{self.case_id}/report.md", headers=self.headers).text)
         report = self.client.get(f"/api/sessions/{self.case_id}/report.md", headers=self.headers)
         self.assertEqual(report.status_code, 200)
         self.assertIn("100 دينار", report.text)
@@ -135,6 +168,17 @@ class ApiIntegrationTests(unittest.TestCase):
         self.revision = confirmed.json()["session"]["revision"]
         self.assertTrue(confirmed.json()["session"]["confirmed"])
         confirmed_version = confirmed.json()["session"]["summary_version"]
+        confirmed_json = self.client.get(f"/api/sessions/{self.case_id}/report.json", headers=self.headers)
+        self.assertEqual(confirmed_json.status_code, 200)
+        self.assertIn(".json", confirmed_json.headers["content-disposition"])
+        confirmed_report = confirmed_json.json()
+        self.assertEqual(confirmed_report["summary_version"], confirmed_version)
+        self.assertTrue(confirmed_report["confirmed"])
+        self.assertEqual(confirmed_report["field_labels"]["platform"], "المنصة")
+        self.assertIn("published", confirmed_report["unknown_fields"])
+        self.assertTrue(confirmed_report["money_events"])
+        self.assertIn("source_message_at", confirmed_report["facts"]["requested_amount"])
+        self.assertIn("last_updated_at", confirmed_report["facts"]["requested_amount"])
         shown = self.turn("اعرض الملخص")
         self.assertTrue(shown["confirmed"])
         self.assertEqual(shown["summary_version"], confirmed_version)
@@ -145,6 +189,12 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertFalse(corrected["confirmed"])
         self.assertEqual(corrected["facts"]["requested_amount"]["value"], "120 دينار")
         self.assertTrue(corrected["facts"]["requested_amount"]["history"])
+        latest_json = self.client.get(f"/api/sessions/{self.case_id}/report.json", headers=self.headers).json()
+        self.assertEqual(latest_json["summary_version"], corrected["summary_version"])
+        self.assertFalse(latest_json["confirmed"])
+        self.assertEqual(latest_json["facts"]["requested_amount"]["value"], "120 دينار")
+        self.assertTrue(latest_json["facts"]["requested_amount"]["source_message_at"])
+        self.assertTrue(latest_json["facts"]["requested_amount"]["last_updated_at"])
 
     def test_confirmation_is_invalidated_when_resumed_turn_changes_facts_before_clarification_return(self):
         self.turn("في شخص يهددني")
@@ -230,7 +280,8 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertEqual(answer_mode["pending_slot"], "direct_danger")
         self.assertEqual(answer_mode["facts"], facts_before)
         self.assertEqual(answer_mode["summary_version"], version_before)
-        self.assertIn("خطوة سلامة عاجلة", answer_mode["messages"][-1]["text"])
+        self.assertIn("خطوة سلامة عاجلة", answer_mode["messages"][-2]["text"])
+        self.assertIn("هل أنت بخطر مباشر الآن؟", answer_mode["messages"][-1]["text"])
 
     def test_two_consented_extraction_calls_overlap_across_sessions(self):
         second_state, second_token = main.store.create()

@@ -29,6 +29,16 @@
         <select id="case-list" aria-label="استكمل جلسة محفوظة"><option value="">اختر جلسة محفوظة</option></select>
         <button id="resume-case" class="button button-outline full" type="button" disabled>فتح الجلسة</button>
       </section>
+      <section class="runtime-card" aria-labelledby="runtime-heading">
+        <h3 id="runtime-heading">مسار التشغيل الفعلي</h3>
+        <p id="runtime-mode" class="runtime-mode">القواعد المحلية — لم يُضبط مزود نموذج.</p>
+        <p id="runtime-detail" class="muted small">لم يُفحص اتصال خدمة النموذج أو توفره.</p>
+        <div class="runtime-actions">
+          <button id="check-provider" class="button button-outline full" type="button">فحص الإعداد والخدمة والنموذج</button>
+          <button id="test-provider-generation" class="button button-outline full" type="button" disabled>اختبار توليد ثابت</button>
+        </div>
+        <p class="muted small">اختبار التوليد يرسل نصًا ثابتًا غير متعلق بالحالة. ضبط الإعدادات وحده لا يثبت الاتصال.</p>
+      </section>
       <section class="privacy-card">
         <h3>الخصوصية والحدود</h3>
         <p>الافتراضي استخراج محلي بقواعد محدودة. إذا ضبط المشغّل مزودًا خارجيًا، فموافقة مستقلة لكل إرسال: في وضع السؤال يُرسل نص السؤال الحالي والمقتطفات المختارة؛ وفي وضع المقابلة يُرسل نص رسالتك الحالية فقط لاستخراج حقائق منظمة مع اقتباساتها.</p>
@@ -48,7 +58,7 @@
       </div>
       <section id="case-view" class="hidden">
         <div class="case-heading">
-          <div><p class="eyebrow">جلسة محفوظة</p><h1 id="case-title">إفادة جديدة</h1></div>
+          <div><p class="eyebrow">جلسة محفوظة</p><h1 id="case-title">إفادة جديدة</h1><p id="case-updated-at" class="muted small">آخر تحديث للحالة: غير متاح</p></div>
           <div class="case-tools"><span id="stage-badge" class="badge">مقابلة</span><button id="pause-case" class="button button-quiet" type="button">حفظ ومتابعة لاحقًا</button></div>
         </div>
         <div class="thread-shell">
@@ -66,7 +76,8 @@
           <p class="review-caution">التقييم أولوية مراجعة تجريبية، وليس احتمالًا لوقوع ضرر أو إثباتًا للواقعة.</p>
           <div id="assessment-reasons" class="reason-box"></div>
           <dl id="facts-list" class="facts-list"></dl>
-          <div class="review-actions"><button id="download-report" class="button button-outline" type="button">تنزيل التقرير</button><button id="confirm-summary" class="button button-primary" type="button">أؤكد مراجعة هذا الملخص</button></div>
+          <section id="information-gaps" class="information-gaps" aria-label="المعلومات الناقصة أو غير المحسومة"></section>
+          <div class="review-actions"><button id="download-report" class="button button-outline" type="button">تنزيل التقرير Markdown</button><button id="download-json" class="button button-outline" type="button">تنزيل JSON</button><button id="print-report" class="button button-outline" type="button">طباعة الملخص</button><button id="confirm-summary" class="button button-primary" type="button">أؤكد مراجعة هذا الملخص</button></div>
           <p id="confirmation-state" class="confirmation-state" role="status"></p>
         </section>
       </section>

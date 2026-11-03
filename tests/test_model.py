@@ -62,6 +62,47 @@ class OptionalModelTests(unittest.TestCase):
         forbidden = {"facts": [{"field": "direct_danger", "status": "reported", "value": True, "quote": text}]}
         self.assertIsNone(validate_interview_facts(text, json.dumps(forbidden, ensure_ascii=False)))
 
+    def test_contact_must_be_an_identifier_or_an_explicitly_available_number(self):
+        generic_text = "التهديد وصل برسالة خاصة."
+        generic = {"facts": [{"field": "contact", "status": "reported", "value": "رسالة خاصة",
+                              "quote": generic_text}]}
+        self.assertIsNone(validate_interview_facts(generic_text, json.dumps(generic, ensure_ascii=False)))
+
+        available_text = "ما بعرف مين هو، بس عندي رقم واتساب إله وما بدي أكتبه هون."
+        available = {"facts": [{"field": "contact", "status": "reported",
+                                 "value": "رقم واتساب متوفر بحسب الإفادة؛ المعرّف لم يُدرج",
+                                 "quote": available_text}]}
+        self.assertIsNotNone(validate_interview_facts(available_text, json.dumps(available, ensure_ascii=False)))
+
+        literal_text = "رقم واتساب 0791234567"
+        literal = {"facts": [{"field": "contact", "status": "reported", "value": "0791234567",
+                               "quote": literal_text}]}
+        self.assertIsNotNone(validate_interview_facts(literal_text, json.dumps(literal, ensure_ascii=False)))
+
+    def test_repeated_threat_requires_harm_context_not_a_repeated_payment_request(self):
+        payment_text = "بعدها رجع طلب مني 50 دينار."
+        payment = {"facts": [{"field": "repeated", "status": "reported", "value": True,
+                              "quote": payment_text}]}
+        self.assertIsNone(validate_interview_facts(payment_text, json.dumps(payment, ensure_ascii=False)))
+
+        threat_text = "رجع هددني مرة ثانية عبر رسالة."
+        threat = {"facts": [{"field": "repeated", "status": "reported", "value": True,
+                             "quote": threat_text}]}
+        self.assertIsNotNone(validate_interview_facts(threat_text, json.dumps(threat, ensure_ascii=False)))
+
+        denial_text = "ما تكرر بعد الرسالة الأولى."
+        denial = {"facts": [{"field": "repeated", "status": "denied", "value": False,
+                             "quote": denial_text}]}
+        self.assertIsNotNone(validate_interview_facts(denial_text, json.dumps(denial, ensure_ascii=False)))
+
+    def test_narrative_value_must_match_its_verbatim_quote(self):
+        text = "في شخص هددني برسالة."
+        paraphrase = {"facts": [{"field": "narrative", "status": "reported",
+                                 "value": "تعرضت لتهديد برسالة", "quote": text}]}
+        self.assertIsNone(validate_interview_facts(text, json.dumps(paraphrase, ensure_ascii=False)))
+        verbatim = {"facts": [{"field": "narrative", "status": "reported", "value": text, "quote": text}]}
+        self.assertIsNotNone(validate_interview_facts(text, json.dumps(verbatim, ensure_ascii=False)))
+
     def test_extraction_request_contains_only_current_message_and_pending_slot(self):
         text = "شخص يهددني برسالة"
         candidate = {"facts": [{"field": "threat", "status": "reported", "value": True, "quote": text}]}

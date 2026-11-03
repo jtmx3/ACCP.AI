@@ -10,10 +10,12 @@ from pydantic import BaseModel, Field
 from app.core import (
     QUESTIONS, _add_message, _assessment, _explain_why, _next_slot, _record, _unresolved_money_relation,
     _user_intent, classify_current_danger, confirmation_is_current, handle_turn, now_iso, render_report,
-    report_data, resume_state, screen_current_danger, summary_digest,
+    report_data, resume_state, screen_current_danger, summary_digest, is_clear_user_question,
 )
 from app.rag import answer_question, available_jurisdictions, load_corpus
-from app.model import generate_grounded_answer, generate_interview_extraction, model_configured
+from app.model import (generate_grounded_answer, generate_interview_extraction, model_configured,
+                       provider_config, probe_provider, test_provider_generation, reset_call_trace,
+                       last_call_trace)
 from app.store import Forbidden, NotFound, StaleRevision, Store
 
 app = FastAPI(title="ACCP.AI", version="0.2.0", description="Local-first Arabic incident intake and review prototype")
@@ -87,9 +89,27 @@ def _mutate(session_id: str, token: str, rev: int, event: str, fn):
 
 @app.get("/api/health")
 def health():
-    configured = model_configured()
-    return {"status": "ok", "storage": "sqlite", "model_provider": "openai-compatible" if configured else "rules",
-            "external_model_configured": configured, "version": app.version}
+    config = provider_config()
+    return {"status": "ok", "storage": "sqlite", "provider": config,
+            "runtime_mode": config["mode"], "external_model_configured": config["configured"], "version": app.version}
+
+
+@app.get("/api/provider/status")
+def provider_status():
+    config = provider_config()
+    return {"config": config, "probe": probe_provider()}
+
+
+@app.post("/api/provider/test")
+def provider_generation_test():
+    config = provider_config()
+    if not config["configured"]:
+        raise HTTPException(409, "لم يكتمل إعداد مزود النموذج.")
+    probe = probe_provider()
+    if not probe["service_reachable"] or not probe["model_available"]:
+        return {"preflight": probe, "success": False, "attempted": False,
+                "failure_code": probe["failure_code"], "provider": config["provider"], "model": config["model"]}
+    return {"preflight": probe, **test_provider_generation()}
 
 
 @app.get("/api/metadata")
@@ -126,6 +146,8 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
     snapshot = _preflight(session_id, x_case_token, body.expected_revision)
     pending = snapshot.get("pending_slot")
     intent = _user_intent(text)
+    auto_question = body.kind == "answer" and is_clear_user_question(text)
+    question_mode = body.kind == "question" or auto_question
     if body.kind == "question" and intent != "why":
         intent = None
     urgent = classify_current_danger(text, pending) is True
@@ -134,8 +156,9 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
     model_facts = None
     external_extraction_sent = False
     external_question_sent = False
+    reset_call_trace()
 
-    if body.kind == "question" and not urgent and intent != "why":
+    if question_mode and not urgent and intent != "why":
         local_qa = answer_question(text, snapshot.get("jurisdiction"))
         if body.allow_external and model_configured() and local_qa["citations"]:
             external_question_sent = True
@@ -148,19 +171,19 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
                     selected_sources.append({**source, "excerpt": citation.get("excerpt", "")})
             external_answer = generate_grounded_answer(text, selected_sources)
 
-    if body.kind == "answer" and body.allow_external_extraction and model_configured() and not urgent and intent is None:
+    if body.kind == "answer" and not auto_question and body.allow_external_extraction and model_configured() and not urgent and intent is None:
         # Send only the current user message and pending slot; never the transcript or saved facts.
         external_extraction_sent = True
         model_facts = generate_interview_extraction(text, pending)
 
     def mutate(state):
-        if body.kind == "question":
+        if question_mode:
             user_msg = _add_message(state, "user", text, "question")
             state["updated_at"] = user_msg["created_at"]
             if screen_current_danger(state, text, user_msg, pending):
                 return
             if intent == "why":
-                reply = _explain_why(pending or "") + ("\n\n" + QUESTIONS[pending] if pending in QUESTIONS else "")
+                reply = _explain_why(pending or "")
                 citations = []
             else:
                 result = local_qa or answer_question(text, state.get("jurisdiction"))
@@ -182,10 +205,32 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
         state["assessment"] = _assessment(state)
 
     state = _mutate(session_id, x_case_token, body.expected_revision, "user_message", mutate)
+    call_accepted = external_answer is not None or model_facts is not None
+    provider_call = last_call_trace()
+    provider = provider_config()
+    if external_question_sent or external_extraction_sent:
+        provider_call = dict(provider_call or {})
+        provider_call.update({
+            "attempted": True,
+            "result_accepted": call_accepted,
+            "fallback_used": not call_accepted,
+            "provider": provider["provider"],
+            "model": provider["model"],
+        })
+        if not call_accepted and not provider_call.get("failure_code"):
+            provider_call["failure_code"] = "no_valid_result"
+        if model_facts is not None:
+            provider_call["fact_fields"] = [fact.get("field") for fact in model_facts]
     return {"session": state, "report": report_data(state),
             "external_model_used": bool(external_answer) or bool(model_facts),
             "external_data_sent": external_question_sent or external_extraction_sent,
-            "external_model_purpose": "grounded_question" if external_question_sent else "current_message_extraction" if external_extraction_sent else None}
+            "external_model_purpose": "grounded_question" if external_question_sent else "current_message_extraction" if external_extraction_sent else None,
+            "external_model_result_accepted": call_accepted,
+            "fallback_used": bool(external_question_sent or external_extraction_sent) and not call_accepted,
+            "fallback_to": ("local_rag" if external_question_sent else "rules") if (external_question_sent or external_extraction_sent) and not call_accepted else None,
+            "question_detected": auto_question,
+            "runtime_mode": provider["mode"] if call_accepted else "rules",
+            "provider_call": provider_call}
 
 
 @app.post("/api/sessions/{session_id}/resume")
@@ -234,6 +279,14 @@ def download_report(session_id: str, x_case_token: str = Header(default="")):
     filename = f"ACCP-{session_id[:8]}-summary.md"
     return Response(content=markdown, media_type="text/markdown; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@app.get("/api/sessions/{session_id}/report.json")
+def download_report_json(session_id: str, x_case_token: str = Header(default="")):
+    state = _state_for(session_id, x_case_token)
+    filename = f"ACCP-{session_id[:8]}-summary.json"
+    return JSONResponse(content=report_data(state),
+                        headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
 @app.get("/api/sessions/{session_id}/audit")

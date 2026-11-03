@@ -3,17 +3,27 @@
   const STORAGE_KEY = 'accp.local.cases.v1';
   const labels = {
     narrative: 'وصف الواقعة', threat: 'وجود تهديد', impersonation: 'انتحال شخصية', platform: 'المنصة', details: 'تفاصيل الواقعة',
+    unclassified_details: 'توضيح واقعة غير مصنفة', incident_type_review: 'مراجعة تصنيف الواقعة',
     additional_details: 'تفاصيل إضافية', publication_threat: 'تهديد بالنشر', direct_danger: 'الخطر المباشر الحالي',
     active_unauthorized_funds: 'أموال معرضة لتصرف دون إذن', fraud_description: 'وصف خداع مالي', harassment: 'مضايقة مذكورة',
     contact_repeated: 'تكرار التواصل دون استنتاج تهديد', initial_time: 'وقت البداية', latest_time: 'أحدث تواصل',
     repeated: 'تكرار التهديد أو المضايقة', requested_amount: 'المبلغ المطلوب', paid_amount: 'المبلغ المدفوع',
     payment_method: 'وسيلة الدفع', deadline: 'مهلة الدفع', published: 'حدوث النشر', identity: 'هوية الشخص',
-    contact: 'معرّف التواصل', evidence: 'الأدلة المذكورة', account_access: 'دخول غير مصرح به'
+    contact: 'معرّف التواصل', evidence: 'الأدلة المذكورة', account_access: 'دخول غير مصرح به',
+    requested_amount_relation: 'علاقة المبلغ المطلوب الجديد بالسابق', paid_amount_relation: 'علاقة مبلغ الدفع الجديد بالسابق'
+  };
+  const factStatusLabels = {
+    reported: 'مذكورة بحسب الإفادة', denied: 'منفية صراحة بحسب الإفادة', unknown: 'غير معروفة للمستخدم',
+    not_remembered: 'لا يتذكرها المستخدم', declined: 'فضّل عدم الإجابة',
+    unresolved: 'غير محسومة بعد الاستيضاح', conflict: 'تعارض فعلي يحتاج إلى توضيح'
   };
   let active = null; // { id, token, label, generation, session }
   let activeGeneration = 0;
   let kind = 'answer';
   let externalConfigured = false;
+  let providerConfig = null;
+  let providerProbe = null;
+  let providerGenerationTest = false;
   let creating = false;
   const caseCache = new Map();
   const caseOps = new Map();
@@ -41,6 +51,16 @@
     const element = $('status-message');
     element.textContent = text;
     element.style.color = ok ? '#075a56' : '';
+  }
+  function formatTime(value) {
+    if (!value) return 'غير متاح';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('ar');
+  }
+  function providerLabel(provider) {
+    if (provider === 'ollama') return 'Ollama محلي';
+    if (provider === 'openai-compatible') return 'مزود متوافق خارجي';
+    return 'القواعد المحلية';
   }
   function isActive(ctx) {
     return !!ctx && !!active && active.id === ctx.id && active.generation === ctx.generation && activeGeneration === ctx.generation;
@@ -163,14 +183,17 @@
     const show = ['review', 'urgent_stop'].includes(state.stage);
     panel.classList.toggle('hidden', !show);
     if (!show) return;
+    panel.dataset.summaryVersion = String(state.summary_version ?? '');
+    panel.dataset.confirmed = String(!!state.confirmed);
     const assessment = state.assessment || {};
     $('priority-chip').textContent = `أولوية المراجعة: ${assessment.priority_score == null ? 'غير محددة' : `${assessment.priority_score}/100`} · ${assessment.priority_label || ''}`;
-    const rule = assessment.priority_rule ? `\nقاعدة الدرجة: ${assessment.priority_rule}؛ الوقائع الداعمة: ${(assessment.supporting_fields || []).map(key => labels[key] || key).join('، ')}` : '';
-    const relevant = (assessment.relevant_fields || []).map(key => labels[key] || key).join('، ');
+    const rule = assessment.priority_rule ? `\nقاعدة الدرجة: ${assessment.priority_rule}؛ الوقائع الداعمة: ${(assessment.supporting_fields || []).map(key => labels[key] || 'معلومة إضافية').join('، ')}` : '';
+    const relevant = (assessment.relevant_fields || []).map(key => labels[key] || 'معلومة إضافية').join('، ');
     $('assessment-reasons').textContent = `${assessment.reasons?.length ? `الأسباب: ${assessment.reasons.join('؛ ')}` : 'لم تتوفر إشارة كافية لتحديد الأولوية.'}${rule}\nالحقول ذات الصلة: ${relevant || 'وصف الواقعة فقط'}\nاكتمال المعلومات: ${assessment.completeness_percent ?? 0}% — ${assessment.completeness_note || ''}\nجودة الاستخراج: ${assessment.extraction_quality || 'غير متاحة'}؛ لا يوجد تحقق مستقل.`;
     const factsList = $('facts-list');
     factsList.replaceChildren();
     const facts = state.facts || {};
+    const messagesById = new Map((state.messages || []).map(message => [message.id, message]));
     const order = ['narrative', 'threat', 'impersonation', 'platform', 'details', 'additional_details', 'publication_threat', 'direct_danger', 'active_unauthorized_funds', 'fraud_description', 'harassment', 'contact_repeated', 'initial_time', 'latest_time', 'repeated', 'requested_amount', 'paid_amount', 'payment_method', 'deadline', 'published', 'identity', 'contact', 'evidence', 'account_access'];
     for (const key of order) {
       const fact = facts[key];
@@ -178,35 +201,43 @@
       const wrapper = document.createElement('div');
       wrapper.className = 'fact-item';
       const term = document.createElement('dt');
-      term.textContent = labels[key] || key;
+      term.textContent = labels[key] || 'معلومة إضافية';
       const description = document.createElement('dd');
-      let value = fact.value;
-      if (fact.status === 'denied') value = 'منفي صراحة بحسب الإفادة';
-      else if (fact.status === 'unknown') value = 'المستخدم لا يعرف';
-      else if (fact.status === 'not_remembered') value = 'المستخدم لا يتذكر';
-      else if (fact.status === 'declined') value = 'فضّل عدم الإجابة';
-      else if (fact.status === 'unresolved') value = 'لم تُحسم بعد محاولة التوضيح';
-      else if (fact.status === 'conflict') value = 'تعارض يحتاج توضيحًا';
-      else if (typeof value === 'boolean') value = value ? 'نعم بحسب الإفادة' : 'لا بحسب الإفادة';
-      description.textContent = value == null ? 'غير محدد بحسب الإفادة' : String(value);
-      wrapper.append(term, description);
+      description.className = 'fact-value';
+      let value = fact.status === 'reported' ? fact.value : null;
+      if (typeof value === 'boolean') value = value ? 'نعم بحسب الإفادة' : 'لا بحسب الإفادة';
+      description.textContent = `القيمة: ${value == null ? 'لا توجد قيمة مثبتة لهذا الحقل' : String(value)}`;
+      const status = document.createElement('div');
+      status.className = `fact-status status-${fact.status || 'unknown'}`;
+      status.textContent = `الحالة: ${factStatusLabels[fact.status] || 'غير متاحة'}`;
+      wrapper.append(term, status, description);
       if (fact.quote) {
         const quote = document.createElement('div');
         quote.className = 'fact-quote';
         quote.textContent = `الاقتباس: «${fact.quote}»`;
         wrapper.append(quote);
       }
+      const sourceMessage = messagesById.get(fact.message_id);
+      const sourceTime = document.createElement('div');
+      sourceTime.className = 'fact-time';
+      sourceTime.textContent = `وقت الرسالة الأصلية: ${formatTime(sourceMessage?.created_at || fact.source_message_at)}`;
+      wrapper.append(sourceTime);
+      const updateTime = document.createElement('div');
+      updateTime.className = 'fact-time';
+      updateTime.textContent = `وقت آخر تحديث للمعلومة: ${formatTime(fact.updated_at || fact.last_updated_at)}`;
+      wrapper.append(updateTime);
       for (const alternative of fact.alternatives || []) {
         const item = document.createElement('div');
-        item.className = 'fact-quote';
-        item.textContent = `إفادة بديلة: ${alternative.value ?? alternative.status} — «${alternative.quote || ''}»`;
+        item.className = 'fact-alternative';
+        const altStatus = factStatusLabels[alternative.status] || 'حالة غير متاحة';
+        item.textContent = `إفادة بديلة (${altStatus}): ${alternative.value ?? 'لا توجد قيمة'} — «${alternative.quote || ''}»`;
         wrapper.append(item);
       }
       for (const previous of fact.history || []) {
         if (!previous.quote) continue;
         const item = document.createElement('div');
         item.className = 'fact-quote';
-        item.textContent = `سجل سابق: ${previous.value ?? previous.status} — «${previous.quote}»`;
+        item.textContent = `إفادة سابقة (${factStatusLabels[previous.status] || 'حالة غير متاحة'}): ${previous.value ?? 'لا توجد قيمة'} — «${previous.quote}»`;
         wrapper.append(item);
       }
       for (const support of fact.supporting_statements || []) {
@@ -217,8 +248,53 @@
       }
       factsList.append(wrapper);
     }
-    $('confirmation-state').textContent = state.confirmed ? 'تم تأكيد إصدار الملخص المعروض. أي تعديل لاحق يتطلب مراجعة جديدة.' : 'لم يتم تأكيد الملخص بعد.';
-    $('confirm-summary').disabled = !!state.confirmed || caseOps.has(state.session_id);
+    const gapPanel = $('information-gaps');
+    gapPanel.replaceChildren();
+    const relationSlots = new Set(['requested_amount_relation', 'paid_amount_relation']);
+    const missingItems = (assessment.relevant_fields || [])
+      .filter(key => !facts[key] && !relationSlots.has(key)).map(key => labels[key] || 'معلومة إضافية');
+    const unknownItems = Object.entries(facts)
+      .filter(([, fact]) => ['unknown', 'not_remembered', 'declined'].includes(fact.status))
+      .map(([key, fact]) => `${labels[key] || 'معلومة إضافية'} — ${factStatusLabels[fact.status]}`);
+    const unresolvedItems = Object.entries(facts)
+      .filter(([, fact]) => fact.status === 'unresolved')
+      .map(([key]) => labels[key] || 'معلومة إضافية');
+    const unresolvedMoney = (state.money_events || [])
+      .filter(event => ['unresolved', 'unresolved_after_clarification'].includes(event.relation));
+    for (const event of unresolvedMoney) {
+      const kind = event.kind === 'paid' ? 'مدفوع' : 'مطلوب';
+      unresolvedItems.push(`علاقة المبلغ ${kind} (${event.amount || 'غير محدد'}) تحتاج توضيحًا`);
+    }
+    const conflicts = Object.entries(facts)
+      .filter(([, fact]) => fact.status === 'conflict')
+      .map(([key, fact]) => `${labels[key] || 'معلومة إضافية'} — ${fact.alternatives?.length || 0} إفادة بديلة محفوظة`);
+    const gapGroups = [
+      ['لم تُسجّل بعد', missingItems],
+      ['غير معروفة أو لم يتذكرها المستخدم أو فضّل عدم الإجابة', unknownItems],
+      ['تحتاج إلى توضيح', unresolvedItems],
+      ['تعارضات فعلية', conflicts],
+    ];
+    let hasGaps = false;
+    for (const [title, items] of gapGroups) {
+      if (!items.length) continue;
+      hasGaps = true;
+      const group = document.createElement('section');
+      group.className = 'gap-group';
+      if (title === 'تعارضات فعلية' || title === 'تحتاج إلى توضيح') group.classList.add('gap-attention');
+      const heading = document.createElement('h3');
+      heading.textContent = title;
+      const list = document.createElement('ul');
+      for (const text of items) {
+        const item = document.createElement('li');
+        item.textContent = text;
+        list.append(item);
+      }
+      group.append(heading, list);
+      gapPanel.append(group);
+    }
+    if (!hasGaps) gapPanel.textContent = 'لا توجد معلومات مجهولة أو غير محسومة أو متعارضة في الحقول ذات الصلة.';
+    $('confirmation-state').textContent = `إصدار الملخص المعروض: ${state.summary_version ?? 'غير متاح'} · ${state.confirmed ? 'مؤكد لهذا الإصدار' : 'غير مؤكد'}. ${state.confirmed ? 'أي تعديل لاحق يتطلب مراجعة جديدة.' : ''}`;
+    $('confirm-summary').disabled = !!state.confirmed || caseOps.has(state.session_id) || unresolvedMoney.length > 0;
   }
   function renderState(ctx, state) {
     if (!isActive(ctx) || !state || state.session_id !== ctx.id) return false;
@@ -226,6 +302,7 @@
     $('welcome').classList.add('hidden');
     $('case-view').classList.remove('hidden');
     $('case-title').textContent = `الحالة ${state.session_id.slice(0, 8)}`;
+    $('case-updated-at').textContent = `آخر تحديث للحالة: ${formatTime(state.updated_at)}`;
     $('stage-badge').textContent = ({ interview: 'مقابلة', paused: 'محفوظة', review: 'مراجعة', urgent_stop: 'سلامة أولًا' })[state.stage] || 'جلسة';
     $('pause-case').textContent = state.stage === 'paused' ? 'استكمال المقابلة' : 'حفظ ومتابعة لاحقًا';
     $('chat').replaceChildren();
@@ -319,9 +396,28 @@
       if (rendered && $('message').value === text) $('message').value = '';
       if (rendered) {
         if (result.external_data_sent) {
-          const purpose = kind === 'question' ? 'نص السؤال الحالي ومقتطفات المصادر المختارة' : 'نص الرسالة الحالية فقط لاستخراج حقائق منظمة';
-          setStatus(result.external_model_used ? `أُرسل ${purpose} لمزود خارجي بموافقتك، واستُخدمت نتيجة موثقة.` : `أُرسل ${purpose} لمزود خارجي بموافقتك؛ لم تُستخدم نتيجة صالحة، فاستُخدمت القواعد/الإجابة المحلية.`, true, ctx);
-        } else setStatus('تم حفظ الرسالة وتحديث الحالة.', true, ctx);
+          const provider = providerLabel(result.provider_call?.provider || providerConfig?.provider);
+          const purpose = result.external_model_purpose === 'grounded_question'
+            ? 'نص السؤال الحالي ومقتطفات المصادر المختارة' : 'نص الرسالة الحالية فقط';
+          if (result.external_model_result_accepted) {
+            const runtimeLabel = result.runtime_mode === 'local_model' ? 'نموذج Ollama المحلي' : 'مزود خارجي';
+            $('runtime-mode').textContent = `${runtimeLabel} — استُخدم في آخر إرسال بموافقتك.`;
+            setStatus(`أُرسل ${purpose} بموافقتك إلى ${provider}؛ قُبلت النتيجة بنيويًا وطُبّقت عليها قواعد التحقق المحلية.`, true, ctx);
+            $('runtime-detail').textContent = `آخر عملية: نتيجة مقبولة من ${provider}؛ زمن الاستجابة ${result.provider_call?.latency_ms ?? 'غير متاح'} مللي ثانية.`;
+          } else {
+            $('runtime-mode').textContent = `القواعد المحلية — عاد الطلب إليها بعد تعذر قبول نتيجة ${provider}.`;
+            setStatus(`لم تُقبل نتيجة ${provider} بعد إرسال ${purpose} بموافقتك؛ فعاد الطلب إلى ${result.fallback_to === 'local_rag' ? 'الإجابة المحلية المستندة إلى المصادر' : 'القواعد المحلية'}.`, false, ctx);
+            $('runtime-detail').textContent = `آخر عملية: فشل أو رُفضت نتيجة ${provider}؛ الرجوع إلى ${result.fallback_to === 'local_rag' ? 'الإجابة المحلية' : 'القواعد المحلية'}.`;
+          }
+        } else if (result.question_detected) {
+          $('runtime-mode').textContent = 'القواعد المحلية — أُجيب عن السؤال داخل وضع المقابلة.';
+          setStatus('فهمنا الرسالة كسؤال وأجبنا محليًا دون تبديل الوضع أو إرسال نصها؛ بقي السؤال المعلّق كما هو.', true, ctx);
+          $('runtime-detail').textContent = 'آخر عملية: إجابة سؤال داخل وضع المقابلة محليًا؛ لم تُرسل بيانات الحالة إلى مزود.';
+        } else {
+          $('runtime-mode').textContent = 'القواعد المحلية — آخر رسالة عولجت دون إرسالها إلى نموذج.';
+          setStatus('تم حفظ الرسالة وتحديث الحالة بالقواعد المحلية.', true, ctx);
+          $('runtime-detail').textContent = 'آخر عملية: القواعد المحلية؛ لم يُرسل نص الرسالة إلى نموذج.';
+        }
       }
     } catch (error) {
       if (error.status === 409) {
@@ -391,20 +487,38 @@
       setStatus(error.message, false, ctx);
     } finally { endMutation(ctx, owner); }
   }
-  async function downloadReport() {
+  async function downloadReport(format = 'md') {
     const ctx = snapshotActive();
     if (!ctx) return;
     try {
-      const response = await fetch(`/api/sessions/${ctx.id}/report.md`, { headers: { 'X-Case-Token': ctx.token } });
+      const latest = await refreshCase(ctx);
+      if (!latest || !isActive(ctx)) throw new Error('تعذر تحديث النسخة المعروضة قبل التنزيل.');
+      const extension = format === 'json' ? 'json' : 'md';
+      const response = await fetch(`/api/sessions/${ctx.id}/report.${extension}`, { headers: { 'X-Case-Token': ctx.token } });
       if (!response.ok) throw new Error('تعذر تنزيل التقرير.');
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = `ACCP-${ctx.id.slice(0, 8)}-summary.md`;
+      anchor.download = `ACCP-${ctx.id.slice(0, 8)}-summary.${extension}`;
       anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setStatus('تم تنزيل التقرير.', true, ctx);
+      setStatus(`تم تنزيل تقرير ${extension.toUpperCase()} للنسخة المعروضة (${latest.summary_version}) وحالة تأكيدها.`, true, ctx);
+    } catch (error) { setStatus(error.message, false, ctx); }
+  }
+  async function printReport() {
+    const ctx = snapshotActive();
+    if (!ctx) return;
+    try {
+      const latest = await refreshCase(ctx);
+      if (!latest || !isActive(ctx) || !['review', 'urgent_stop'].includes(latest.stage)) {
+        throw new Error('تعذر تحديث ملخص قابل للطباعة.');
+      }
+      document.body.classList.add('print-report');
+      window.print();
+      window.addEventListener('afterprint', () => document.body.classList.remove('print-report'), { once: true });
+      setTimeout(() => document.body.classList.remove('print-report'), 3000);
+      setStatus(`الطباعة للنسخة المعروضة (${latest.summary_version}) وحالة تأكيدها.`, true, ctx);
     } catch (error) { setStatus(error.message, false, ctx); }
   }
   async function loadMetadata() {
@@ -417,20 +531,96 @@
       if ([...select.options].some(option => option.value === oldValue)) select.value = oldValue;
     } catch { /* If metadata is unavailable, only the empty/unscoped option remains. */ }
   }
+  function renderProviderConfig(config) {
+    providerConfig = config || null;
+    externalConfigured = !!providerConfig?.configuration_complete;
+    providerProbe = null;
+    providerGenerationTest = false;
+    $('test-provider-generation').disabled = true;
+    if (!externalConfigured) {
+      const providerWasSelected = providerConfig && providerConfig.provider !== 'rules';
+      $('runtime-mode').textContent = providerWasSelected
+        ? `القواعد المحلية — إعداد ${providerLabel(providerConfig.provider)} غير مكتمل.`
+        : 'القواعد المحلية — لم يُضبط مزود نموذج.';
+      $('runtime-detail').textContent = providerWasSelected
+        ? 'لم يبدأ أي اتصال. يلزم استكمال اسم النموذج والإعدادات المطلوبة؛ وجود متغيرات وحده لا يثبت توفر الخدمة.'
+        : 'لم يُفحص اتصال خدمة نموذج، ولا يُجرى أي استدعاء في الوضع الافتراضي.';
+    } else {
+      $('runtime-mode').textContent = `إعداد ${providerLabel(providerConfig.provider)} · النموذج: ${providerConfig.model} — لم يُثبت الاتصال بعد.`;
+      $('runtime-detail').textContent = 'الإعداد موجود فقط؛ لم يُفحص اتصال الخدمة أو وجود النموذج أو نجاح التوليد.';
+    }
+    $('model-consent-row').dataset.configured = String(externalConfigured);
+    updateConsentVisibility();
+  }
+  function renderProviderProbe(probe) {
+    providerProbe = probe || null;
+    providerGenerationTest = false;
+    $('test-provider-generation').disabled = !(probe?.configured && probe?.service_reachable && probe?.model_available);
+    if (!probe?.configured) {
+      $('runtime-mode').textContent = 'القواعد المحلية — لا يوجد إعداد نموذج مكتمل.';
+      $('runtime-detail').textContent = 'الإعداد غير مكتمل؛ لم يحدث اتصال بخدمة نموذج.';
+    } else if (!probe.service_reachable) {
+      $('runtime-mode').textContent = `القواعد المحلية — خدمة ${providerLabel(probe.provider)} غير متاحة.`;
+      $('runtime-detail').textContent = `الإعداد موجود، لكن الخدمة غير متاحة (${probe.failure_code || 'سبب غير محدد'}). سيبقى التشغيل بالقواعد المحلية.`;
+    } else if (!probe.model_available) {
+      $('runtime-mode').textContent = `القواعد المحلية — النموذج المحدد لدى ${providerLabel(probe.provider)} غير متاح.`;
+      $('runtime-detail').textContent = `الخدمة متاحة، لكن النموذج المحدد غير موجود في قائمتها (${probe.failure_code || 'تحقق من اسم النموذج'}).`;
+    } else {
+      $('runtime-mode').textContent = `الخدمة والنموذج متاحان لدى ${providerLabel(probe.provider)}؛ لم ينجح التوليد بعد.`;
+      $('runtime-detail').textContent = `الخدمة متاحة والنموذج المحدد موجود (${probe.models_count} نموذجًا بالقائمة). لم يُختبر التوليد بعد.`;
+    }
+  }
+  async function checkProvider() {
+    $('check-provider').disabled = true;
+    $('runtime-detail').textContent = 'يجري فحص الإعداد واتصال قائمة النماذج دون إرسال نص حالة أو تشغيل توليد…';
+    try {
+      const result = await api('/api/provider/status');
+      renderProviderConfig(result.config);
+      renderProviderProbe(result.probe);
+      setStatus(result.probe?.service_reachable ? 'اكتمل فحص الاتصال غير التوليدي.' : 'لم يثبت اتصال خدمة النموذج؛ التشغيل بالقواعد المحلية.', !!result.probe?.service_reachable);
+    } catch (error) {
+      $('runtime-detail').textContent = `تعذر إجراء فحص الاتصال: ${error.message}`;
+      setStatus('فشل فحص حالة مزود النموذج.', false);
+    } finally { $('check-provider').disabled = false; }
+  }
+  async function testProviderGeneration() {
+    if (!$('test-provider-generation') || $('test-provider-generation').disabled) return;
+    $('test-provider-generation').disabled = true;
+    $('runtime-detail').textContent = 'يجري إرسال اختبار JSON ثابت لا يتضمن معلومات الحالة…';
+    try {
+      const result = await api('/api/provider/test', { method: 'POST', body: '{}' });
+      providerGenerationTest = !!result.success;
+      if (result.success) {
+        $('runtime-mode').textContent = `${providerConfig?.local ? 'نموذج Ollama المحلي' : 'مزود خارجي'} — نجح اختبار التوليد الثابت.`;
+        $('runtime-detail').textContent = `نجح توليد JSON الثابت من ${providerLabel(result.provider)} (${result.model}) خلال ${result.latency_ms} مللي ثانية.`;
+        setStatus('نجح اختبار توليد ثابت؛ لم تُرسل بيانات حالة.', true);
+      } else {
+        $('runtime-mode').textContent = `القواعد المحلية — فشل توليد ${providerLabel(result.provider)}.`;
+        $('runtime-detail').textContent = `فشل اختبار التوليد (${result.failure_code || 'استجابة غير مقبولة'}). لا يثبت إعداد المتغيرات نجاح النموذج.`;
+        setStatus('فشل اختبار توليد النموذج؛ ستبقى المعالجة بالقواعد أو المصادر المحلية.', false);
+      }
+    } catch (error) {
+      providerGenerationTest = false;
+      $('runtime-detail').textContent = `تعذر اختبار التوليد: ${error.message}`;
+      setStatus('تعذر اختبار توليد النموذج.', false);
+    } finally { $('test-provider-generation').disabled = !(providerProbe?.service_reachable && providerProbe?.model_available); }
+  }
   async function checkHealth() {
     try {
       const health = await api('/api/health');
-      externalConfigured = !!health.external_model_configured;
-    } catch { externalConfigured = false; }
-    $('model-consent-row').dataset.configured = String(externalConfigured);
-    updateConsentVisibility();
+      renderProviderConfig(health.provider);
+    } catch {
+      renderProviderConfig(null);
+      $('runtime-detail').textContent = 'تعذر الوصول إلى واجهة التطبيق؛ لم يُفحص مزود النموذج.';
+    }
   }
   function updateConsentVisibility() {
     $('model-consent-row').classList.toggle('hidden', !externalConfigured);
     $('model-consent').checked = false;
+    const target = providerConfig?.local ? 'نموذج Ollama المحلي المضبوط' : 'مزود خارجي';
     $('model-consent-copy').textContent = kind === 'question'
-      ? 'أوافق على إرسال نص هذا السؤال الحالي ومقتطفات المصادر المختارة فقط إلى مزود خارجي لهذا الرد. لن يُرسل سجل المقابلة.'
-      : 'أوافق على إرسال نص رسالتي الحالية فقط لاستخراج حقائق منظمة. قد يتضمن النص بيانات شخصية؛ لن يُرسل سجل المحادثة أو إجابات سابقة.';
+      ? `أوافق على إرسال نص هذا السؤال الحالي ومقتطفات المصادر المختارة فقط إلى ${target} لهذا الرد. لن يُرسل سجل المقابلة.`
+      : `أوافق على إرسال نص رسالتي الحالية فقط إلى ${target} لاستخراج حقائق منظمة. قد يتضمن النص بيانات شخصية؛ لن يُرسل سجل المحادثة أو إجابات سابقة.`;
   }
 
   $('start-case').addEventListener('click', createCase);
@@ -439,6 +629,10 @@
   $('pause-case').addEventListener('click', pauseOrResume);
   $('confirm-summary').addEventListener('click', confirmSummary);
   $('download-report').addEventListener('click', downloadReport);
+  $('download-json').addEventListener('click', () => downloadReport('json'));
+  $('print-report').addEventListener('click', printReport);
+  $('check-provider').addEventListener('click', checkProvider);
+  $('test-provider-generation').addEventListener('click', testProviderGeneration);
   $('jurisdiction').addEventListener('change', changeJurisdiction);
   $('case-list').addEventListener('change', () => { $('resume-case').disabled = !$('case-list').value; });
   $('resume-case').addEventListener('click', () => openCase($('case-list').value));

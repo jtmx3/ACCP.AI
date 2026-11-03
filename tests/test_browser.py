@@ -67,7 +67,47 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         await self.page.locator("#message").fill(text)
         await self.page.locator("#send").click()
 
+    async def test_runtime_panel_distinguishes_configuration_connection_model_and_generation(self):
+        config = {"provider": "openai-compatible", "mode": "external_model", "model": "synthetic-model",
+                  "configuration_complete": True, "configured": True, "local": False}
+        stage = {"probe": {"provider": "openai-compatible", "configured": True, "service_reachable": False,
+                            "model_available": False, "models_count": 0, "failure_code": "unreachable"}}
+
+        async def intercept(route):
+            url = route.request.url
+            if url.endswith("/api/health"):
+                await route.fulfill(json={"status": "ok", "provider": config})
+            elif url.endswith("/api/provider/status"):
+                await route.fulfill(json={"config": config, **stage})
+            elif url.endswith("/api/provider/test"):
+                await route.fulfill(json={"success": True, "attempted": True, "latency_ms": 12,
+                                          "failure_code": None, "provider": "openai-compatible",
+                                          "model": "synthetic-model"})
+            else:
+                await route.continue_()
+
+        await self.page.route("**/api/**", intercept)
+        await self.page.goto(self.base_url)
+        await expect(self.page.locator("#runtime-mode")).to_contain_text("لم يُثبت الاتصال بعد")
+
+        await self.page.locator("#check-provider").click()
+        await expect(self.page.locator("#runtime-mode")).to_contain_text("القواعد المحلية")
+        await expect(self.page.locator("#runtime-detail")).to_contain_text("الخدمة غير متاحة")
+        self.assertTrue(await self.page.locator("#test-provider-generation").is_disabled())
+
+        stage["probe"] = {"provider": "openai-compatible", "configured": True, "service_reachable": True,
+                           "model_available": True, "models_count": 1, "failure_code": None}
+        await self.page.locator("#check-provider").click()
+        await expect(self.page.locator("#runtime-mode")).to_contain_text("الخدمة والنموذج متاحان")
+        await expect(self.page.locator("#runtime-detail")).to_contain_text("لم يُختبر التوليد بعد")
+        self.assertTrue(await self.page.locator("#test-provider-generation").is_enabled())
+
+        await self.page.locator("#test-provider-generation").click()
+        await expect(self.page.locator("#runtime-mode")).to_contain_text("مزود خارجي — نجح اختبار التوليد الثابت")
+        await expect(self.page.locator("#runtime-detail")).to_contain_text("12 مللي ثانية")
+
     async def test_chat_pause_resume_correction_confirmation_and_download(self):
+        await self.page.add_init_script("window.__accpPrintCalled=false;window.print=()=>{window.__accpPrintCalled=true;};")
         await self.page.goto(self.base_url)
         await self.page.locator("#start-case").click()
         await expect(self.page.locator("#stage-badge")).to_have_text("مقابلة")
@@ -84,14 +124,16 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         await self._send("ما بعرف هويته")
         await self._send("ما عندي صور ولا رسائل")
         await expect(self.page.locator("#stage-badge")).to_have_text("مراجعة")
-        await expect(self.page.locator("#facts-list")).to_contain_text("منفي صراحة بحسب الإفادة")
+        await expect(self.page.locator("#facts-list")).to_contain_text("منفية صراحة بحسب الإفادة")
+        await expect(self.page.locator("#facts-list")).to_contain_text("المنصة")
+        await expect(self.page.locator("#information-gaps")).to_contain_text("غير معروفة")
         self.assertTrue(await self.page.locator("#confirm-summary").is_enabled())
 
         await self._send("تصحيح: بدأت الواقعة أمس")
         await expect(self.page.locator("#facts-list")).to_contain_text("أمس")
         self.assertTrue(await self.page.locator("#confirm-summary").is_enabled())
         await self.page.locator("#confirm-summary").click()
-        await expect(self.page.locator("#confirmation-state")).to_contain_text("تم تأكيد")
+        await expect(self.page.locator("#confirmation-state")).to_contain_text("مؤكد لهذا الإصدار")
 
         async with self.page.expect_download() as download_event:
             await self.page.locator("#download-report").click()
@@ -100,6 +142,26 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         await download.save_as(target)
         self.assertTrue(target.exists())
         self.assertIn("بدأت الواقعة أمس", target.read_text(encoding="utf-8"))
+        displayed_version = await self.page.locator("#review").get_attribute("data-summary-version")
+        self.assertEqual(await self.page.locator("#review").get_attribute("data-confirmed"), "true")
+
+        async with self.page.expect_download() as json_event:
+            await self.page.locator("#download-json").click()
+        json_download = await json_event.value
+        json_path = Path(self.tmp.name) / json_download.suggested_filename
+        await json_download.save_as(json_path)
+        json_report = json.loads(json_path.read_text(encoding="utf-8"))
+        self.assertEqual(str(json_report["summary_version"]), displayed_version)
+        self.assertTrue(json_report["confirmed"])
+        self.assertEqual(json_report["field_labels"]["platform"], "المنصة")
+        self.assertIn("identity", json_report["unknown_fields"])
+        self.assertTrue(json_report["facts"]["platform"]["source_message_at"])
+        self.assertTrue(json_report["facts"]["platform"]["last_updated_at"])
+
+        await self.page.locator("#print-report").click()
+        await self.page.wait_for_function("window.__accpPrintCalled === true")
+        self.assertTrue(await self.page.evaluate("window.__accpPrintCalled"))
+        self.assertEqual(await self.page.locator("#review").get_attribute("data-summary-version"), displayed_version)
 
     async def test_delayed_old_session_response_cannot_replace_active_equal_revision_session(self):
         a_id, b_id = "case-A-12345678", "case-B-abcdefgh"
@@ -215,7 +277,7 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
             await self.page.locator("#toggle-mode").click()
             await expect(self.page.locator("#model-consent-copy")).to_contain_text("مقتطفات المصادر المختارة")
             await self._send("كيف أحفظ الأدلة واللقطات؟")
-            await expect(self.page.locator("#status-message")).to_contain_text("تم حفظ الرسالة وتحديث الحالة.")
+            await expect(self.page.locator("#status-message")).to_contain_text("تم حفظ الرسالة وتحديث الحالة بالقواعد المحلية.")
             answer.assert_not_called()
             provider.assert_not_called()
             self.assertFalse(await self.page.locator("#model-consent").is_checked())

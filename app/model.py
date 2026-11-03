@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import contextvars
 import json
 import os
-import urllib.error
-import urllib.request
 import re
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from typing import Any
 
 BINARY_FIELDS = {
@@ -22,7 +25,7 @@ FIELD_ANCHORS = {
     "threat": ("تهديد", "هدد", "يهدد", "ابتزاز", "يبتز"),
     "impersonation": ("انتحال", "منتحل", "ينتحل", "حساب مزيف", "باسمي"),
     "publication_threat": ("ينشر", "نشر", "بفضح", "يهدد"),
-    "repeated": ("تكرر", "مستمر", "مرة ثانية", "رجع"),
+    "repeated": ("تكرر", "مستمر", "مرة ثانية", "مره ثانيه", "رجع بعت", "رجع ارسل", "رجع هدد"),
     "published": ("نشر", "نزل", "انتشرت", "بعت الصور"),
     "active_unauthorized_funds": ("يسحب", "تنسحب", "بدون اذني", "دون اذني", "غير ماذون"),
     "fraud_description": ("نصب", "احتيال", "خدعني", "احتيال مالي"),
@@ -31,35 +34,210 @@ FIELD_ANCHORS = {
     "contact_repeated": ("تكرر", "رجع بعت", "عدة رسائل", "مرات"),
 }
 
+_CALL_TRACE: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar("accp_model_call_trace", default=None)
+
+
+def provider_config() -> dict[str, Any]:
+    """Return safe provider configuration facts; never return a key or full URL."""
+    provider = os.getenv("MODEL_PROVIDER", "rules").strip().lower() or "rules"
+    local = provider == "ollama"
+    base_url = os.getenv("MODEL_BASE_URL", "http://127.0.0.1:11434/v1" if local else "https://api.openai.com/v1").strip().rstrip("/")
+    model = os.getenv("MODEL_NAME", "gpt-4o-mini" if provider == "openai-compatible" else "").strip()
+    key_present = bool(os.getenv("MODEL_API_KEY")) or local
+    parsed = urllib.parse.urlparse(base_url)
+    host = parsed.hostname or ""
+    valid_provider = provider in {"rules", "ollama", "openai-compatible"}
+    configured = provider in {"ollama", "openai-compatible"} and bool(base_url and model and key_present and valid_provider)
+    mode = "local_model" if local and configured else "external_model" if provider == "openai-compatible" and configured else "rules"
+    return {
+        "provider": provider if valid_provider else "invalid",
+        "mode": mode,
+        "local": local,
+        "model": model or None,
+        "base_url_host": host or None,
+        "api_key_present": key_present,
+        "configuration_complete": configured,
+        "configured": configured,
+        "valid_provider": valid_provider,
+    }
+
 
 def model_configured() -> bool:
-    return os.getenv("MODEL_PROVIDER", "rules").strip().lower() == "openai-compatible" and bool(os.getenv("MODEL_API_KEY"))
+    return bool(provider_config()["configured"])
+
+
+def reset_call_trace() -> None:
+    _CALL_TRACE.set(None)
+
+
+def last_call_trace() -> dict[str, Any] | None:
+    trace = _CALL_TRACE.get()
+    return dict(trace) if trace else None
+
+
+def _update_call_trace(**values: Any) -> None:
+    trace = dict(_CALL_TRACE.get() or {})
+    trace.update(values)
+    _CALL_TRACE.set(trace)
+
+
+def _base_url() -> str:
+    cfg = provider_config()
+    if cfg["local"]:
+        return os.getenv("MODEL_BASE_URL", "http://127.0.0.1:11434/v1").strip().rstrip("/")
+    return os.getenv("MODEL_BASE_URL", "https://api.openai.com/v1").strip().rstrip("/")
+
+
+def _model_name() -> str:
+    return str(provider_config()["model"] or "")
+
+
+def _api_key() -> str:
+    if provider_config()["local"]:
+        return os.getenv("MODEL_API_KEY", "ollama")
+    return os.getenv("MODEL_API_KEY", "")
+
+
+def _timeout_seconds() -> float:
+    try:
+        return max(1.0, float(os.getenv("MODEL_TIMEOUT_SECONDS", "60")))
+    except ValueError:
+        return 60.0
 
 
 def _chat(messages: list[dict[str, str]]) -> str | None:
-    if not model_configured():
+    cfg = provider_config()
+    if not cfg["configured"]:
+        _update_call_trace(attempted=False, status="not_configured", result_accepted=False, latency_ms=None)
         return None
-    base = os.getenv("MODEL_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-    model = os.getenv("MODEL_NAME", "gpt-4o-mini")
-    body = {
-        "model": model,
-        "temperature": 0,
+    body: dict[str, Any] = {
+        "model": _model_name(),
         "response_format": {"type": "json_object"},
         "messages": messages,
     }
+    if cfg["local"]:
+        body.update({"temperature": 0, "max_tokens": 1200})
+    else:
+        body["max_completion_tokens"] = 1200
+        effort = os.getenv("MODEL_REASONING_EFFORT", "").strip()
+        if effort:
+            body["reasoning"] = {"effort": effort}
     request = urllib.request.Request(
-        f"{base}/chat/completions",
+        f"{_base_url()}/chat/completions",
         data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
-        headers={"Authorization": f"Bearer {os.environ['MODEL_API_KEY']}", "Content-Type": "application/json"},
+        headers={"Authorization": f"Bearer {_api_key()}", "Content-Type": "application/json"},
         method="POST",
     )
+    started = time.perf_counter()
     try:
-        with urllib.request.urlopen(request, timeout=float(os.getenv("MODEL_TIMEOUT_SECONDS", "15"))) as response:
+        with urllib.request.urlopen(request, timeout=_timeout_seconds()) as response:
             payload = json.loads(response.read().decode("utf-8"))
         content = payload["choices"][0]["message"]["content"]
-        return content if isinstance(content, str) else None
-    except (urllib.error.URLError, TimeoutError, ValueError, KeyError, IndexError, TypeError, OSError):
-        return None
+        elapsed = round((time.perf_counter() - started) * 1000, 3)
+        if not isinstance(content, str) or not content.strip():
+            _update_call_trace(attempted=True, status="empty_response", result_accepted=False,
+                               failure_code="empty_response", latency_ms=elapsed)
+            return None
+        _update_call_trace(attempted=True, status="generated", result_accepted=False,
+                           failure_code=None, latency_ms=elapsed)
+        return content
+    except urllib.error.HTTPError as exc:
+        elapsed = round((time.perf_counter() - started) * 1000, 3)
+        _update_call_trace(attempted=True, status="http_error", result_accepted=False,
+                           failure_code=f"http_{exc.code}", latency_ms=elapsed)
+    except (TimeoutError, urllib.error.URLError, OSError) as exc:
+        elapsed = round((time.perf_counter() - started) * 1000, 3)
+        reason = getattr(exc, "reason", exc)
+        code = "timeout" if isinstance(reason, (TimeoutError,)) or "timed out" in str(reason).lower() else "unreachable"
+        _update_call_trace(attempted=True, status="connection_error", result_accepted=False,
+                           failure_code=code, latency_ms=elapsed)
+    except (ValueError, KeyError, IndexError, TypeError):
+        elapsed = round((time.perf_counter() - started) * 1000, 3)
+        _update_call_trace(attempted=True, status="invalid_response", result_accepted=False,
+                           failure_code="invalid_response", latency_ms=elapsed)
+    return None
+
+
+def _models_url(cfg: dict[str, Any]) -> str:
+    base = _base_url()
+    if cfg["local"]:
+        root = re.sub(r"/v1/?$", "", base)
+        return f"{root}/api/tags"
+    return f"{base}/models"
+
+
+def probe_provider(timeout: float = 5.0) -> dict[str, Any]:
+    """Non-generative probe: configuration, service reachability, and selected model presence."""
+    cfg = provider_config()
+    result = {
+        "provider": cfg["provider"], "mode": cfg["mode"], "model": cfg["model"],
+        "configured": cfg["configured"], "service_reachable": False,
+        "model_available": False, "models_count": 0, "failure_code": None,
+    }
+    if not cfg["configured"]:
+        result["failure_code"] = "not_configured"
+        return result
+    headers = {"Accept": "application/json"}
+    if not cfg["local"]:
+        headers["Authorization"] = f"Bearer {_api_key()}"
+    request = urllib.request.Request(_models_url(cfg), headers=headers, method="GET")
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        if cfg["local"]:
+            models = payload.get("models", [])
+            names = [item.get("name") or item.get("model") for item in models if isinstance(item, dict)]
+        else:
+            models = payload.get("data", [])
+            names = [item.get("id") for item in models if isinstance(item, dict)]
+        names = [str(name) for name in names if name]
+        result["service_reachable"] = True
+        result["models_count"] = len(names)
+        result["model_available"] = _model_name() in names
+        result["available_model_names"] = names
+        if not result["model_available"]:
+            result["failure_code"] = "model_not_found"
+    except urllib.error.HTTPError as exc:
+        result["failure_code"] = f"http_{exc.code}"
+    except (TimeoutError, urllib.error.URLError, OSError) as exc:
+        reason = getattr(exc, "reason", exc)
+        result["failure_code"] = "timeout" if isinstance(reason, TimeoutError) or "timed out" in str(reason).lower() else "unreachable"
+    except (ValueError, KeyError, TypeError):
+        result["failure_code"] = "invalid_model_list"
+    return result
+
+
+def test_provider_generation() -> dict[str, Any]:
+    """Make an explicit, fixed, non-user-data generation check and require valid JSON."""
+    started = time.perf_counter()
+    reset_call_trace()
+    prompt = [
+        {"role": "system", "content": "أعد JSON صالحًا فقط بالشكل {\"ok\":true}. لا تضف أي نص آخر."},
+        {"role": "user", "content": "اختبار اتصال ثابت. أعد {\"ok\":true}."},
+    ]
+    content = _chat(prompt)
+    success = False
+    if content:
+        try:
+            success = json.loads(content).get("ok") is True
+        except (ValueError, TypeError, AttributeError):
+            success = False
+    trace = last_call_trace() or {}
+    if trace.get("attempted"):
+        trace["generation_test_success"] = success
+        trace["status"] = "generation_succeeded" if success else "generation_rejected"
+        trace["result_accepted"] = success
+        if not success and not trace.get("failure_code"):
+            trace["failure_code"] = "invalid_test_json"
+        _CALL_TRACE.set(trace)
+    return {
+        "success": success,
+        "attempted": bool(trace.get("attempted")),
+        "latency_ms": trace.get("latency_ms", round((time.perf_counter() - started) * 1000, 3)),
+        "failure_code": trace.get("failure_code"),
+        "provider": provider_config()["provider"],
+        "model": provider_config()["model"],
+    }
 
 
 def validate_extractive_claims(payload: str, sources: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -103,7 +281,35 @@ def generate_grounded_answer(question: str, sources: list[dict[str, Any]]) -> di
         {"role": "user", "content": json.dumps({"question": question, "sources": evidence}, ensure_ascii=False)},
     ]
     draft = _chat(messages)
-    return validate_extractive_claims(draft, sources) if draft else None
+    result = validate_extractive_claims(draft, sources) if draft else None
+    if last_call_trace() and last_call_trace().get("attempted"):
+        _update_call_trace(result_accepted=result is not None,
+                           status="accepted" if result is not None else (last_call_trace() or {}).get("status", "rejected"),
+                           failure_code=None if result is not None else (last_call_trace() or {}).get("failure_code") or "schema_rejected")
+    return result
+
+
+def _normalize_arabic(text: str) -> str:
+    return text.lower().replace("أ", "ا").replace("إ", "ا").replace("آ", "ا").replace("ى", "ي")
+
+
+def _contact_value_is_specific(value: str, quote: str) -> bool:
+    normalized_value = _normalize_arabic(value)
+    normalized_quote = _normalize_arabic(quote)
+    channels = ("رقم واتساب", "رقم تواصل", "رقم حساب", "حساب تواصل", "اسم حساب", "اسم مستخدم")
+    availability = ("عندي", "معي", "متوفر", "المتوفر", "احتفظت")
+    if any(channel in normalized_value for channel in channels) and any(marker in normalized_quote for marker in availability):
+        return True
+    digits = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
+    quote_digits = re.sub(r"\D", "", quote.translate(digits))
+    value_digits = re.sub(r"\D", "", value.translate(digits))
+    if len(quote_digits) >= 6 and quote_digits in value_digits:
+        return True
+    handle = re.search(r"(?<!\w)@[A-Za-z0-9_.-]{2,}", quote)
+    if handle and handle.group(0) in value:
+        return True
+    username = re.search(r"(?:اسم المستخدم|username)\s*[:=]?\s*([\w.-]{2,})", quote, re.IGNORECASE)
+    return bool(username and username.group(1) in value)
 
 
 def validate_interview_facts(text: str, payload: str) -> list[dict[str, Any]] | None:
@@ -125,15 +331,23 @@ def validate_interview_facts(text: str, payload: str) -> list[dict[str, Any]] | 
                 return None
             if not isinstance(quote, str) or not quote or quote not in text:
                 return None
-            normalized_quote = quote.lower().replace("أ", "ا").replace("إ", "ا").replace("آ", "ا").replace("ى", "ي")
+            normalized_quote = _normalize_arabic(quote)
             anchors = FIELD_ANCHORS.get(field, ())
-            if anchors and not any(anchor in normalized_quote for anchor in anchors):
+            if anchors and not any(_normalize_arabic(anchor) in normalized_quote for anchor in anchors):
                 return None
             if status == "reported":
                 if field in BINARY_FIELDS:
                     if value is not True:
                         return None
                 elif not isinstance(value, str) or not value.strip():
+                    return None
+                if field == "narrative" and value != quote:
+                    return None
+                if field == "contact" and not _contact_value_is_specific(value, quote):
+                    return None
+                if field == "repeated" and not any(term in normalized_quote for term in (
+                    "تهديد", "هدد", "ابتزاز", "ابتز", "مضايق", "تحرش", "لاحق", "يؤذ", "اذي"
+                )):
                     return None
                 if field in {"requested_amount", "paid_amount"}:
                     quote_digits = re.sub(r"\D", "", quote.translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")))
@@ -168,8 +382,15 @@ def generate_interview_extraction(text: str, pending_slot: str | None) -> list[d
         "allowed_fact_fields": schema,
     }
     messages = [
-        {"role": "system", "content": "استخرج الوقائع المصرّح بها في الرسالة الحالية فقط، مع مراعاة النفي والاقتباس والافتراض واختلاف الجمل. أعد JSON فقط بالشكل {\"facts\":[{\"field\":\"...\",\"status\":\"reported|denied|unknown|not_remembered|declined\",\"value\":null,\"quote\":\"...\"}]}. كل quote يجب أن تكون مقطعًا حرفيًا متصلًا من نص المستخدم وبالحروف نفسها. لا تخترع قيمًا. لا تستنتج خطرًا مباشرًا أو درجة أو مرحلة أو تأكيدًا. للحقول الثنائية استخدم reported مع true أو denied مع false. للمجهول أو النفي للحقول النصية استخدم value=null. أخرج facts فارغة عند غياب معلومة واضحة. يمكن إخراج عدة حقائق إذا وردت في الرسالة، لكن حقيقة واحدة فقط لكل field."},
+        {"role": "system", "content": "استخرج الوقائع المصرّح بها في الرسالة الحالية فقط، مع مراعاة النفي والاقتباس والافتراض واختلاف الجمل. أعد JSON فقط بالشكل {\"facts\":[{\"field\":\"...\",\"status\":\"reported|denied|unknown|not_remembered|declined\",\"value\":null,\"quote\":\"...\"}]}. كل quote يجب أن تكون مقطعًا حرفيًا متصلًا من نص المستخدم وبالحروف نفسها. لا تخترع قيمًا. لا تستنتج خطرًا مباشرًا أو درجة أو مرحلة أو تأكيدًا. للحقول الثنائية استخدم reported مع true أو denied مع false. للمجهول أو النفي للحقول النصية استخدم value=null. حقل narrative يجب أن تكون قيمته مطابقة للاقتباس حرفيًا؛ لا تعِد صياغة السرد. حقل repeated يصف تكرار التهديد أو المضايقة صراحة، لا تكرار طلب المال أو الدفع. حقل contact هو معرّف أو وسيلة تواصل متاحة صراحة، وليس نوع رسالة عامًّا مثل رسالة خاصة. أخرج facts فارغة عند غياب معلومة واضحة. يمكن إخراج عدة حقائق إذا وردت في الرسالة، لكن حقيقة واحدة فقط لكل field."},
         {"role": "user", "content": json.dumps(user, ensure_ascii=False)},
     ]
     payload = _chat(messages)
-    return validate_interview_facts(text, payload) if payload else None
+    facts = validate_interview_facts(text, payload) if payload else None
+    trace = last_call_trace()
+    if trace and trace.get("attempted"):
+        _update_call_trace(result_accepted=facts is not None,
+                           status="accepted" if facts is not None else (trace.get("status") if not payload else "schema_rejected"),
+                           failure_code=None if facts is not None else (trace.get("failure_code") or ("schema_rejected" if payload else "generation_failed")),
+                           fact_fields=[item["field"] for item in facts] if facts is not None else [])
+    return facts

@@ -255,7 +255,8 @@ class InterviewWorkflowTests(unittest.TestCase):
 
         receipt_text = "عندي لقطات شاشة لرسائل التهديد على واتساب، وإيصال تحويل الـ130 دينار من المحفظة الإلكترونية."
         handle_turn(state, receipt_text, model_facts=[{
-            "field": "payment_method", "status": "reported", "value": "محفظة إلكترونية", "quote": receipt_text,
+            # Synthetic merge-only proposal; it is not an actual provider extraction result.
+            "field": "payment_method", "status": "reported", "value": "بطاقة", "quote": receipt_text,
         }])
         fact = state["facts"]["payment_method"]
         self.assertEqual(fact["status"], "reported")
@@ -264,7 +265,7 @@ class InterviewWorkflowTests(unittest.TestCase):
         self.assertTrue(any(item["message_id"] == state["messages"][-2]["id"]
                             for item in fact.get("supporting_statements", [])))
         trace = [item for item in last_model_merge_trace() if item["field"] == "payment_method"]
-        self.assertEqual(trace[-1]["disposition"], "agrees_with_rules")
+        self.assertEqual(trace[-1]["disposition"], "superseded_by_rules")
 
         different = new_state("payment-method-real-conflict")
         handle_turn(different, "حولت المبلغ عن طريق محفظة إلكترونية.")

@@ -400,10 +400,14 @@
           const purpose = result.external_model_purpose === 'grounded_question'
             ? 'نص السؤال الحالي ومقتطفات المصادر المختارة' : 'نص الرسالة الحالية فقط';
           if (result.external_model_result_accepted) {
+            const filteredCount = Number(result.provider_call?.filtered_fact_count || 0);
             const runtimeLabel = result.runtime_mode === 'local_model' ? 'نموذج Ollama المحلي' : 'مزود خارجي';
             $('runtime-mode').textContent = `${runtimeLabel} — استُخدم في آخر إرسال بموافقتك.`;
-            setStatus(`أُرسل ${purpose} بموافقتك إلى ${provider}؛ قُبلت النتيجة بنيويًا وطُبّقت عليها قواعد التحقق المحلية.`, true, ctx);
-            $('runtime-detail').textContent = `آخر عملية: نتيجة مقبولة من ${provider}؛ زمن الاستجابة ${result.provider_call?.latency_ms ?? 'غير متاح'} مللي ثانية.`;
+            const filterNote = filteredCount ? `؛ واستبعد النظام ${filteredCount} من الحقائق غير المسندة عن الحالة` : '';
+            setStatus(`أُرسل ${purpose} بموافقتك إلى ${provider}؛ قُبلت البنية وطبّقت قواعد التحقق المحلية${filterNote}.`, true, ctx);
+            $('runtime-detail').textContent = filteredCount
+              ? `آخر عملية: نتيجة مقبولة جزئيًا من ${provider}؛ استبعد النظام ${filteredCount} من الحقائق غير المسندة؛ زمن الاستجابة ${result.provider_call?.latency_ms ?? 'غير متاح'} مللي ثانية.`
+              : `آخر عملية: نتيجة مقبولة من ${provider}؛ زمن الاستجابة ${result.provider_call?.latency_ms ?? 'غير متاح'} مللي ثانية.`;
           } else {
             $('runtime-mode').textContent = `القواعد المحلية — عاد الطلب إليها بعد تعذر قبول نتيجة ${provider}.`;
             setStatus(`لم تُقبل نتيجة ${provider} بعد إرسال ${purpose} بموافقتك؛ فعاد الطلب إلى ${result.fallback_to === 'local_rag' ? 'الإجابة المحلية المستندة إلى المصادر' : 'القواعد المحلية'}.`, false, ctx);

@@ -106,6 +106,34 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         await expect(self.page.locator("#runtime-mode")).to_contain_text("مزود خارجي — نجح اختبار التوليد الثابت")
         await expect(self.page.locator("#runtime-detail")).to_contain_text("12 مللي ثانية")
 
+    async def test_partial_model_filter_is_reported_after_consented_send(self):
+        config = {"provider": "openai-compatible", "mode": "external_model", "model": "synthetic-test",
+                  "configuration_complete": True, "configured": True, "local": False}
+        async def intercept(route):
+            if route.request.url.endswith("/api/provider/status"):
+                await route.fulfill(json={"config": config, "probe": {"configured": True,
+                    "service_reachable": True, "model_available": True, "models_count": 1,
+                    "failure_code": None}})
+            else:
+                await route.continue_()
+        await self.page.route("**/api/provider/status", intercept)
+        trace = {"attempted": True, "status": "partially_accepted", "result_accepted": True,
+                 "fallback_used": False, "failure_code": "partial_fact_filter", "filtered_fact_count": 1,
+                 "filtered_fact_fields": ["identity"], "latency_ms": 12}
+        with patch("app.main.provider_config", return_value=config), \
+             patch("app.main.model_configured", return_value=True), \
+             patch("app.main.generate_interview_extraction", return_value=[{
+                 "field": "platform", "status": "reported", "value": "إنستغرام", "quote": "إنستغرام"}]), \
+             patch("app.main.last_call_trace", return_value=trace):
+            await self.page.goto(self.base_url)
+            await self.page.locator("#start-case").click()
+            await expect(self.page.locator("#model-consent-row")).to_be_visible()
+            await self.page.locator("#message").fill("ظهر حساب مزيف على إنستغرام")
+            await self.page.locator("#model-consent").check()
+            await self.page.locator("#send").click()
+            await expect(self.page.locator("#runtime-detail")).to_contain_text("نتيجة مقبولة جزئيًا")
+            await expect(self.page.locator("#runtime-detail")).to_contain_text("استبعد النظام 1 من الحقائق")
+
     async def test_chat_pause_resume_correction_confirmation_and_download(self):
         await self.page.add_init_script("window.__accpPrintCalled=false;window.print=()=>{window.__accpPrintCalled=true;};")
         await self.page.goto(self.base_url)

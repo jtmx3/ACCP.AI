@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import re
 import statistics
 import sys
 import tempfile
@@ -18,12 +20,16 @@ sys.path.insert(0, str(ROOT))
 
 from fastapi.testclient import TestClient
 
-from app import main
-from app.model import model_configured, probe_provider, provider_config, test_provider_generation
+from app import core, main
+from app.model import (ALLOWED_EXTRACTION_FIELDS, last_extraction_diagnostic, model_configured,
+                       probe_provider, provider_config, test_provider_generation)
 from app.store import Store
 
 DEFAULT_DATASET = ROOT / "tests" / "evaluation_scenarios.json"
 DEFAULT_RULES_OUTPUT = ROOT / "reports" / "evaluation" / "rules-final.json"
+MODEL_EVALUATION_VERSION = 5
+MODEL_EVALUATION_FIELDS = frozenset(ALLOWED_EXTRACTION_FIELDS)
+ENGINE_OWNED_FIELDS = frozenset({"direct_danger", "priority_score", "confirmed", "stage"})
 
 
 def _is_reported_positive(fact: dict[str, Any] | None) -> bool:
@@ -56,13 +62,66 @@ def _candidate_matches(candidate: dict[str, Any], expected: dict[str, Any]) -> b
     return True
 
 
-def _model_case_passed(integrated_passed: bool, expected_fact_matches: dict[str, bool],
-                       provider_calls: list[dict[str, Any]]) -> bool:
-    """Credit a scenario to the model only with valid model coverage and zero fallback calls."""
+def _legacy_composite_case_passed(integrated_passed: bool, expected_fact_matches: dict[str, bool],
+                                  provider_calls: list[dict[str, Any]]) -> bool:
+    """Retain the v2 comparator: all expected fields, integrated pass, and no fallback."""
     if not integrated_passed or not provider_calls or not all(expected_fact_matches.values()):
         return False
     return all(call.get("result_accepted") is True and call.get("fallback_used") is False
+               and not call.get("filtered_fact_count")
                for call in provider_calls)
+
+
+def _extraction_case_passed(eligible_expected_fact_matches: dict[str, bool],
+                            has_forbidden_positive: bool) -> bool | None:
+    """Score extraction only; excludes engine-owned fields and never consults integrated pass/fallback."""
+    if not eligible_expected_fact_matches:
+        return None
+    return all(eligible_expected_fact_matches.values()) and not has_forbidden_positive
+
+
+def _is_positive(fact: dict[str, Any]) -> bool:
+    return fact.get("status") == "reported" and (
+        fact.get("value") is True or not isinstance(fact.get("value"), bool))
+
+
+def _candidate_oracle_class(candidate: dict[str, Any], expected: dict[str, Any], forbidden: set[str]) -> str:
+    field = candidate.get("field")
+    if field in forbidden and _is_positive(candidate):
+        return "explicit_forbidden_positive"
+    if field not in expected:
+        return "oracle_unspecified"
+    if _candidate_matches(candidate, expected[field]):
+        return "matches_final_expectation"
+    return "does_not_match_final_expectation"
+
+
+def _safe_response_diagnostic(raw: str | None) -> dict[str, Any]:
+    """Keep bounded diagnostics for fixed synthetic runs; redact credential-like strings."""
+    if not isinstance(raw, str):
+        return {"response_excerpt": None, "response_sha256": None, "response_truncated": False}
+    redacted = re.sub(r"(?i)(bearer\s+)[A-Za-z0-9._~+/-]+=*", r"\1[REDACTED]", raw)
+    redacted = re.sub(r"(?i)((?:\"?(?:api[_ -]?key|access[_ -]?token|secret|password)\"?)\s*[:=]\s*\"?)[^,\s}\]\"]+",
+                      r"\1[REDACTED]", redacted)
+    limit = 4000
+    return {"response_excerpt": redacted[:limit],
+            "response_sha256": hashlib.sha256(raw.encode("utf-8", "replace")).hexdigest(),
+            "response_truncated": len(redacted) > limit}
+
+
+def _response_fact_proposals(raw: str | None) -> list[dict[str, Any]]:
+    """Extract only fact-shaped fields from a rejected JSON response for synthetic diagnostics."""
+    if not isinstance(raw, str):
+        return []
+    try:
+        parsed = json.loads(raw)
+    except (ValueError, TypeError):
+        return []
+    facts = parsed.get("facts") if isinstance(parsed, dict) else None
+    if not isinstance(facts, list):
+        return []
+    return [{key: item.get(key) for key in ("field", "status", "value", "quote") if key in item}
+            for item in facts if isinstance(item, dict)]
 
 
 def _check_events(actual: list[dict[str, Any]], expected: list[dict[str, Any]]) -> list[str]:
@@ -86,7 +145,9 @@ def _check_events(actual: list[dict[str, Any]], expected: list[dict[str, Any]]) 
 
 
 def _run_case(client: TestClient, case: dict[str, Any], mode: str = "rules",
-              candidate_log: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+              candidate_log: list[dict[str, Any]] | None = None,
+              merge_log: list[dict[str, Any]] | None = None,
+              evaluation_context: dict[str, Any] | None = None) -> dict[str, Any]:
     started = time.perf_counter()
     failures: list[str] = []
     timings: list[float] = []
@@ -104,6 +165,10 @@ def _run_case(client: TestClient, case: dict[str, Any], mode: str = "rules",
     headers = {"X-Case-Token": token}
     assistant_count_before = sum(1 for m in session.get("messages", []) if m.get("role") == "assistant")
     for index, step in enumerate(case["steps"], 1):
+        if evaluation_context is not None:
+            evaluation_context["step"] = index
+        candidate_before = len(candidate_log or [])
+        merge_before = len(merge_log or [])
         step_started = time.perf_counter()
         action = step["action"]
         if action == "message":
@@ -135,7 +200,10 @@ def _run_case(client: TestClient, case: dict[str, Any], mode: str = "rules",
         revision = session["revision"]
         call = result.get("provider_call") or {}
         if call.get("attempted"):
-            provider_calls.append({
+            entries = (candidate_log or [])[candidate_before:]
+            merge_entries = (merge_log or [])[merge_before:]
+            diagnostic = entries[-1].get("diagnostic", {}) if entries else {}
+            call_record = {
                 "step": index,
                 "result_accepted": bool(call.get("result_accepted")),
                 "fallback_used": bool(call.get("fallback_used")),
@@ -144,7 +212,21 @@ def _run_case(client: TestClient, case: dict[str, Any], mode: str = "rules",
                 "fact_fields": call.get("fact_fields", []),
                 "provider": call.get("provider"),
                 "model": call.get("model"),
-            })
+                "json_valid": diagnostic.get("json_valid"),
+                "schema_valid": diagnostic.get("schema_valid"),
+                "rejection_code": diagnostic.get("rejection_code") or call.get("failure_code"),
+                "rejection_detail": diagnostic.get("rejection_detail"),
+                "filtered_fact_count": len(diagnostic.get("filtered_facts", [])),
+                "filtered_fact_proposals": diagnostic.get("filtered_facts", []),
+                "candidate_facts": [fact for entry in entries for fact in (entry.get("facts") or [])],
+                "merge_outcomes": merge_entries,
+            }
+            if not call_record["result_accepted"]:
+                excerpt = {key: diagnostic[key] for key in ("response_excerpt", "response_sha256", "response_truncated")
+                           if key in diagnostic}
+                call_record.update(excerpt)
+                call_record["rejected_fact_proposals"] = diagnostic.get("rejected_fact_proposals", [])
+            provider_calls.append(call_record)
         assistant_messages = [m for m in session.get("messages", []) if m.get("role") == "assistant"]
         new_messages = assistant_messages[assistant_count_before:]
         assistant_count_before = len(assistant_messages)
@@ -202,22 +284,48 @@ def _run_case(client: TestClient, case: dict[str, Any], mode: str = "rules",
     integrated_passed = not failures
     candidate_calls = (candidate_log or [])[candidate_start:]
     candidate_facts = [fact for call in candidate_calls for fact in (call.get("facts") or [])]
-    expected_fact_matches = {}
-    for field, expected in case.get("expected_facts", {}).items():
+    expected_facts = case.get("expected_facts", {})
+    all_expected_fact_matches = {}
+    eligible_expected_fact_matches = {}
+    excluded_expected_fields = {}
+    for field, expected in expected_facts.items():
         matches = [fact for fact in candidate_facts if fact.get("field") == field and _candidate_matches(fact, expected)]
-        expected_fact_matches[field] = bool(matches)
-    uncovered_model_facts = [field for field, matched in expected_fact_matches.items() if not matched]
+        all_expected_fact_matches[field] = bool(matches)
+        if field in MODEL_EVALUATION_FIELDS:
+            eligible_expected_fact_matches[field] = bool(matches)
+        else:
+            excluded_expected_fields[field] = "engine_owned_or_not_in_model_extraction_allowlist"
+    uncovered_model_facts = [field for field, matched in eligible_expected_fact_matches.items() if not matched]
+    forbidden = set(case.get("forbidden_positive", []))
+    forbidden_candidates = [fact for fact in candidate_facts
+                            if fact.get("field") in forbidden and _is_positive(fact)]
+    oracle_classes = [_candidate_oracle_class(fact, expected_facts, forbidden) for fact in candidate_facts]
+    oracle_class_counts = {label: oracle_classes.count(label) for label in sorted(set(oracle_classes))}
+    rejected_proposals = [fact for call in provider_calls for fact in call.get("rejected_fact_proposals", [])]
+    filtered_proposals = [fact for call in provider_calls for fact in call.get("filtered_fact_proposals", [])]
+    all_response_proposals = candidate_facts + rejected_proposals + filtered_proposals
+    proposal_classes = [_candidate_oracle_class(fact, expected_facts, forbidden) for fact in all_response_proposals]
+    proposal_class_counts = {label: proposal_classes.count(label) for label in sorted(set(proposal_classes))}
+    all_forbidden_positives = [fact for fact in all_response_proposals
+                               if fact.get("field") in forbidden and _is_positive(fact)]
+    extractive_case_passed = (_extraction_case_passed(eligible_expected_fact_matches, bool(forbidden_candidates))
+                              if mode == "model" else None)
+    legacy_composite_passed = (_legacy_composite_case_passed(
+        integrated_passed, all_expected_fact_matches, provider_calls) if mode == "model" else None)
     rejected_calls = sum(not call["result_accepted"] for call in provider_calls)
-    model_passed = bool(mode == "model" and _model_case_passed(integrated_passed, expected_fact_matches, provider_calls)
-                         and not uncovered_model_facts)
-    passed = integrated_passed if mode == "rules" else model_passed
+    merge_outcomes = [event for call in provider_calls for event in call.get("merge_outcomes", [])]
+    disposition_counts: dict[str, int] = {}
+    for event in merge_outcomes:
+        disposition_counts[event["disposition"]] = disposition_counts.get(event["disposition"], 0) + 1
+    passed = integrated_passed if mode == "rules" else extractive_case_passed is True
     elapsed_ms = (time.perf_counter() - started) * 1000
     result = {
         "id": case["id"],
         "category": case["category"],
         "passed": passed,
         "integrated_passed": integrated_passed,
-        "model_passed": model_passed,
+        "extraction_passed": extractive_case_passed,
+        "legacy_v2_composite_passed": legacy_composite_passed,
         "failures": failures,
         "actual": {
             "stage": session.get("stage"),
@@ -225,7 +333,7 @@ def _run_case(client: TestClient, case: dict[str, Any], mode: str = "rules",
             "priority_score": assessment.get("priority_score"),
             "priority_rule": assessment.get("priority_rule"),
             "facts": actual_facts,
-            "expected_facts": {field: actual_facts.get(field) for field in case.get("expected_facts", {})},
+            "expected_facts": {field: actual_facts.get(field) for field in expected_facts},
             "money_events": session.get("money_events", []),
             "confirmed": session.get("confirmed"),
             "confirmation_history_count": len(session.get("confirmation_history") or []),
@@ -238,14 +346,36 @@ def _run_case(client: TestClient, case: dict[str, Any], mode: str = "rules",
         result["model_evaluation"] = {
             "calls": provider_calls,
             "calls_attempted": len(provider_calls),
-            "results_accepted": len(provider_calls) - rejected_calls,
+            "responses_with_valid_json": sum(call.get("json_valid") is True for call in provider_calls),
+            "responses_with_valid_schema": sum(call.get("schema_valid") is True for call in provider_calls),
+            "validated_fact_calls_accepted": len(provider_calls) - rejected_calls,
             "results_rejected": rejected_calls,
-            "fallback_count": rejected_calls,
+            "fallback_count": sum(bool(call.get("fallback_used")) for call in provider_calls),
             "candidate_fact_count": len(candidate_facts),
             "candidate_facts": candidate_facts,
-            "expected_fact_matches": expected_fact_matches,
+            "candidate_oracle_classes": oracle_class_counts,
+            "candidate_expected_mismatches": oracle_class_counts.get("does_not_match_final_expectation", 0),
+            "candidate_explicit_forbidden_positives": len(forbidden_candidates),
+            "all_response_explicit_forbidden_positives": len(all_forbidden_positives),
+            "rejected_fact_proposal_count": len(rejected_proposals),
+            "filtered_fact_proposal_count": len(filtered_proposals),
+            "filtered_fact_proposal_code_counts": {
+                code: sum(1 for fact in filtered_proposals if fact.get("filter_code") == code)
+                for code in sorted({fact.get("filter_code") for fact in filtered_proposals if fact.get("filter_code")})
+            },
+            "all_response_proposal_oracle_classes": proposal_class_counts,
+            "eligible_expected_fact_matches": eligible_expected_fact_matches,
+            "all_expected_fact_matches_legacy": all_expected_fact_matches,
+            "eligible_expected_facts": sorted(eligible_expected_fact_matches),
+            "excluded_expected_fields": excluded_expected_fields,
             "expected_facts_not_covered_by_model": uncovered_model_facts,
-            "fallback_success_counted_as_model_success": False,
+            "eligible_expected_fact_count": len(eligible_expected_fact_matches),
+            "eligible_expected_facts_matched": sum(eligible_expected_fact_matches.values()),
+            "merge_disposition_counts": disposition_counts,
+            "merge_field_outcomes": merge_outcomes,
+            "extraction_pass_does_not_depend_on_integrated_pass_or_fallback": True,
+            "legacy_v2_composite_definition": "integrated pass AND all original expected fields matched (including engine-owned fields) AND every provider call accepted with no fallback and no per-fact suppression",
+            "v5_filtering_policy": "whole-response rejection is reserved for malformed JSON or schema-level errors; individual quote, value, negation, field-evidence, and unsupported-status failures suppress only that fact; valid facts in the same response are retained; every suppressed proposal has a specific code and is never credited as an accepted fact",
         }
     return result
 
@@ -281,12 +411,27 @@ def run(dataset_path: Path, output_path: Path, mode: str = "rules") -> dict[str,
                 blocked_reason = generation_test.get("failure_code") or "generation_test_failed"
 
     candidate_log: list[dict[str, Any]] = []
+    merge_log: list[dict[str, Any]] = []
+    evaluation_context: dict[str, Any] = {"step": None}
     original_generator = main.generate_interview_extraction
+    original_handle_turn = main.handle_turn
 
     def capture_generator(text: str, pending_slot: str | None):
         facts = original_generator(text, pending_slot)
-        candidate_log.append({"accepted": facts is not None, "facts": facts})
+        diagnostic = last_extraction_diagnostic() or {}
+        entry = {"step": evaluation_context.get("step"), "accepted": facts is not None,
+                 "facts": facts or [], "diagnostic": {k: v for k, v in diagnostic.items() if k != "raw_response"}}
+        if facts is None and diagnostic.get("raw_response") is not None:
+            entry["diagnostic"]["rejected_fact_proposals"] = _response_fact_proposals(diagnostic["raw_response"])
+            entry["diagnostic"].update(_safe_response_diagnostic(diagnostic["raw_response"]))
+        candidate_log.append(entry)
         return facts
+
+    def capture_handle_turn(state, text: str, model_facts=None):
+        result = original_handle_turn(state, text, model_facts=model_facts)
+        for event in core.last_model_merge_trace():
+            merge_log.append({"step": evaluation_context.get("step"), **event})
+        return result
 
     with tempfile.TemporaryDirectory(prefix="accp-eval-") as tmp:
         main.store = Store(str(Path(tmp) / "evaluation.sqlite3"))
@@ -294,8 +439,11 @@ def run(dataset_path: Path, output_path: Path, mode: str = "rules") -> dict[str,
             if blocked_reason:
                 results = []
             elif mode == "model":
-                with patch("app.main.generate_interview_extraction", side_effect=capture_generator):
-                    results = [_run_case(client, case, mode=mode, candidate_log=candidate_log) for case in dataset["cases"]]
+                with patch("app.main.generate_interview_extraction", side_effect=capture_generator), \
+                     patch("app.main.handle_turn", side_effect=capture_handle_turn):
+                    results = [_run_case(client, case, mode=mode, candidate_log=candidate_log,
+                                         merge_log=merge_log, evaluation_context=evaluation_context)
+                               for case in dataset["cases"]]
             else:
                 results = [_run_case(client, case, mode=mode) for case in dataset["cases"]]
 
@@ -304,13 +452,58 @@ def run(dataset_path: Path, output_path: Path, mode: str = "rules") -> dict[str,
     model_calls = [call for result in results for call in result.get("model_evaluation", {}).get("calls", [])]
     call_latencies = [call["latency_ms"] for call in model_calls if isinstance(call.get("latency_ms"), (int, float))]
     integrated_passes = sum(bool(result.get("integrated_passed")) for result in results)
-    model_passes = sum(bool(result.get("model_passed")) for result in results)
+    extraction_passes = sum(result.get("extraction_passed") is True for result in results)
+    extraction_denominator = sum(result.get("extraction_passed") is not None for result in results)
+    legacy_passes = sum(result.get("legacy_v2_composite_passed") is True for result in results)
     accepted_calls = sum(bool(call.get("result_accepted")) for call in model_calls)
     rejected_calls = len(model_calls) - accepted_calls
+    rejection_counts: dict[str, int] = {}
+    for call in model_calls:
+        if not call.get("result_accepted"):
+            code = call.get("rejection_code") or "unclassified_failure"
+            rejection_counts[code] = rejection_counts.get(code, 0) + 1
+    json_response_calls = [call for call in model_calls if call.get("json_valid") is not None]
+    schema_response_calls = [call for call in model_calls if call.get("schema_valid") is not None]
+    eligible_expected_count = sum(item["model_evaluation"]["eligible_expected_fact_count"]
+                                  for item in results if "model_evaluation" in item)
+    eligible_matched_count = sum(item["model_evaluation"]["eligible_expected_facts_matched"]
+                                 for item in results if "model_evaluation" in item)
+    eligible_missing_count = eligible_expected_count - eligible_matched_count
+    candidate_classes: dict[str, int] = {}
+    response_proposal_classes: dict[str, int] = {}
+    merge_dispositions: dict[str, int] = {}
+    merge_rejection_codes: dict[str, int] = {}
+    explicit_forbidden = 0
+    all_response_forbidden = 0
+    for case_result in results:
+        evaluation = case_result.get("model_evaluation", {})
+        explicit_forbidden += evaluation.get("candidate_explicit_forbidden_positives", 0)
+        all_response_forbidden += evaluation.get("all_response_explicit_forbidden_positives", 0)
+        for label, count in evaluation.get("candidate_oracle_classes", {}).items():
+            candidate_classes[label] = candidate_classes.get(label, 0) + count
+        for label, count in evaluation.get("all_response_proposal_oracle_classes", {}).items():
+            response_proposal_classes[label] = response_proposal_classes.get(label, 0) + count
+        for label, count in evaluation.get("merge_disposition_counts", {}).items():
+            merge_dispositions[label] = merge_dispositions.get(label, 0) + count
+        for call in evaluation.get("calls", []):
+            for event in call.get("merge_outcomes", []):
+                code = event.get("merge_rejection_code")
+                if code:
+                    merge_rejection_codes[code] = merge_rejection_codes.get(code, 0) + 1
     run_status = "blocked" if blocked_reason else "completed"
     output = {
         "dataset_id": dataset["dataset_id"],
         "dataset_version": dataset["version"],
+        "evaluation_definition_version": MODEL_EVALUATION_VERSION,
+        "evaluation_definition": {
+            "model_extraction_eligible_fields": sorted(MODEL_EVALUATION_FIELDS),
+            "excluded_expected_field_policy": "engine-owned safety/decision fields are not part of model-extraction coverage; notably direct_danger is classified and recorded by the safety engine, not proposed by interview extraction",
+            "extraction_case_pass": "all expected facts in eligible fields match at least one validator-accepted model candidate and no explicitly forbidden positive candidate occurs; independent of integrated pass and fallback",
+            "integrated_case_pass": "all original fixed scenario expectations pass against the application session, including safety/triage/stage/questions and rule fallback",
+            "legacy_v2_composite": "integrated pass AND all original expected fields match candidates (including direct_danger) AND every provider call accepted with no fallback or per-fact suppression; retained only as historical comparator, not model accuracy",
+            "candidate_oracle_limit": "unlisted candidate fields are oracle_unspecified, not assumed false; only explicit forbidden_positive entries count as explicit unsupported-positive candidates",
+            "fact_filtering": "quote, value, negation, field-evidence, and unsupported-status proposals rejected per field are separately listed and included in all-response proposal counts; extraction coverage uses only validator-accepted facts",
+        },
         "classification": dataset["classification"],
         "oracle_basis": dataset["oracle_basis"],
         "mode": mode,
@@ -324,16 +517,46 @@ def run(dataset_path: Path, output_path: Path, mode: str = "rules") -> dict[str,
         "run_at": datetime.now(timezone.utc).isoformat(),
         "result": {
             "case_count": len(results),
-            "cases_passed": model_passes if mode == "model" else integrated_passes,
-            "cases_failed": (len(results) - model_passes) if mode == "model" else (len(results) - integrated_passes),
+            "cases_passed": extraction_passes if mode == "model" else integrated_passes,
+            "cases_failed": ((extraction_denominator - extraction_passes) if mode == "model" else
+                             (len(results) - integrated_passes)),
             "integrated_cases_passed": integrated_passes,
-            "model_cases_passed": model_passes if mode == "model" else None,
+            "integrated_case_denominator": len(results),
+            "extraction_cases_passed": extraction_passes if mode == "model" else None,
+            "extraction_case_denominator": extraction_denominator if mode == "model" else None,
+            "legacy_v2_composite_cases_passed": legacy_passes if mode == "model" else None,
+            "legacy_v2_composite_denominator": len(results) if mode == "model" else None,
             "assertion_failure_count": len(all_failures),
             "provider_calls_attempted": len(model_calls),
-            "provider_results_accepted": accepted_calls,
-            "provider_results_rejected": rejected_calls,
-            "fallback_count": rejected_calls,
-            "fallback_successes_counted_as_model_success": 0,
+            "provider_responses_with_valid_json": sum(call.get("json_valid") is True for call in model_calls),
+            "provider_responses_with_valid_json_denominator": len(json_response_calls),
+            "provider_responses_with_valid_schema": sum(call.get("schema_valid") is True for call in model_calls),
+            "provider_responses_with_valid_schema_denominator": len(schema_response_calls),
+            "validated_fact_calls_accepted": accepted_calls,
+            "partially_filtered_provider_calls": sum(bool(call.get("filtered_fact_count")) for call in model_calls),
+            "filtered_fact_proposal_count": sum(
+                len(call.get("filtered_fact_proposals", [])) for call in model_calls),
+            "filtered_fact_proposal_code_counts": {
+                code: sum(1 for call in model_calls for fact in call.get("filtered_fact_proposals", [])
+                         if fact.get("filter_code") == code)
+                for code in sorted({fact.get("filter_code") for call in model_calls
+                                    for fact in call.get("filtered_fact_proposals", [])
+                                    if fact.get("filter_code")})
+            },
+            "provider_calls_rejected_or_failed": rejected_calls,
+            "rejection_code_counts": rejection_counts,
+            "fallback_count": sum(bool(call.get("fallback_used")) for call in model_calls),
+            "eligible_expected_fact_instances": eligible_expected_count,
+            "eligible_expected_fact_matches": eligible_matched_count,
+            "eligible_expected_fact_omissions": eligible_missing_count,
+            "eligible_expected_fact_match_rate": round(eligible_matched_count / eligible_expected_count, 6) if eligible_expected_count else None,
+            "accepted_candidate_oracle_class_counts": candidate_classes,
+            "explicit_forbidden_positive_candidate_count": explicit_forbidden,
+            "all_response_proposal_oracle_class_counts": response_proposal_classes,
+            "all_response_explicit_forbidden_positive_count": all_response_forbidden,
+            "model_merge_disposition_counts": merge_dispositions,
+            "merge_rejection_code_counts": merge_rejection_codes,
+            "fallback_successes_counted_as_extraction_success": 0,
             "median_provider_latency_ms": round(statistics.median(call_latencies), 3) if call_latencies else None,
             "p95_provider_latency_ms": round(sorted(call_latencies)[min(len(call_latencies) - 1, int(len(call_latencies) * 0.95))], 3) if call_latencies else None,
             "median_case_latency_ms": round(statistics.median(latencies), 3) if latencies else None,

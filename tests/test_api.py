@@ -82,6 +82,28 @@ class ApiIntegrationTests(unittest.TestCase):
         self.revision = resumed.json()["session"]["revision"]
         self.assertEqual(resumed.json()["session"]["stage"], "interview")
 
+    def test_partial_model_filter_status_is_safe_and_visible_to_client(self):
+        facts = [{"field": "platform", "status": "reported", "value": "إنستغرام",
+                  "quote": "إنستغرام"}]
+        trace = {"attempted": True, "status": "partially_accepted", "result_accepted": True,
+                 "fallback_used": False, "failure_code": "partial_fact_filter", "filtered_fact_count": 1,
+                 "filtered_fact_fields": ["identity"], "latency_ms": 12}
+        with patch("app.main.model_configured", return_value=True), \
+             patch("app.main.provider_config", return_value={"provider": "openai-compatible",
+                                                               "model": "synthetic-test", "mode": "external_model"}), \
+             patch("app.main.generate_interview_extraction", return_value=facts), \
+             patch("app.main.last_call_trace", return_value=trace):
+            response = self.client.post(
+                f"/api/sessions/{self.case_id}/messages", headers=self.headers,
+                json={"expected_revision": self.revision, "text": "حساب مزيف على إنستغرام",
+                      "kind": "answer", "allow_external_extraction": True})
+        self.assertEqual(response.status_code, 200, response.text)
+        result = response.json()
+        self.assertTrue(result["external_model_result_accepted"])
+        self.assertEqual(result["provider_call"]["filtered_fact_count"], 1)
+        self.assertEqual(result["provider_call"]["filtered_fact_fields"], ["identity"])
+        self.assertNotIn("filtered_fact_proposals", result["provider_call"])
+
     def test_clear_question_in_answer_mode_is_answered_locally_then_pending_question_resumes(self):
         before = self.turn("في شخص يهددني على واتساب")
         self.assertEqual(before["pending_slot"], "direct_danger")

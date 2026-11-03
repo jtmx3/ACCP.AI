@@ -1,9 +1,23 @@
 import unittest
 
-from app.core import handle_turn, new_state
+from app.core import handle_turn, last_model_merge_trace, new_state
 
 
 class ModelPipelineTests(unittest.TestCase):
+    def test_merge_trace_distinguishes_rule_agreement_from_rule_precedence(self):
+        text = "شخص هددني برسالة."
+        state = new_state("synthetic-model-agrees-with-rules")
+        handle_turn(state, text, model_facts=[{"field": "threat", "status": "reported", "value": True,
+                                               "quote": "هددني"}])
+        self.assertEqual(last_model_merge_trace()[0]["disposition"], "agrees_with_rules")
+        self.assertTrue(last_model_merge_trace()[0]["rule_extraction_agrees"])
+
+        state = new_state("synthetic-model-disagrees-with-rules")
+        handle_turn(state, text, model_facts=[{"field": "threat", "status": "denied", "value": False,
+                                               "quote": "هددني"}])
+        self.assertEqual(last_model_merge_trace()[0]["disposition"], "superseded_by_rules")
+        self.assertFalse(last_model_merge_trace()[0]["rule_extraction_agrees"])
+
     def test_model_amount_suggestion_cannot_overwrite_initial_amount_or_skip_relation_question(self):
         state = new_state("synthetic-model-money-case")
         turns = [
@@ -25,6 +39,10 @@ class ModelPipelineTests(unittest.TestCase):
         self.assertEqual(state["money_events"][-1]["amount"], "50 دينار")
         self.assertEqual(state["money_events"][-1]["relation"], "unresolved")
         self.assertEqual(state["pending_slot"], "requested_amount_relation")
+        self.assertEqual(last_model_merge_trace(), [{"field": "requested_amount", "disposition": "routed_to_rules",
+                                                     "reason": "relation_aware_money_event_parser",
+                                                     "rule_extraction_agrees": False,
+                                                     "rule_extraction_outcome": "differs_or_no_fact_recorded"}])
 
     def test_payment_only_model_details_do_not_skip_pending_incident_details(self):
         state = new_state("synthetic-model-details-case")
@@ -44,6 +62,9 @@ class ModelPipelineTests(unittest.TestCase):
         self.assertEqual(state["money_events"][-1]["relation"], "additional")
         self.assertNotIn("details", state["facts"])
         self.assertEqual(state["pending_slot"], "details")
+        self.assertIn({"field": "details", "disposition": "ignored",
+                       "reason": "payment_only_is_not_incident_detail",
+                       "merge_rejection_code": "pending_context_conflict"}, last_model_merge_trace())
 
     def test_later_model_narrative_does_not_conflict_with_opening_account(self):
         state = new_state("synthetic-model-narrative-case")
@@ -59,6 +80,9 @@ class ModelPipelineTests(unittest.TestCase):
         self.assertEqual(state["facts"]["narrative"]["status"], "reported")
         self.assertEqual(state["facts"]["narrative"]["value"], original_narrative)
         self.assertEqual(state["pending_slot"], "direct_danger")
+        self.assertIn({"field": "narrative", "disposition": "ignored",
+                       "reason": "preserve_original_narrative_without_explicit_correction"},
+                      last_model_merge_trace())
 
 
 if __name__ == "__main__":

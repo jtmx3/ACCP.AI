@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import contextvars
 from datetime import datetime, timezone
 from typing import Any
 
@@ -46,6 +47,19 @@ LABELS = {
 FIELD_ORDER = ["narrative", "direct_danger", "details", "initial_time", "repeated", "requested_amount",
                "paid_amount", "payment_method", "deadline", "published", "identity", "evidence"]
 TERMINAL = {"reported", "denied", "unknown", "not_remembered", "declined", "unresolved", "conflict"}
+_MODEL_MERGE_TRACE: contextvars.ContextVar[list[dict[str, Any]]] = contextvars.ContextVar("accp_model_merge_trace", default=[])
+
+
+def last_model_merge_trace() -> list[dict[str, Any]]:
+    """Internal per-turn model merge telemetry; never persisted or serialized in session state."""
+    return [dict(item) for item in _MODEL_MERGE_TRACE.get()]
+
+
+def _trace_model_merge(field: Any, disposition: str, reason: str, **details: Any) -> None:
+    trace = list(_MODEL_MERGE_TRACE.get())
+    trace.append({"field": field if isinstance(field, str) else None,
+                  "disposition": disposition, "reason": reason, **details})
+    _MODEL_MERGE_TRACE.set(trace)
 
 
 def now_iso() -> str:
@@ -970,6 +984,7 @@ def _finalize_changed_facts(state: dict[str, Any], changed: set[str]) -> None:
 
 
 def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    _MODEL_MERGE_TRACE.set([])
     text = text.strip()
     if not text:
         raise ValueError("اكتب رسالة قبل الإرسال.")
@@ -1002,18 +1017,45 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
     question_id = state["messages"][-2]["id"] if len(state["messages"]) >= 2 and state["messages"][-2]["role"] == "assistant" else None
     for candidate in model_facts or []:
         key = candidate.get("field")
+        if key in {"direct_danger", "priority_score", "confirmed", "stage"}:
+            _trace_model_merge(key, "ignored", "engine_owned_safety_or_decision_field")
+            continue
         # Amount facts must pass through the money-event relation parser below; otherwise
         # a model proposal can overwrite the initial request before clarification.
-        if key in {"direct_danger", "priority_score", "confirmed", "stage", "requested_amount", "paid_amount"} or key in changed:
+        if key in {"requested_amount", "paid_amount"}:
+            rule_fact = state["facts"].get(key, {})
+            agrees = rule_fact.get("status") == candidate.get("status") and rule_fact.get("value") == candidate.get("value")
+            _trace_model_merge(key, "routed_to_rules", "relation_aware_money_event_parser",
+                               rule_extraction_agrees=agrees,
+                               rule_extraction_outcome="agrees" if agrees else "differs_or_no_fact_recorded")
+            continue
+        if key in changed:
+            rule_fact = state["facts"].get(key, {})
+            agrees = rule_fact.get("status") == candidate.get("status") and rule_fact.get("value") == candidate.get("value")
+            _trace_model_merge(key, "agrees_with_rules" if agrees else "superseded_by_rules",
+                               "deterministic_extraction_already_changed_field",
+                               rule_extraction_agrees=agrees,
+                               rule_extraction_outcome="agrees" if agrees else "differs_or_no_fact_recorded")
             continue
         if key == "details" and not _incident_detail_candidate(candidate.get("quote", "")):
+            _trace_model_merge(key, "ignored", "payment_only_is_not_incident_detail",
+                               merge_rejection_code="pending_context_conflict")
             continue
         if key == "narrative" and state["facts"].get("narrative") and pending != "narrative":
             correction_text = normalize(candidate.get("quote", ""))
             if not any(marker in correction_text for marker in ("تصحيح", "قصدي", "اقصد", "المعلومة الصحيحة")):
+                _trace_model_merge(key, "ignored", "preserve_original_narrative_without_explicit_correction")
                 continue
+        old = state["facts"].get(key)
+        was_correction = bool(old and any(marker in normalize(candidate.get("quote", "")) for marker in
+                                           ("تصحيح", "قصدي", "اقصد", "عدّل", "عدلي", "المعلومة الصحيحة", "بدل")))
         if _record(state, key, candidate["status"], candidate["value"], candidate["quote"], user_msg["id"], question_id, "optional_model_extraction"):
             changed.add(key)
+            disposition = "applied_conflict" if state["facts"].get(key, {}).get("status") == "conflict" else (
+                "applied_correction" if was_correction and old else "applied")
+            _trace_model_merge(key, disposition, "model_suggestion_recorded_in_case")
+        else:
+            _trace_model_merge(key, "ignored", "duplicate_or_no_state_change")
     addition_marker = any(marker in normalize(text) for marker in ("اضيف", "تفصيل اضافي", "معلومة اضافية", "نسيت اقول"))
     if pending is None and state.get("stage") in {"review", "urgent_stop"} and intent is None and (not changed or addition_marker):
         if _append_additional_detail(state, text, user_msg["id"], None):

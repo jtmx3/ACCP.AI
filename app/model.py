@@ -12,7 +12,7 @@ from typing import Any
 
 BINARY_FIELDS = {
     "threat", "impersonation", "publication_threat", "repeated", "published",
-    "active_unauthorized_funds", "fraud_description", "account_access", "harassment",
+    "active_unauthorized_funds", "fraud_description", "account_access", "harassment", "contact_repeated",
 }
 ALLOWED_EXTRACTION_FIELDS = {
     "narrative", "threat", "impersonation", "platform", "details", "publication_threat",
@@ -22,19 +22,20 @@ ALLOWED_EXTRACTION_FIELDS = {
 }
 ALLOWED_STATUSES = {"reported", "denied", "unknown", "not_remembered", "declined"}
 FIELD_ANCHORS = {
-    "threat": ("تهديد", "هدد", "يهدد", "ابتزاز", "يبتز"),
-    "impersonation": ("انتحال", "منتحل", "ينتحل", "حساب مزيف", "باسمي"),
-    "publication_threat": ("ينشر", "نشر", "بفضح", "يهدد"),
-    "repeated": ("تكرر", "مستمر", "مرة ثانية", "مره ثانيه", "رجع بعت", "رجع ارسل", "رجع هدد"),
-    "published": ("نشر", "نزل", "انتشرت", "بعت الصور"),
+    "threat": ("تهديد", "هدد", "يهدد", "ابتزاز", "يبتز", "يلاحق", "لاحق", "يؤذ", "اذي", "يضر", "اضر", "ضرر"),
+    "impersonation": ("انتحال", "منتحل", "ينتحل", "حساب مزيف", "باسمي", "كأنه انا", "كأنها انا"),
+    "publication_threat": ("ينشر", "نشر", "ينزل", "نزل", "بفضح", "يفضح", "يهدد"),
+    "repeated": ("تكرر", "كرر", "تكرار", "مستمر", "مرة ثانية", "مره ثانيه", "رسالة ثانية", "رساله ثانيه", "رجع بعت", "رجع ارسل", "رجع هدد"),
+    "published": ("نشر", "نزل", "انتشرت", "بعت الصور", "حاط"),
     "active_unauthorized_funds": ("يسحب", "تنسحب", "بدون اذني", "دون اذني", "غير ماذون"),
     "fraud_description": ("نصب", "احتيال", "خدعني", "احتيال مالي"),
-    "account_access": ("اخترق", "دخل على حساب", "سرق حساب"),
+    "account_access": ("اخترق", "دخل على حساب", "دخل حساب", "سرق حساب"),
     "harassment": ("مضايقة", "تحرش", "يلاحق", "بلاحق", "بضايق"),
-    "contact_repeated": ("تكرر", "رجع بعت", "عدة رسائل", "مرات"),
+    "contact_repeated": ("تكرر", "كرر", "رسالة ثانية", "رساله ثانيه", "رجع بعت", "عدة رسائل", "مرات"),
 }
 
 _CALL_TRACE: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar("accp_model_call_trace", default=None)
+_EXTRACTION_DIAGNOSTIC: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar("accp_extraction_diagnostic", default=None)
 
 
 def provider_config() -> dict[str, Any]:
@@ -73,6 +74,12 @@ def reset_call_trace() -> None:
 def last_call_trace() -> dict[str, Any] | None:
     trace = _CALL_TRACE.get()
     return dict(trace) if trace else None
+
+
+def last_extraction_diagnostic() -> dict[str, Any] | None:
+    """Internal extraction-only diagnostics; raw response is never part of API call trace."""
+    diagnostic = _EXTRACTION_DIAGNOSTIC.get()
+    return dict(diagnostic) if diagnostic else None
 
 
 def _update_call_trace(**values: Any) -> None:
@@ -151,10 +158,11 @@ def _chat(messages: list[dict[str, str]]) -> str | None:
         code = "timeout" if isinstance(reason, (TimeoutError,)) or "timed out" in str(reason).lower() else "unreachable"
         _update_call_trace(attempted=True, status="connection_error", result_accepted=False,
                            failure_code=code, latency_ms=elapsed)
-    except (ValueError, KeyError, IndexError, TypeError):
+    except (ValueError, KeyError, IndexError, TypeError) as exc:
         elapsed = round((time.perf_counter() - started) * 1000, 3)
         _update_call_trace(attempted=True, status="invalid_response", result_accepted=False,
-                           failure_code="invalid_response", latency_ms=elapsed)
+                           failure_code="invalid_provider_response", provider_error_type=type(exc).__name__,
+                           latency_ms=elapsed)
     return None
 
 
@@ -290,7 +298,81 @@ def generate_grounded_answer(question: str, sources: list[dict[str, Any]]) -> di
 
 
 def _normalize_arabic(text: str) -> str:
-    return text.lower().replace("أ", "ا").replace("إ", "ا").replace("آ", "ا").replace("ى", "ي")
+    text = re.sub(r"[\u064b-\u065f\u0670\u0640]", "", text.lower())
+    return text.replace("أ", "ا").replace("إ", "ا").replace("آ", "ا").replace("ى", "ي")
+
+
+def _threat_quote_supported(normalized_quote: str) -> bool:
+    explicit_harm = ("تهديد", "هدد", "يهدد", "ابتزاز", "يبتز", "يلاحق", "لاحق", "يؤذ", "اذي", "يضر", "اضر", "ضرر")
+    if any(marker in normalized_quote for marker in explicit_harm):
+        return True
+    publication = ("ينشر", "نشر", "ينزل", "نزل", "يفضح", "فضح", "يرسل")
+    condition = ("اذا", "لو", "ان لم", "ما دفعت", "لم ادفع", "ما حول", "لم احول", "ما استجبت", "اذا ما", "اذا لم")
+    return any(marker in normalized_quote for marker in publication) and any(marker in normalized_quote for marker in condition)
+
+
+def _publication_threat_quote_supported(normalized_quote: str) -> bool:
+    ordinary_markers = tuple(_normalize_arabic(anchor) for anchor in FIELD_ANCHORS["publication_threat"])
+    if any(marker in normalized_quote for marker in ordinary_markers):
+        return True
+    send_material = ("يرسل", "يبعث")
+    private_material = ("محادث", "صور", "مقاطع", "مراسلات")
+    condition = ("اذا", "لو", "ان لم", "ما دفعت", "لم ادفع", "ما حول", "لم احول")
+    return (any(marker in normalized_quote for marker in send_material)
+            and any(marker in normalized_quote for marker in private_material)
+            and any(marker in normalized_quote for marker in condition))
+
+
+def _reported_binary_conflicts_with_clear_negation(field: str, normalized_quote: str) -> bool:
+    negation_by_field = {
+        "threat": ("ما في تهديد", "ما في اي تهديد", "ما حدا هدد", "ما هددني", "لم يهددني", "لا يهددني"),
+        "account_access": ("ما حدا دخل", "ما دخل حسابي", "لم يدخل حسابي", "ما اخترق حسابي", "لم يخترق حسابي"),
+        "published": ("ما نشر", "لم ينشر", "ما نزل", "لم ينزل", "ما بعرف اذا نشر", "ما بعرف اذا نزل",
+                      "مش متاكد اذا نشر", "مش متاكد اذا نزل"),
+    }
+    return any(phrase in normalized_quote for phrase in negation_by_field.get(field, ()))
+
+
+def _reported_text_conflicts_with_clear_negation(field: str, normalized_quote: str) -> bool:
+    negation_by_field = {
+        "evidence": ("ما عندي نسخ", "ما عندي دليل", "ما في دليل", "لا يوجد دليل",
+                     "لا املك نسخة", "لم احفظ", "ما حفظت", "غير محفوظ"),
+    }
+    return any(phrase in normalized_quote for phrase in negation_by_field.get(field, ()))
+
+
+def _nonreported_status_has_support(field: str, status: str, normalized_quote: str,
+                                    pending_slot: str | None) -> bool:
+    unknown_markers = ("ما بعرف", "لا اعرف", "مش عارف", "غير معروف", "ما بتذكر", "لا اتذكر",
+                       "مش متذكر", "مش متاكد", "ما اعرف")
+    memory_markers = ("ما بتذكر", "لا اتذكر", "مش متذكر", "ناسي", "ناسية")
+    decline_markers = ("ما بدي", "لا اريد", "مش حاب", "ما حاب", "لن اكتب", "لا ارغب", "مش مستعد")
+    field_cues = {
+        "identity": ("هوي", "مين هو", "مين صاحب", "اسمه", "اسم الحساب", "رقم التواصل"),
+        "published": ("نشر", "ينشر", "نزل", "ينزل", "رفع", "منشور"),
+        "requested_amount": ("طلب", "مبلغ", "دينار", "ريال", "دولار"),
+        "paid_amount": ("دفع", "دفعت", "حول", "حوالة", "تحويل", "مبلغ"),
+        "payment_method": ("دفع", "دفعت", "حول", "حوالة", "تحويل", "محفظة", "بطاقة"),
+        "evidence": ("دليل", "نسخ", "لقطات", "رسائل", "محفوظ"),
+        "contact": ("رقم", "حساب", "معرف", "اسم المستخدم", "واتساب"),
+        "initial_time": ("متى", "وقت", "مبارح", "امبارح", "اليوم", "الاسبوع", "قبل"),
+        "latest_time": ("متى", "وقت", "مبارح", "امبارح", "اليوم", "الاسبوع", "قبل"),
+    }
+    cues_match = any(cue in normalized_quote for cue in field_cues.get(field, ()))
+    if status == "not_remembered":
+        return any(marker in normalized_quote for marker in memory_markers) and (field == pending_slot or cues_match)
+    if status == "declined":
+        return any(marker in normalized_quote for marker in decline_markers) and (field == pending_slot or cues_match)
+    if status != "unknown":
+        return True
+    explicit_unknown = any(marker in normalized_quote for marker in unknown_markers)
+    if field == pending_slot and (explicit_unknown or normalized_quote.strip() in {"لا", "مش عارف", "ما بعرف"}):
+        return True
+    if explicit_unknown and cues_match:
+        return True
+    if field == "paid_amount" and re.search(r"\d", normalized_quote.translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789"))) is None:
+        return any(cue in normalized_quote for cue in field_cues["paid_amount"])
+    return False
 
 
 def _contact_value_is_specific(value: str, quote: str) -> bool:
@@ -312,60 +394,129 @@ def _contact_value_is_specific(value: str, quote: str) -> bool:
     return bool(username and username.group(1) in value)
 
 
-def validate_interview_facts(text: str, payload: str) -> list[dict[str, Any]] | None:
-    """Reject malformed facts, unsupported fields/statuses, and quotes not found verbatim in this turn."""
+def _json_failure_code(payload: str, error: json.JSONDecodeError) -> str:
+    stripped = payload.rstrip()
+    looks_like_json = stripped.startswith(("{", "["))
+    incomplete_end = not stripped.endswith(("}", "]"))
+    error_at_end = error.pos >= max(0, len(stripped) - 2)
+    unterminated = "unterminated" in error.msg.lower()
+    return "truncated_json" if looks_like_json and (incomplete_end or error_at_end or unterminated) else "invalid_json"
+
+
+def validate_interview_facts_diagnostic(text: str, payload: str,
+                                        pending_slot: str | None = None) -> dict[str, Any]:
+    """Return the unchanged validation decision plus a specific, non-secret rejection reason."""
+    json_valid = False
+    schema_valid = False
+
+    def reject(code: str, detail: str) -> dict[str, Any]:
+        return {"accepted": False, "facts": None, "json_valid": json_valid,
+                "schema_valid": schema_valid, "rejection_code": code, "rejection_detail": detail}
+
     try:
         parsed = json.loads(payload)
-        facts = parsed.get("facts")
-        if not isinstance(facts, list) or len(facts) > 24:
-            return None
-        checked: list[dict[str, Any]] = []
-        seen: set[str] = set()
-        for fact in facts:
-            if not isinstance(fact, dict) or set(fact) != {"field", "status", "value", "quote"}:
-                return None
-            field, status, value, quote = fact["field"], fact["status"], fact["value"], fact["quote"]
-            if not isinstance(field, str) or field not in ALLOWED_EXTRACTION_FIELDS or field in {"direct_danger", "priority_score", "confirmed", "stage"}:
-                return None
-            if field in seen or status not in ALLOWED_STATUSES:
-                return None
-            if not isinstance(quote, str) or not quote or quote not in text:
-                return None
+    except json.JSONDecodeError as exc:
+        return reject(_json_failure_code(payload, exc), f"JSON parse error at character {exc.pos}: {exc.msg}")
+    except (TypeError, ValueError) as exc:
+        return reject("invalid_json", f"JSON parse error: {type(exc).__name__}")
+    json_valid = True
+    if not isinstance(parsed, dict):
+        return reject("other_validation", "Top-level JSON value must be an object.")
+    facts = parsed.get("facts")
+    if not isinstance(facts, list):
+        return reject("other_validation", "The facts property must be an array.")
+    if len(facts) > 24:
+        return reject("other_validation", "The facts array exceeds the 24-item limit.")
+
+    seen: set[str] = set()
+    for index, fact in enumerate(facts):
+        prefix = f"facts[{index}]"
+        if not isinstance(fact, dict) or set(fact) != {"field", "status", "value", "quote"}:
+            return reject("other_validation", f"{prefix} must contain exactly field, status, value, and quote.")
+        field, status, value, quote = fact["field"], fact["status"], fact["value"], fact["quote"]
+        if not isinstance(field, str) or field not in ALLOWED_EXTRACTION_FIELDS:
+            return reject("unsupported_field_or_status", f"{prefix} uses an unsupported extraction field.")
+        if not isinstance(status, str) or status not in ALLOWED_STATUSES:
+            return reject("unsupported_field_or_status", f"{prefix} uses an unsupported fact status.")
+        if field in seen:
+            return reject("other_validation", f"{prefix} repeats field {field!r} in one response.")
+        if not isinstance(quote, str):
+            return reject("other_validation", f"{prefix}.quote must be a string.")
+        seen.add(field)
+    schema_valid = True
+
+    checked: list[dict[str, Any]] = []
+    filtered: list[dict[str, Any]] = []
+    for index, fact in enumerate(facts):
+        prefix = f"facts[{index}]"
+        field, status, value, quote = fact["field"], fact["status"], fact["value"], fact["quote"]
+        reason: tuple[str, str] | None = None
+        if not isinstance(quote, str) or not quote or quote not in text:
+            reason = ("quote_mismatch", f"{prefix}.quote is not a non-empty verbatim span of the current message.")
+        else:
             normalized_quote = _normalize_arabic(quote)
             anchors = FIELD_ANCHORS.get(field, ())
-            if anchors and not any(_normalize_arabic(anchor) in normalized_quote for anchor in anchors):
-                return None
-            if status == "reported":
-                if field in BINARY_FIELDS:
-                    if value is not True:
-                        return None
-                elif not isinstance(value, str) or not value.strip():
-                    return None
-                if field == "narrative" and value != quote:
-                    return None
-                if field == "contact" and not _contact_value_is_specific(value, quote):
-                    return None
-                if field == "repeated" and not any(term in normalized_quote for term in (
-                    "تهديد", "هدد", "ابتزاز", "ابتز", "مضايق", "تحرش", "لاحق", "يؤذ", "اذي"
-                )):
-                    return None
-                if field in {"requested_amount", "paid_amount"}:
-                    quote_digits = re.sub(r"\D", "", quote.translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")))
-                    value_digits = re.sub(r"\D", "", value.translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")))
-                    if value_digits and value_digits not in quote_digits:
-                        return None
-            elif status == "denied":
-                if field in BINARY_FIELDS and value is not False:
-                    return None
-                if field not in BINARY_FIELDS and value is not None:
-                    return None
-            elif value is not None:
-                return None
-            checked.append({"field": field, "status": status, "value": value, "quote": quote})
-            seen.add(field)
-        return checked
-    except (ValueError, TypeError, KeyError, AttributeError):
-        return None
+            if field == "threat":
+                anchored = _threat_quote_supported(normalized_quote)
+            elif field == "publication_threat":
+                anchored = _publication_threat_quote_supported(normalized_quote)
+            else:
+                anchored = not anchors or any(_normalize_arabic(anchor) in normalized_quote for anchor in anchors)
+            if not anchored:
+                reason = ("quote_mismatch", f"{prefix}.quote does not contain the evidence anchor required for {field!r}.")
+        if reason is None and status == "reported":
+            if field in BINARY_FIELDS:
+                if value is not True:
+                    reason = ("value_inconsistent", f"Reported binary field {field!r} must have value true.")
+                elif _reported_binary_conflicts_with_clear_negation(field, normalized_quote):
+                    reason = ("value_inconsistent", f"Reported {field!r} conflicts with explicit negation in its quote.")
+            elif not isinstance(value, str) or not value.strip():
+                reason = ("value_inconsistent", f"Reported text field {field!r} must have a non-empty string value.")
+            elif _reported_text_conflicts_with_clear_negation(field, normalized_quote):
+                reason = ("value_inconsistent", f"Reported {field!r} conflicts with explicit absence in its quote.")
+            if reason is None and field == "narrative" and value != quote:
+                reason = ("value_inconsistent", "The narrative value must be exactly the quoted span.")
+            if reason is None and field == "identity":
+                normalized_value = _normalize_arabic(value)
+                victim_owned_markers = ("اسمي", "صورتي", "حسابي", "رقمي")
+                if any(marker in normalized_value for marker in victim_owned_markers):
+                    reason = ("value_inconsistent", "Reported identity refers to the reporter's own identifier, not the suspect.")
+                elif normalized_value not in normalized_quote:
+                    reason = ("value_inconsistent", "Reported identity value is not literally supported by its quote.")
+            if reason is None and field == "contact" and not _contact_value_is_specific(value, quote):
+                reason = ("value_inconsistent", "The contact value is a generic channel, not a supported identifier or explicitly available contact.")
+            if reason is None and field == "repeated" and not any(term in normalized_quote for term in (
+                "تهديد", "هدد", "ابتزاز", "ابتز", "مضايق", "تحرش", "لاحق", "يؤذ", "اذي"
+            )):
+                reason = ("value_inconsistent", "Repeated harm lacks an explicit harm-context marker in its quote.")
+            if reason is None and field in {"requested_amount", "paid_amount"}:
+                quote_digits = re.sub(r"\D", "", quote.translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")))
+                value_digits = re.sub(r"\D", "", value.translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")))
+                if value_digits and value_digits not in quote_digits:
+                    reason = ("value_inconsistent", f"The numeric value for {field!r} is absent from its quote.")
+        elif reason is None and status == "denied":
+            if field in BINARY_FIELDS and value is not False:
+                reason = ("value_inconsistent", f"Denied binary field {field!r} must have value false.")
+            if field not in BINARY_FIELDS and value is not None:
+                reason = ("value_inconsistent", f"Denied text field {field!r} must have null value.")
+        elif reason is None and value is not None:
+            reason = ("value_inconsistent", f"Non-reported status {status!r} must have null value.")
+        if reason is None and status in {"unknown", "not_remembered", "declined"} and not _nonreported_status_has_support(
+                field, status, normalized_quote, pending_slot):
+            reason = ("unsupported_status_evidence", f"Status {status!r} for {field!r} lacks explicit or field-specific support.")
+        if reason is not None:
+            filtered.append({"field": field, "status": status, "value": value, "quote": quote,
+                             "filter_code": reason[0], "filter_detail": reason[1]})
+            continue
+        checked.append({"field": field, "status": status, "value": value, "quote": quote})
+    return {"accepted": True, "facts": checked, "filtered_facts": filtered,
+            "json_valid": True, "schema_valid": True,
+            "rejection_code": None, "rejection_detail": None}
+
+
+def validate_interview_facts(text: str, payload: str) -> list[dict[str, Any]] | None:
+    """Compatibility wrapper; validation requirements remain identical."""
+    return validate_interview_facts_diagnostic(text, payload)["facts"]
 
 
 def generate_interview_extraction(text: str, pending_slot: str | None) -> list[dict[str, Any]] | None:
@@ -373,6 +524,7 @@ def generate_interview_extraction(text: str, pending_slot: str | None) -> list[d
 
     No session ID, transcript, previous answers, credentials or assessment are sent.
     """
+    _EXTRACTION_DIAGNOSTIC.set(None)
     if not model_configured():
         return None
     schema = sorted(ALLOWED_EXTRACTION_FIELDS)
@@ -382,15 +534,34 @@ def generate_interview_extraction(text: str, pending_slot: str | None) -> list[d
         "allowed_fact_fields": schema,
     }
     messages = [
-        {"role": "system", "content": "استخرج الوقائع المصرّح بها في الرسالة الحالية فقط، مع مراعاة النفي والاقتباس والافتراض واختلاف الجمل. أعد JSON فقط بالشكل {\"facts\":[{\"field\":\"...\",\"status\":\"reported|denied|unknown|not_remembered|declined\",\"value\":null,\"quote\":\"...\"}]}. كل quote يجب أن تكون مقطعًا حرفيًا متصلًا من نص المستخدم وبالحروف نفسها. لا تخترع قيمًا. لا تستنتج خطرًا مباشرًا أو درجة أو مرحلة أو تأكيدًا. للحقول الثنائية استخدم reported مع true أو denied مع false. للمجهول أو النفي للحقول النصية استخدم value=null. حقل narrative يجب أن تكون قيمته مطابقة للاقتباس حرفيًا؛ لا تعِد صياغة السرد. حقل repeated يصف تكرار التهديد أو المضايقة صراحة، لا تكرار طلب المال أو الدفع. حقل contact هو معرّف أو وسيلة تواصل متاحة صراحة، وليس نوع رسالة عامًّا مثل رسالة خاصة. أخرج facts فارغة عند غياب معلومة واضحة. يمكن إخراج عدة حقائق إذا وردت في الرسالة، لكن حقيقة واحدة فقط لكل field."},
+        {"role": "system", "content": "استخرج الوقائع المصرّح بها في الرسالة الحالية فقط، مع مراعاة النفي والاقتباس والافتراض واختلاف الجمل. أعد JSON فقط بالشكل {\"facts\":[{\"field\":\"...\",\"status\":\"reported|denied|unknown|not_remembered|declined\",\"value\":null,\"quote\":\"...\"}]}. كل quote يجب أن تكون مقطعًا حرفيًا متصلًا من نص المستخدم وبالحروف نفسها. لا تخترع قيمًا. لا تستنتج خطرًا مباشرًا أو درجة أو مرحلة أو تأكيدًا. الحقول الثنائية فقط هي threat وimpersonation وpublication_threat وrepeated وpublished وactive_unauthorized_funds وfraud_description وaccount_access وharassment وcontact_repeated؛ لهذه الحقول استخدم reported مع true أو denied مع false. بقية الحقول نصية: لا تستخدم معها false. لا تصدر حقلًا لا تذكره الرسالة ولا يمثل جوابًا للسؤال المعلّق. لا تستخدم unknown أو not_remembered أو declined لمجرد غياب المعلومة؛ استخدمها فقط إذا صرح المستخدم بعدم المعرفة أو التذكر أو الرفض، وكان الاقتباس متعلقًا بالحقل. حقلا requested_amount وpaid_amount لا يكونان reported إلا إذا ورد المبلغ صراحة في النص؛ اقتبس الرقم كما ورد وبصيغة نصية، ولا تخترع مبلغًا. إذا ذكر المستخدم أنه دفع دون ذكر المبلغ، سجّل paid_amount بحالة unknown وقيمة null فقط إذا دل النص بوضوح على دفع دون مبلغ معلوم. حقل identity يعني هوية الشخص المشتبه به أو صاحب الحساب المنتحل، وليس اسم المستخدم المتضرر أو صورته أو حسابه. أخرج قيمة identity reported فقط إذا ورد اسم أو معرّف المشتبه به حرفيًا في الاقتباس؛ إذا لم تُعرف هويته فلا تستنتج ذلك من غياب الاسم. حقل narrative يجب أن تكون قيمته مطابقة للاقتباس حرفيًا؛ لا تعِد صياغة السرد. حقل repeated يصف تكرار التهديد أو المضايقة صراحة، لا تكرار طلب المال أو الدفع. حقل contact هو معرّف أو وسيلة تواصل متاحة صراحة، وليس نوع رسالة عامًّا مثل رسالة خاصة. أخرج facts فارغة عند غياب معلومة واضحة. يمكن إخراج عدة حقائق إذا وردت في الرسالة، لكن حقيقة واحدة فقط لكل field."},
         {"role": "user", "content": json.dumps(user, ensure_ascii=False)},
     ]
     payload = _chat(messages)
-    facts = validate_interview_facts(text, payload) if payload else None
+    if payload:
+        diagnostic = validate_interview_facts_diagnostic(text, payload, pending_slot=pending_slot)
+        facts = diagnostic["facts"]
+        diagnostic["raw_response"] = payload
+        _EXTRACTION_DIAGNOSTIC.set(diagnostic)
+    else:
+        facts = None
+        trace = last_call_trace() or {}
+        _EXTRACTION_DIAGNOSTIC.set({
+            "accepted": False, "facts": None,
+            "rejection_code": trace.get("failure_code") or "generation_failed",
+            "rejection_detail": (f"No extraction response; provider status={trace.get('status', 'unknown')}; "
+                                 f"failure_code={trace.get('failure_code') or 'unknown'}; "
+                                 f"provider_error_type={trace.get('provider_error_type') or 'not_recorded'}."),
+            "provider_error_type": trace.get("provider_error_type"),
+            "raw_response": None,
+        })
     trace = last_call_trace()
     if trace and trace.get("attempted"):
+        diag = last_extraction_diagnostic() or {}
         _update_call_trace(result_accepted=facts is not None,
-                           status="accepted" if facts is not None else (trace.get("status") if not payload else "schema_rejected"),
-                           failure_code=None if facts is not None else (trace.get("failure_code") or ("schema_rejected" if payload else "generation_failed")),
-                           fact_fields=[item["field"] for item in facts] if facts is not None else [])
+                           status=("partially_accepted" if diag.get("filtered_facts") else "accepted") if facts is not None else (trace.get("status") if not payload else "schema_rejected"),
+                           failure_code=("partial_fact_filter" if diag.get("filtered_facts") else None) if facts is not None else (diag.get("rejection_code") or trace.get("failure_code") or "generation_failed"),
+                           fact_fields=[item["field"] for item in facts] if facts is not None else [],
+                           filtered_fact_count=len(diag.get("filtered_facts", [])),
+                           filtered_fact_fields=[item["field"] for item in diag.get("filtered_facts", [])])
     return facts

@@ -9,7 +9,8 @@
     contact_repeated: 'تكرار التواصل دون استنتاج تهديد', initial_time: 'وقت البداية', latest_time: 'أحدث تواصل',
     repeated: 'تكرار التهديد أو المضايقة', requested_amount: 'المبلغ المطلوب', paid_amount: 'المبلغ المدفوع',
     payment_method: 'وسيلة الدفع', deadline: 'مهلة الدفع', published: 'حدوث النشر', identity: 'هوية الشخص',
-    contact: 'معرّف التواصل', evidence: 'الأدلة المذكورة', account_access: 'دخول غير مصرح به',
+    contact: 'معرّف التواصل', contact_identifier_disclosure: 'الإفصاح عن معرّف التواصل',
+    evidence: 'الأدلة المذكورة', account_access: 'دخول غير مصرح به',
     requested_amount_relation: 'علاقة المبلغ المطلوب الجديد بالسابق', paid_amount_relation: 'علاقة مبلغ الدفع الجديد بالسابق'
   };
   const factStatusLabels = {
@@ -194,7 +195,7 @@
     factsList.replaceChildren();
     const facts = state.facts || {};
     const messagesById = new Map((state.messages || []).map(message => [message.id, message]));
-    const order = ['narrative', 'threat', 'impersonation', 'platform', 'details', 'additional_details', 'publication_threat', 'direct_danger', 'active_unauthorized_funds', 'fraud_description', 'harassment', 'contact_repeated', 'initial_time', 'latest_time', 'repeated', 'requested_amount', 'paid_amount', 'payment_method', 'deadline', 'published', 'identity', 'contact', 'evidence', 'account_access'];
+    const order = ['narrative', 'threat', 'impersonation', 'platform', 'details', 'additional_details', 'publication_threat', 'direct_danger', 'active_unauthorized_funds', 'fraud_description', 'harassment', 'contact_repeated', 'initial_time', 'latest_time', 'repeated', 'requested_amount', 'paid_amount', 'payment_method', 'deadline', 'published', 'identity', 'contact', 'contact_identifier_disclosure', 'evidence', 'account_access'];
     for (const key of order) {
       const fact = facts[key];
       if (!fact) continue;
@@ -216,6 +217,22 @@
         quote.className = 'fact-quote';
         quote.textContent = `الاقتباس: «${fact.quote}»`;
         wrapper.append(quote);
+      }
+      if (key === 'details') {
+        const requested = facts.requested_amount;
+        const previous = [...(requested?.history || [])].reverse().find(item =>
+          ['explicit_correction', 'explicit_amount_relation_correction'].includes(item.reason) && item.value != null);
+        const currentDigits = String(requested?.value ?? '').replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))).replace(/\D/g, '');
+        const previousDigits = String(previous?.value ?? '').replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))).replace(/\D/g, '');
+        const detailDigits = String(fact.quote || fact.value || '').replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))).replace(/\D/g, '');
+        const correctionRecorded = (state.money_events || []).some(event => event.kind === 'requested' && event.relation === 'correction' &&
+          event.message_id === requested?.message_id && String(event.amount || '').replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))).replace(/\D/g, '') === currentDigits);
+        if (previous && previousDigits && currentDigits && previousDigits !== currentDigits && detailDigits.includes(previousDigits) && correctionRecorded) {
+          const note = document.createElement('div');
+          note.className = 'fact-correction-note';
+          note.textContent = `توضيح مستند إلى تصحيح لاحق: المبلغ المطلوب المعتمد حاليًا ${requested.value}؛ وكانت الإفادة الأصلية في هذا الموضع تذكر ${previous.value}. بقي الاقتباس الأصلي أعلاه دون تعديل.`;
+          wrapper.append(note);
+        }
       }
       const sourceMessage = messagesById.get(fact.message_id);
       const sourceTime = document.createElement('div');

@@ -252,6 +252,136 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertTrue(latest_json["facts"]["requested_amount"]["source_message_at"])
         self.assertTrue(latest_json["facts"]["requested_amount"]["last_updated_at"])
 
+    def test_windows_f83_case_reproduces_each_payment_contact_timestamp_and_correction_stage(self):
+        state = self.turn("في شخص عم يهددني على واتساب.")
+        self.assertEqual(state["pending_slot"], "direct_danger")
+
+        state = self.turn("لا، ما في خطر مباشر علي الآن.")
+        self.assertEqual(state["pending_slot"], "details")
+        state = self.turn("قال لي إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.")
+        self.assertEqual(state["facts"]["requested_amount"]["value"], "100 دينار")
+        self.assertEqual(state["facts"]["details"]["quote"], "قال لي إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.")
+
+        state = self.turn("أول تهديد وصلني أمس الساعة 6 مساءً.")
+        self.assertEqual(state["facts"]["initial_time"]["status"], "reported")
+        state = self.turn("نعم، اليوم رجع هددني بنشر محادثاتي الخاصة إذا ما دفعت.")
+        self.assertEqual(state["facts"]["repeated"]["value"], True)
+        state = self.turn("نعم، حولتله 130 دينار.")
+        self.assertEqual(state["facts"]["paid_amount"]["value"], "130 دينار")
+        self.assertEqual(len(state["money_events"]), 2)
+
+        state = self.turn("حولت المبلغ عن طريق محفظة إلكترونية.")
+        self.assertEqual(state["facts"]["payment_method"]["value"], "محفظة إلكترونية")
+        self.assertEqual(state["facts"]["payment_method"]["status"], "reported")
+        self.assertEqual(state["pending_slot"], "deadline")
+        state = self.turn("بس أنا دفعت.")
+        self.assertEqual(state["facts"]["payment_method"]["status"], "reported")
+        self.assertNotEqual(state["facts"]["payment_method"]["status"], "conflict")
+        self.assertEqual(state["facts"]["paid_amount"]["value"], "130 دينار")
+        state = self.turn("لا، ما حدد أي مهلة أو موعد للدفع.")
+        self.assertEqual(state["facts"]["deadline"]["status"], "denied")
+        state = self.turn("ما بعرف إذا نشر المحادثات أو لا، ما شفت أي نشر.")
+        self.assertEqual(state["facts"]["published"]["status"], "unknown")
+
+        state = self.turn("لا، ما بعرف هويته الحقيقية، بس عندي رقم الواتساب اللي تواصل معي منه، وما بدي أكتبه هون.")
+        self.assertEqual(state["facts"]["identity"]["status"], "unknown")
+        self.assertEqual(state["facts"]["contact"]["status"], "reported")
+        self.assertIn("لم يُدرج", state["facts"]["contact"]["value"])
+        self.assertEqual(state["facts"]["contact_identifier_disclosure"]["status"], "declined")
+        self.assertIsNone(state["facts"]["contact_identifier_disclosure"]["value"])
+        self.assertEqual(state["pending_slot"], "evidence")
+
+        state = self.turn("عندي لقطات شاشة لرسائل التهديد على واتساب، وإيصال تحويل الـ130 دينار من المحفظة الإلكترونية.")
+        self.assertEqual(state["stage"], "review")
+        self.assertIsNone(state["pending_slot"])
+        self.assertEqual(state["facts"]["payment_method"]["value"], "محفظة إلكترونية")
+        self.assertEqual(state["facts"]["payment_method"]["status"], "reported")
+        self.assertEqual(len(state["money_events"]), 2, "the receipt must not create a new paid event")
+        self.assertEqual(state["facts"]["paid_amount"]["value"], "130 دينار")
+
+        state = self.turn("مثل ما ذكرت سابقًا، دفعت عن طريق محفظة إلكترونية. وإيصال الـ130 دينار يخص نفس التحويل السابق، مش دفعة جديدة.")
+        self.assertEqual(state["stage"], "review")
+        self.assertIsNone(state["pending_slot"], "do not ask again for a resolved payment method")
+        self.assertEqual(state["facts"]["payment_method"]["status"], "reported")
+        self.assertEqual(state["facts"]["payment_method"]["value"], "محفظة إلكترونية")
+        self.assertEqual(len(state["money_events"]), 2, "same-transfer receipt must not be a third payment")
+        self.assertEqual(state["facts"]["paid_amount"]["value"], "130 دينار")
+
+        original_details_quote = state["facts"]["details"]["quote"]
+        original_paid_quote = state["facts"]["paid_amount"]["quote"]
+        other_facts_before = {key: fact for key, fact in state["facts"].items() if key != "requested_amount"}
+        prior_money_events = list(state["money_events"])
+        prior_version = state["summary_version"]
+        corrected = self.turn("تصحيح: المبلغ المطلوب 120 دينار، وليس 100.")
+        self.assertEqual(corrected["facts"]["requested_amount"]["value"], "120 دينار")
+        self.assertEqual({key: fact for key, fact in corrected["facts"].items() if key != "requested_amount"},
+                         other_facts_before)
+        self.assertEqual(corrected["facts"]["details"]["quote"], original_details_quote)
+        self.assertEqual(corrected["facts"]["paid_amount"]["value"], "130 دينار")
+        self.assertEqual(corrected["facts"]["paid_amount"]["quote"], original_paid_quote)
+        self.assertEqual(corrected["money_events"][0]["amount"], "100 دينار")
+        self.assertEqual(corrected["money_events"][0]["relation"], "initial")
+        self.assertEqual(corrected["money_events"][1]["amount"], "130 دينار")
+        self.assertEqual(corrected["money_events"][1]["relation"], "initial")
+        self.assertEqual(corrected["money_events"][:2], prior_money_events)
+        self.assertEqual(corrected["money_events"][2]["amount"], "120 دينار")
+        self.assertEqual(corrected["money_events"][2]["relation"], "correction")
+        self.assertGreater(corrected["summary_version"], prior_version)
+
+        json_before_confirm = self.client.get(f"/api/sessions/{self.case_id}/report.json", headers=self.headers).json()
+        self.assertEqual(json_before_confirm["facts"]["requested_amount"]["value"], "120 دينار")
+        self.assertEqual(json_before_confirm["facts"]["paid_amount"]["value"], "130 دينار")
+        self.assertEqual(json_before_confirm["facts"]["contact"]["value"], "رقم واتساب متوفر بحسب الإفادة؛ المعرّف لم يُدرج")
+        self.assertEqual(json_before_confirm["facts"]["contact_identifier_disclosure"]["status"], "declined")
+        self.assertEqual(json_before_confirm["facts"]["identity"]["status"], "unknown")
+        self.assertIn("contact_identifier_disclosure", json_before_confirm["unknown_fields"])
+        self.assertEqual(json_before_confirm["correction_notes"][0]["previous_value"], "100 دينار")
+        self.assertEqual(json_before_confirm["correction_notes"][0]["current_value"], "120 دينار")
+        message_times = {message["id"]: message["created_at"] for message in corrected["messages"]}
+        for key in ("requested_amount", "paid_amount", "payment_method", "contact", "contact_identifier_disclosure", "details"):
+            fact = json_before_confirm["facts"][key]
+            self.assertEqual(fact["source_message_at"], message_times[fact["message_id"]], key)
+            self.assertTrue(fact["last_updated_at"], key)
+
+        markdown = self.client.get(f"/api/sessions/{self.case_id}/report.md", headers=self.headers).text
+        self.assertIn(f"- نص الإفادة: «{original_details_quote}»", markdown)
+        self.assertIn("المبلغ المطلوب المعتمد حاليًا 120 دينار", markdown)
+        self.assertIn("كانت الإفادة الأصلية في هذا الموضع تذكر 100 دينار", markdown)
+        self.assertIn(f"وقت الرسالة الأصلية: {message_times[corrected['facts']['details']['message_id']]}", markdown)
+        self.assertIn("وقت آخر تحديث للمعلومة:", markdown)
+
+        confirmed = self.client.post(f"/api/sessions/{self.case_id}/confirm", headers=self.headers,
+                                     json={"expected_revision": self.revision})
+        self.assertEqual(confirmed.status_code, 200)
+        self.revision = confirmed.json()["session"]["revision"]
+        confirmed_version = confirmed.json()["session"]["summary_version"]
+        fetched = self.client.get(f"/api/sessions/{self.case_id}", headers=self.headers).json()
+        self.assertTrue(fetched["session"]["confirmed"])
+        self.assertEqual(fetched["report"]["summary_version"], confirmed_version)
+        self.assertEqual(fetched["report"]["facts"]["requested_amount"]["value"], "120 دينار")
+        self.assertTrue(self.client.get(f"/api/sessions/{self.case_id}/report.json", headers=self.headers).json()["confirmed"])
+        self.assertIn("المبلغ المطلوب المعتمد حاليًا 120 دينار",
+                      self.client.get(f"/api/sessions/{self.case_id}/report.md", headers=self.headers).text)
+
+        later = self.turn("أضيف تفاصيل: احتفظت بنسخة أخرى من المحادثة.")
+        self.assertFalse(later["confirmed"])
+        self.assertEqual(later["facts"]["requested_amount"]["value"], "120 دينار")
+        self.assertEqual(later["facts"]["paid_amount"]["value"], "130 دينار")
+        current_export = self.client.get(f"/api/sessions/{self.case_id}/report.json", headers=self.headers).json()
+        self.assertFalse(current_export["confirmed"])
+        self.assertEqual(current_export["summary_version"], later["summary_version"])
+
+        paused = self.turn("احفظ الجلسة")
+        self.assertEqual(paused["stage"], "paused")
+        self.assertFalse(paused["confirmed"])
+        resumed = self.client.post(f"/api/sessions/{self.case_id}/resume", headers=self.headers,
+                                   json={"expected_revision": self.revision})
+        self.assertEqual(resumed.status_code, 200)
+        self.revision = resumed.json()["session"]["revision"]
+        self.assertFalse(resumed.json()["session"]["confirmed"])
+        self.assertEqual(resumed.json()["report"]["summary_version"], later["summary_version"])
+        self.assertEqual(resumed.json()["report"]["facts"]["paid_amount"]["value"], "130 دينار")
+
     def test_confirmation_is_invalidated_when_resumed_turn_changes_facts_before_clarification_return(self):
         self.turn("في شخص يهددني")
         self.turn("اعرض الملخص")

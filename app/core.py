@@ -40,7 +40,8 @@ LABELS = {
     "requested_amount": "المبلغ المطلوب", "paid_amount": "المبلغ المدفوع", "payment_method": "وسيلة الدفع",
     "requested_amount_relation": "علاقة المبلغ المطلوب السابق", "paid_amount_relation": "علاقة مبلغ الدفع السابق",
     "deadline": "مهلة الدفع", "published": "حدوث النشر", "identity": "هوية الشخص",
-    "contact": "معرّف التواصل", "evidence": "الأدلة المذكورة", "additional_details": "تفاصيل إضافية من المستخدم",
+    "contact": "معرّف التواصل", "contact_identifier_disclosure": "الإفصاح عن معرّف التواصل",
+    "evidence": "الأدلة المذكورة", "additional_details": "تفاصيل إضافية من المستخدم",
     "jurisdiction": "الدولة أو الاختصاص",
 }
 
@@ -275,11 +276,52 @@ def _contact_availability(text: str) -> str | None:
     normalized = normalize(text)
     if any(marker in normalized for marker in ("ما عندي رقم", "ما معي رقم", "ما في رقم", "لا يوجد رقم")):
         return None
-    contact_type = next((marker for marker in ("رقم واتساب", "رقم تواصل", "رقم حساب", "حساب تواصل", "اسم حساب", "اسم مستخدم") if marker in normalized), None)
+    contact_patterns = (
+        (r"(?<!\w)رقم\s+(?:ال)?واتساب(?!\w)", "رقم واتساب"),
+        (r"(?<!\w)رقم\s+(?:ال)?تواصل(?!\w)", "رقم تواصل"),
+        (r"(?<!\w)رقم\s+(?:ال)?حساب(?!\w)", "رقم حساب"),
+        (r"(?<!\w)(?:ال)?حساب\s+(?:ال)?تواصل(?!\w)", "حساب تواصل"),
+        (r"(?<!\w)اسم\s+(?:ال)?حساب(?!\w)", "اسم حساب"),
+        (r"(?<!\w)اسم\s+(?:ال)?مستخدم(?!\w)", "اسم مستخدم"),
+    )
+    contact_type = next((label for pattern, label in contact_patterns if re.search(pattern, normalized)), None)
     available = any(marker in normalized for marker in ("عندي", "معي", "متوفر", "المتوفر", "احتفظت"))
     if not (contact_type and available):
         return None
     return _specific_contact_identifier(text) or f"{contact_type} متوفر بحسب الإفادة؛ المعرّف لم يُدرج"
+
+
+def _declined_contact_identifier(text: str) -> bool:
+    normalized = normalize(text)
+    return bool(re.search(
+        r"(?:ما بدي|مش حاب(?:ب)?|مش حابة|بفضل ما|افضل عدم)\s+"
+        r"(?:اكتب(?:ه|ها)?|اذكر(?:ه|ها)?|اعطي(?:ه|ها)?|اشارك(?:ه|ها)?|ارسل(?:ه|ها)?|ابعث(?:ه|ها)?|ادخل(?:ه|ها)?)",
+        normalized,
+    ))
+
+
+def _canonical_payment_method(text: str) -> str | None:
+    normalized = normalize(text)
+    clitic = r"(?:[وبل])?(?:ال)?"
+    if re.search(rf"(?<!\w){clitic}محفظ[ةه]\s+(?:ال)?الكتروني[ةه](?!\w)", normalized):
+        return "محفظة إلكترونية"
+    if re.search(rf"(?<!\w){clitic}كليك(?!\w)", normalized):
+        return "كليك"
+    if re.search(rf"(?<!\w){clitic}بطاق[ةه](?!\w)", normalized):
+        return "بطاقة"
+    if re.search(rf"(?<!\w){clitic}(?:تحويل|حوال[ةه])\s+(?:ال)?بنكي(?:[ةه])?(?!\w)", normalized):
+        return "تحويل بنكي"
+    if re.search(rf"(?<!\w){clitic}بنك(?!\w)", normalized):
+        return "بنك"
+    if re.search(r"(?<!\w)paypal(?!\w)", normalized):
+        return "PayPal"
+    if re.search(r"(?<!\w)western\s+union(?!\w)", normalized):
+        return "Western Union"
+    if re.search(rf"(?<!\w){clitic}محفظ[ةه](?!\w)", normalized):
+        return "محفظة (النوع غير محدد)"
+    if re.search(rf"(?<!\w){clitic}حوال[ةه](?!\w)", normalized):
+        return "حوالة (النوع غير محدد)"
+    return None
 
 
 def _incident_detail_candidate(text: str) -> bool:
@@ -476,8 +518,7 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
         elif (yn := _yes_no(text)) is True:
             _set_answer(state, "requested_amount", "المبلغ المطلوب غير محدد بحسب الإفادة", "reported", text, mid, question_id, changed)
 
-    if any(k in t for k in ("محفظة", "كليك", "كليك", "بطاقة", "بنك", "تحويل بنكي", "western union", "paypal")):
-        method = next((x for x in ("محفظة إلكترونية", "كليك", "بطاقة", "تحويل بنكي", "بنك", "PayPal", "Western Union") if normalize(x) in t), text)
+    if (method := _canonical_payment_method(text)):
         _set_answer(state, "payment_method", method, "reported", text, mid, question_id, changed)
 
     if pending == "deadline":
@@ -505,6 +546,8 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
 
     if (contact_value := _contact_availability(text)):
         _set_answer(state, "contact", contact_value, "reported", text, mid, question_id, changed)
+        if _declined_contact_identifier(text):
+            _set_answer(state, "contact_identifier_disclosure", None, "declined", text, mid, question_id, changed)
 
     if pending == "identity":
         if unknown_status:
@@ -1137,6 +1180,50 @@ def display_value(fact: dict[str, Any] | None) -> str:
     return str(value) if value is not None else "غير محدد بحسب الإفادة"
 
 
+def _report_correction_notes(state: dict[str, Any], message_times: dict[str, Any]) -> list[dict[str, Any]]:
+    facts = state.get("facts", {})
+    requested = facts.get("requested_amount", {})
+    details = facts.get("details", {})
+    if requested.get("status") != "reported" or details.get("status") != "reported":
+        return []
+    current_amount = requested.get("value")
+    current_message_id = requested.get("message_id")
+    if not current_amount or not current_message_id:
+        return []
+    correction_event = next((event for event in reversed(state.get("money_events", []))
+                             if event.get("kind") == "requested" and event.get("relation") == "correction"
+                             and event.get("message_id") == current_message_id
+                             and _same_amount(event.get("amount"), current_amount)), None)
+    if not correction_event:
+        return []
+    previous = next((item for item in reversed(requested.get("history", []))
+                     if item.get("reason") in {"explicit_correction", "explicit_amount_relation_correction"}
+                     and item.get("value") is not None), None)
+    if not previous or _same_amount(previous.get("value"), current_amount):
+        return []
+    previous_digits = _amount_digits(previous.get("value"))
+    detail_quotes = [details.get("quote", ""), details.get("value", "")]
+    if not previous_digits or not any(
+        _amount_digits(amount) == previous_digits
+        for quote in detail_quotes if isinstance(quote, str)
+        for _, _, amount in _amount_matches(quote)
+    ):
+        return []
+    return [{
+        "target_field": "details",
+        "corrected_field": "requested_amount",
+        "current_value": current_amount,
+        "previous_value": previous.get("value"),
+        "previous_quote": previous.get("quote"),
+        "previous_message_id": previous.get("message_id"),
+        "previous_message_at": message_times.get(previous.get("message_id")),
+        "correction_quote": requested.get("quote"),
+        "correction_message_id": current_message_id,
+        "correction_message_at": message_times.get(current_message_id),
+        "money_event_id": correction_event.get("id"),
+    }]
+
+
 def report_data(state: dict[str, Any]) -> dict[str, Any]:
     assessment = _assessment(state)
     current_confirmation = confirmation_is_current(state)
@@ -1167,6 +1254,7 @@ def report_data(state: dict[str, Any]) -> dict[str, Any]:
     return {"case_id": state["session_id"], "summary_version": state["summary_version"], "stage": state["stage"],
             "case_created_at": state.get("created_at"), "case_updated_at": state.get("updated_at"),
             "facts": facts, "money_events": money_events, "assessment": assessment,
+            "correction_notes": _report_correction_notes(state, message_times),
             "field_labels": {key: LABELS.get(key, "معلومة إضافية") for key in field_keys},
             "missing_fields": missing_fields, "unknown_fields": unknown_fields,
             "unresolved_fields": unresolved_fields, "conflicting_fields": conflicting_fields,
@@ -1177,7 +1265,7 @@ def report_data(state: dict[str, Any]) -> dict[str, Any]:
 
 def render_report(state: dict[str, Any]) -> str:
     data = report_data(state)
-    facts = state["facts"]
+    facts = data["facts"]
     lines = [f"# ملخص الحالة {state['session_id']}", "", f"**إصدار الملخص:** {state['summary_version']}  ",
              f"**وقت إنشاء التقرير:** {data['generated_at']}  ", f"**وقت آخر تحديث للحالة:** {data['case_updated_at'] or 'غير متاح'}  ",
              f"**التأكيد:** {'مؤكد من المستخدم' if data['confirmed'] else 'غير مؤكد'}", "",
@@ -1201,6 +1289,15 @@ def render_report(state: dict[str, Any]) -> str:
                   f"- القيمة: {display_value(fact)}"]
         if fact.get("quote"):
             lines.append(f"- نص الإفادة: «{fact['quote']}»")
+        for note in data["correction_notes"]:
+            if note.get("target_field") == key:
+                lines.append(
+                    f"- توضيح مستند إلى تصحيح لاحق: المبلغ المطلوب المعتمد حاليًا "
+                    f"{note['current_value']}؛ وكانت الإفادة الأصلية في هذا الموضع تذكر "
+                    f"{note['previous_value']}. بقي الاقتباس الأصلي أعلاه حرفيًا دون تعديل."
+                )
+                if note.get("correction_quote"):
+                    lines.append(f"- نص تصحيح المبلغ المطلوب: «{note['correction_quote']}»")
         if fact.get("message_id"):
             lines.append(f"- مرجع الرسالة: {fact['message_id']}")
         lines.append(f"- وقت الرسالة الأصلية: {fact.get('source_message_at') or 'غير متاح'}")

@@ -193,6 +193,72 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
             await expect(self.page.locator("#runtime-detail")).to_contain_text("قيمة غير متسقة: 1")
             await expect(self.page.locator("#status-message")).to_contain_text("طُبقت القواعد المحلية")
 
+    async def test_windows_f83_contact_and_corrected_amount_are_visible_in_review_and_exports(self):
+        await self.page.goto(self.base_url)
+        await self.page.locator("#start-case").click()
+        turns = [
+            "في شخص عم يهددني على واتساب.",
+            "لا، ما في خطر مباشر علي الآن.",
+            "قال لي إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
+            "أول تهديد وصلني أمس الساعة 6 مساءً.",
+            "نعم، اليوم رجع هددني بنشر محادثاتي الخاصة إذا ما دفعت.",
+            "نعم، حولتله 130 دينار.",
+            "حولت المبلغ عن طريق محفظة إلكترونية.",
+            "بس أنا دفعت.",
+            "لا، ما حدد أي مهلة أو موعد للدفع.",
+            "ما بعرف إذا نشر المحادثات أو لا، ما شفت أي نشر.",
+            "لا، ما بعرف هويته الحقيقية، بس عندي رقم الواتساب اللي تواصل معي منه، وما بدي أكتبه هون.",
+            "عندي لقطات شاشة لرسائل التهديد على واتساب، وإيصال تحويل الـ130 دينار من المحفظة الإلكترونية.",
+            "مثل ما ذكرت سابقًا، دفعت عن طريق محفظة إلكترونية. وإيصال الـ130 دينار يخص نفس التحويل السابق، مش دفعة جديدة.",
+        ]
+        for text in turns:
+            await self._send(text)
+        await expect(self.page.locator("#stage-badge")).to_have_text("مراجعة")
+        facts = self.page.locator("#facts-list")
+        await expect(facts).to_contain_text("هوية الشخص")
+        await expect(facts).to_contain_text("معرّف التواصل")
+        await expect(facts).to_contain_text("رقم واتساب متوفر بحسب الإفادة؛ المعرّف لم يُدرج")
+        await expect(facts).to_contain_text("الإفصاح عن معرّف التواصل")
+        await expect(facts).to_contain_text("فضّل عدم الإجابة")
+        await expect(facts).to_contain_text("محفظة إلكترونية")
+        await expect(facts).not_to_contain_text("تعارض فعلي يحتاج إلى توضيح")
+
+        original_detail = "قال لي إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة."
+        await self._send("تصحيح: المبلغ المطلوب 120 دينار، وليس 100.")
+        await expect(facts).to_contain_text(original_detail)
+        await expect(facts).to_contain_text("المبلغ المطلوب المعتمد حاليًا 120 دينار")
+        await expect(facts).to_contain_text("الإفادة الأصلية في هذا الموضع تذكر 100 دينار")
+        await self.page.locator("#confirm-summary").click()
+        await expect(self.page.locator("#confirmation-state")).to_contain_text("مؤكد لهذا الإصدار")
+
+        async with self.page.expect_download() as markdown_event:
+            await self.page.locator("#download-report").click()
+        markdown_download = await markdown_event.value
+        markdown_path = Path(self.tmp.name) / markdown_download.suggested_filename
+        await markdown_download.save_as(markdown_path)
+        markdown = markdown_path.read_text(encoding="utf-8")
+        self.assertIn(original_detail, markdown)
+        self.assertIn("المبلغ المطلوب المعتمد حاليًا 120 دينار", markdown)
+        self.assertIn("وقت الرسالة الأصلية: 2026", markdown)
+
+        displayed_version = await self.page.locator("#review").get_attribute("data-summary-version")
+        async with self.page.expect_download() as json_event:
+            await self.page.locator("#download-json").click()
+        json_download = await json_event.value
+        json_path = Path(self.tmp.name) / json_download.suggested_filename
+        await json_download.save_as(json_path)
+        exported = json.loads(json_path.read_text(encoding="utf-8"))
+        self.assertEqual(str(exported["summary_version"]), displayed_version)
+        self.assertTrue(exported["confirmed"])
+        self.assertEqual(exported["facts"]["identity"]["status"], "unknown")
+        self.assertEqual(exported["facts"]["contact"]["status"], "reported")
+        self.assertEqual(exported["facts"]["contact_identifier_disclosure"]["status"], "declined")
+        self.assertEqual(exported["facts"]["requested_amount"]["value"], "120 دينار")
+        self.assertEqual(exported["facts"]["paid_amount"]["value"], "130 دينار")
+        self.assertEqual(exported["facts"]["details"]["quote"], original_detail)
+        self.assertEqual(exported["correction_notes"][0]["previous_value"], "100 دينار")
+        self.assertTrue(exported["facts"]["contact"]["source_message_at"])
+
     async def test_chat_pause_resume_correction_confirmation_and_download(self):
         await self.page.add_init_script("window.__accpPrintCalled=false;window.print=()=>{window.__accpPrintCalled=true;};")
         await self.page.goto(self.base_url)

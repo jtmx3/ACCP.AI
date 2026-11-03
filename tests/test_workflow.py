@@ -1,6 +1,6 @@
 import unittest
 
-from app.core import _assessment, handle_turn, new_state, render_report
+from app.core import _assessment, handle_turn, last_model_merge_trace, new_state, render_report
 from app.rag import answer_question, retrieve
 
 
@@ -247,6 +247,31 @@ class InterviewWorkflowTests(unittest.TestCase):
         for text in ("شخص يهددني", "لا", "قال ادفع 100 دينار", "أمس", "لا تكرر", "لم أدفع"):
             handle_turn(no_payment, text)
         self.assertEqual(no_payment["facts"]["paid_amount"]["status"], "denied")
+
+    def test_payment_method_article_variant_is_same_value_but_real_method_change_conflicts(self):
+        state = new_state("payment-method-article-variant")
+        handle_turn(state, "حولت المبلغ عن طريق محفظة إلكترونية.")
+        self.assertEqual(state["facts"]["payment_method"]["value"], "محفظة إلكترونية")
+
+        receipt_text = "عندي لقطات شاشة لرسائل التهديد على واتساب، وإيصال تحويل الـ130 دينار من المحفظة الإلكترونية."
+        handle_turn(state, receipt_text, model_facts=[{
+            "field": "payment_method", "status": "reported", "value": "محفظة إلكترونية", "quote": receipt_text,
+        }])
+        fact = state["facts"]["payment_method"]
+        self.assertEqual(fact["status"], "reported")
+        self.assertEqual(fact["value"], "محفظة إلكترونية")
+        self.assertNotIn("alternatives", fact)
+        self.assertTrue(any(item["message_id"] == state["messages"][-2]["id"]
+                            for item in fact.get("supporting_statements", [])))
+        trace = [item for item in last_model_merge_trace() if item["field"] == "payment_method"]
+        self.assertEqual(trace[-1]["disposition"], "agrees_with_rules")
+
+        different = new_state("payment-method-real-conflict")
+        handle_turn(different, "حولت المبلغ عن طريق محفظة إلكترونية.")
+        handle_turn(different, "دفعت عن طريق بطاقة بنكية.")
+        self.assertEqual(different["facts"]["payment_method"]["status"], "conflict")
+        self.assertEqual({item["value"] for item in different["facts"]["payment_method"]["alternatives"]},
+                         {"محفظة إلكترونية", "بطاقة"})
 
     def test_category_only_narratives_request_one_description_without_inventing_a_threat(self):
         for index, text in enumerate(("ابتزاز", "تهديد", "احتيال إلكتروني", "مضايقة")):

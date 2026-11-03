@@ -222,19 +222,20 @@ class InterviewWorkflowTests(unittest.TestCase):
         self.assertIsNone(_assessment(state)["priority_score"])
         self.assertFalse(state["confirmed"])
 
-    def test_conflicting_amounts_are_shown_and_resolved_without_losing_history(self):
+    def test_ambiguous_requested_amount_relation_is_clarified_without_overwriting_initial_amount(self):
         state = new_state("conflict-case")
         handle_turn(state, "في شخص يهددني")
         handle_turn(state, "لا")
         handle_turn(state, "قال ادفع 100 دينار")
         handle_turn(state, "طلب 120 دينار أيضًا")
-        self.assertEqual(state["facts"]["requested_amount"]["status"], "conflict")
-        self.assertEqual(len(state["facts"]["requested_amount"]["alternatives"]), 2)
-        self.assertEqual(state["pending_slot"], "requested_amount")
-        handle_turn(state, "100 دينار")
         self.assertEqual(state["facts"]["requested_amount"]["status"], "reported")
         self.assertEqual(state["facts"]["requested_amount"]["value"], "100 دينار")
-        self.assertEqual(state["facts"]["requested_amount"]["history"][-1]["reason"], "conflict_resolved")
+        self.assertEqual(state["pending_slot"], "requested_amount_relation")
+        self.assertEqual(state["money_events"][-1]["relation"], "unresolved")
+        handle_turn(state, "المبلغ الجديد إضافي")
+        self.assertEqual(state["facts"]["requested_amount"]["status"], "reported")
+        self.assertEqual(state["facts"]["requested_amount"]["value"], "100 دينار")
+        self.assertEqual(state["money_events"][-1]["relation"], "additional")
 
     def test_requested_and_paid_amounts_in_one_message_are_separate(self):
         state = new_state("two-amounts")

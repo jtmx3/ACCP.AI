@@ -91,14 +91,15 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertEqual(safety["citations"], [])
         self.assertFalse(safety["external_model_used"])
 
-    def test_unresolved_conflict_blocks_confirmation_until_corrected(self):
+    def test_unresolved_money_relation_blocks_confirmation_until_resolved(self):
         for text in ("في شخص يهددني", "لا", "قال ادفع 100 دينار", "طلب 120 دينار أيضًا"):
             self.turn(text)
         self.assertEqual(self.turn("اعرض الملخص")["stage"], "review")
         blocked = self.client.post(f"/api/sessions/{self.case_id}/confirm", headers=self.headers, json={"expected_revision": self.revision})
         self.assertEqual(blocked.status_code, 422)
-        corrected = self.turn("تصحيح: المبلغ المطلوب 100 دينار.")
+        corrected = self.turn("المبلغ الجديد إضافي")
         self.assertEqual(corrected["facts"]["requested_amount"]["status"], "reported")
+        self.assertEqual(corrected["money_events"][-1]["relation"], "additional")
         confirmed = self.client.post(f"/api/sessions/{self.case_id}/confirm", headers=self.headers, json={"expected_revision": self.revision})
         self.assertEqual(confirmed.status_code, 200)
 

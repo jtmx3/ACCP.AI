@@ -1,0 +1,441 @@
+{
+  "dataset_id": "ACCP-SYNTH-AR-01",
+  "version": 2,
+  "authored_at": "2026-11-03",
+  "classification": "synthetic; authored for software regression evaluation; not independently reviewed and not representative of real users",
+  "oracle_basis": "Acceptance criteria and documented experimental triage rules, not observed application output",
+  "authoring_history": [
+    "Version 2 clarifies input sequencing before implementation: E02 has no publication signal and therefore expects identity next; E06 answers onset and recurrence before its payment denial; E10 states the message explicitly; E16 states that the later message is a second contact.",
+    "These are synthetic transcript/oracle-clarity corrections, not human review. The target fact polarities, amount distinctions, completion rules, and triage thresholds remain acceptance-based."
+  ],
+  "cases": [
+    {
+      "id": "E01",
+      "category": "repeated_threat",
+      "steps": [
+        {"action": "message", "text": "في واحد عم يهددني برسائل على واتساب."},
+        {"action": "message", "text": "لا، ما في خطر مباشر علي هسا."},
+        {"action": "message", "text": "قال رح ينشر محادثاتي الخاصة إذا ما حولتله 100 دينار."},
+        {"action": "message", "text": "أول رسالة وصلتني مبارح بعد الساعة 6."},
+        {"action": "message", "text": "رجع اليوم وكرر نفس التهديد."}
+      ],
+      "expected_facts": {
+        "threat": {"status": "reported", "value": true},
+        "direct_danger": {"status": "denied", "value": false},
+        "publication_threat": {"status": "reported", "value": true},
+        "requested_amount": {"status": "reported", "value_contains": "100"},
+        "repeated": {"status": "reported", "value": true}
+      },
+      "forbidden_positive": ["paid_amount", "published"],
+      "expected_stage": "interview",
+      "expected_pending_slot": "paid_amount",
+      "expected_priority_score": 90,
+      "expected_priority_rule": "R90_REPEATED_HARM",
+      "rationale": "A repeated, explicitly harmful threat meets the 90-point experimental rule; a demand is not proof of payment or publication."
+    },
+    {
+      "id": "E02",
+      "category": "threat_not_repeated",
+      "steps": [
+        {"action": "message", "text": "شخص هددني برسالة وقال إنه سيؤذيني إذا حكيت لحدا."},
+        {"action": "message", "text": "لا، مش بخطر مباشر هسا."},
+        {"action": "message", "text": "كانت الرسالة تقول إنه سيلاحقني إذا خرجت من البيت."},
+        {"action": "message", "text": "بدأت قبل يومين."},
+        {"action": "message", "text": "ما تكرر بعد الرسالة الأولى."}
+      ],
+      "expected_facts": {
+        "threat": {"status": "reported", "value": true},
+        "direct_danger": {"status": "denied", "value": false},
+        "repeated": {"status": "denied", "value": false}
+      },
+      "forbidden_positive": ["repeated"],
+      "expected_stage": "interview",
+      "expected_pending_slot": "identity",
+      "expected_priority_score": 85,
+      "expected_priority_rule": "R85_DETAILED_THREAT_OR_IMPERSONATION",
+      "rationale": "This case contains no publication signal, so identity is the next relevant field; a concrete reported threat can meet the detailed-threat rule, but explicit non-recurrence must not activate the 90-point repeated-harm rule."
+    },
+    {
+      "id": "E03",
+      "category": "impersonation_not_account_compromise",
+      "steps": [
+        {"action": "message", "text": "اليوم لقيت حسابًا مزيفًا على إنستغرام حاط اسمي وصورتي وبيحكي مع زملائي كأنه أنا."},
+        {"action": "message", "text": "الحساب يرسل لهم رسائل باسمي ويطلب منهم تحويل المال."}
+      ],
+      "expected_facts": {
+        "impersonation": {"status": "reported", "value": true},
+        "platform": {"status": "reported", "value_contains": "إنستغرام"}
+      },
+      "forbidden_positive": ["account_access"],
+      "expected_stage": "interview",
+      "expected_pending_slot": "identity",
+      "expected_priority_score": 85,
+      "expected_priority_rule": "R85_DETAILED_THREAT_OR_IMPERSONATION",
+      "rationale": "A detailed impersonating profile supports the impersonation rule; it does not establish access to the user's original account."
+    },
+    {
+      "id": "E04",
+      "category": "unauthorized_account_access",
+      "steps": [
+        {"action": "message", "text": "شخص دخل على حسابي من جهاز ما بعرفه وغيّر كلمة السر، وبعدها ما قدرت أفتحه."}
+      ],
+      "expected_facts": {
+        "account_access": {"status": "reported", "value": true}
+      },
+      "forbidden_positive": ["impersonation"],
+      "expected_stage": "interview",
+      "expected_pending_slot": "details",
+      "expected_priority_score": 90,
+      "expected_priority_rule": "R90_ACCOUNT_OR_FRAUD",
+      "rationale": "The user directly reports unauthorized account access, which is distinct from a fake profile."
+    },
+    {
+      "id": "E05",
+      "category": "financial_fraud_with_payment",
+      "steps": [
+        {"action": "message", "text": "صاحب إعلان وهمي خدعني حتى أدفع، وبالفعل دفعت 75 دينار بمحفظة إلكترونية وما وصلني الجهاز."}
+      ],
+      "expected_facts": {
+        "fraud_description": {"status": "reported", "value": true},
+        "paid_amount": {"status": "reported", "value_contains": "75"},
+        "payment_method": {"status": "reported", "value_contains": "محفظة"}
+      },
+      "forbidden_positive": ["requested_amount"],
+      "expected_stage": "interview",
+      "expected_pending_slot": "details",
+      "expected_priority_score": 90,
+      "expected_priority_rule": "R90_ACCOUNT_OR_FRAUD",
+      "rationale": "The statement supports fraud and a completed 75-dinar payment, but does not state that 75 dinars was demanded."
+    },
+    {
+      "id": "E06",
+      "category": "conditional_demand_and_no_payment",
+      "steps": [
+        {"action": "message", "text": "هددني إنه ينشر صوري إذا ما حولتله 60 دينار."},
+        {"action": "message", "text": "ما في خطر مباشر علي الآن."},
+        {"action": "message", "text": "أول تهديد وصلني أمس."},
+        {"action": "message", "text": "ما تكرر بعد أول رسالة."},
+        {"action": "message", "text": "بس أنا ما دفعت أي مبلغ."}
+      ],
+      "expected_facts": {
+        "threat": {"status": "reported", "value": true},
+        "requested_amount": {"status": "reported", "value_contains": "60"},
+        "paid_amount": {"status": "denied", "value": null},
+        "publication_threat": {"status": "reported", "value": true}
+      },
+      "forbidden_positive": ["paid_amount", "published"],
+      "expected_stage": "interview",
+      "expected_pending_slot": "deadline",
+      "expected_priority_score": 85,
+      "expected_priority_rule": "R85_DETAILED_THREAT_OR_IMPERSONATION",
+      "rationale": "A conditional demand is a requested amount, while the user separately denies paying; threatened publication is not actual publication."
+    },
+    {
+      "id": "E07",
+      "category": "unclassified_narrative",
+      "steps": [
+        {"action": "message", "text": "وصلني تنبيه، وبعده اختفى زر الدخول وما فهمت شو السبب."}
+      ],
+      "expected_facts": {
+        "narrative": {"status": "reported"}
+      },
+      "forbidden_positive": ["threat", "account_access", "fraud_description"],
+      "expected_stage": "interview",
+      "expected_pending_slot": "unclassified_details",
+      "expected_priority_score": null,
+      "expected_priority_rule": "none",
+      "rationale": "The description is insufficient to infer an incident category; one clarification is appropriate and completion must not imply classification."
+    },
+    {
+      "id": "E08",
+      "category": "explicit_denial",
+      "steps": [
+        {"action": "message", "text": "ما في أي تهديد وما حدا دخل حسابي، بس وصلتني رسالة عادية عن تحديث التطبيق."}
+      ],
+      "expected_facts": {
+        "threat": {"status": "denied", "value": false}
+      },
+      "forbidden_positive": ["threat", "account_access"],
+      "expected_stage": "interview",
+      "expected_pending_slot": "unclassified_details",
+      "expected_priority_score": null,
+      "expected_priority_rule": "none",
+      "rationale": "An explicit denial must not be flipped to a positive threat or compromise based on nearby words."
+    },
+    {
+      "id": "E09",
+      "category": "publication_unknown_not_conflict",
+      "steps": [
+        {"action": "message", "text": "شخص هددني على واتساب إنه ينزل محادثاتي الخاصة."},
+        {"action": "message", "text": "لا، ما في خطر مباشر هسا."},
+        {"action": "message", "text": "الرسالة قالت إنه رح يفضحني إذا ما استجبت."},
+        {"action": "message", "text": "بدأ الموضوع مبارح."},
+        {"action": "message", "text": "ما تكرر بعد أول مرة."},
+        {"action": "message", "text": "ما بعرف إذا نزّلها فعلًا أو لا."}
+      ],
+      "expected_facts": {
+        "published": {"status": "unknown", "value": null},
+        "publication_threat": {"status": "reported", "value": true}
+      },
+      "forbidden_positive": ["published"],
+      "expected_stage": "interview",
+      "expected_pending_slot": "identity",
+      "expected_priority_score": 85,
+      "expected_priority_rule": "R85_DETAILED_THREAT_OR_IMPERSONATION",
+      "rationale": "Uncertainty about actual publication must remain unknown, not be classified as denial or conflict."
+    },
+    {
+      "id": "E10",
+      "category": "onset_not_remembered",
+      "steps": [
+        {"action": "message", "text": "شخص هددني برسالة خاصة."},
+        {"action": "message", "text": "لا، مش بخطر مباشر الآن."},
+        {"action": "message", "text": "بعتلي رسالة مكتوب فيها: رح أضرك إذا حكيت عن الموضوع."},
+        {"action": "message", "text": "مش متذكر متى بلشت القصة."}
+      ],
+      "expected_facts": {
+        "initial_time": {"status": "not_remembered", "value": null},
+        "threat": {"status": "reported", "value": true}
+      },
+      "forbidden_positive": [],
+      "expected_stage": "interview",
+      "expected_pending_slot": "repeated",
+      "expected_priority_score": 85,
+      "expected_priority_rule": "R85_DETAILED_THREAT_OR_IMPERSONATION",
+      "rationale": "Not remembering onset differs from not knowing or declining; a concrete message remains separately recorded."
+    },
+    {
+      "id": "E11",
+      "category": "declined_answer",
+      "steps": [
+        {"action": "message", "text": "في شخص هددني برسالة على الخاص."},
+        {"action": "message", "text": "لا، ما في خطر مباشر."},
+        {"action": "message", "text": "كتب لي إنه رح يلاحقني إذا حكيت لحدا."},
+        {"action": "message", "text": "بفضّل ما أحكي عن وقت البداية."}
+      ],
+      "expected_facts": {
+        "initial_time": {"status": "declined", "value": null},
+        "threat": {"status": "reported", "value": true}
+      },
+      "forbidden_positive": [],
+      "expected_stage": "interview",
+      "expected_pending_slot": "repeated",
+      "expected_priority_score": 85,
+      "expected_priority_rule": "R85_DETAILED_THREAT_OR_IMPERSONATION",
+      "rationale": "A user declining a question is not the same as denying the underlying incident or claiming not to remember."
+    },
+    {
+      "id": "E12",
+      "category": "direct_danger_mid_interview",
+      "steps": [
+        {"action": "message", "text": "في شخص يهددني."},
+        {"action": "message", "text": "ما في خطر مباشر حاليًا."},
+        {"action": "message", "text": "هو واقف قدام بابي هسا ومعه سلاح، وأنا بخطر مباشر."}
+      ],
+      "expected_facts": {
+        "direct_danger": {"status": "reported", "value": true},
+        "threat": {"status": "reported", "value": true}
+      },
+      "forbidden_positive": [],
+      "expected_stage": "urgent_stop",
+      "expected_pending_slot": null,
+      "expected_priority_score": 100,
+      "expected_priority_rule": "R100_DIRECT_DANGER",
+      "rationale": "New first-person immediate-danger information overrides ordinary intake and triggers the safety stop."
+    },
+    {
+      "id": "E13",
+      "category": "review_correction_preserves_paid_amount",
+      "steps": [
+        {"action": "message", "text": "شخص هددني وطلب 100 دينار."},
+        {"action": "message", "text": "لا، ما في خطر مباشر هسا."},
+        {"action": "message", "text": "قال برسالة إنه رح يرسل محادثاتي الخاصة إذا ما دفعت."},
+        {"action": "message", "text": "دفعت 130 دينار."},
+        {"action": "message", "text": "اعرض الملخص"},
+        {"action": "confirm"},
+        {"action": "message", "text": "تصحيح: المبلغ المطلوب كان 120 دينار بدل 100."}
+      ],
+      "expected_facts": {
+        "requested_amount": {"status": "reported", "value_contains": "120"},
+        "paid_amount": {"status": "reported", "value_contains": "130"}
+      },
+      "expected_state": {"confirmed": false, "confirmation_history_count": 1, "requested_amount_history_contains": "100"},
+      "forbidden_positive": [],
+      "expected_stage": "review",
+      "expected_pending_slot": null,
+      "expected_priority_score": 85,
+      "expected_priority_rule": "R85_DETAILED_THREAT_OR_IMPERSONATION",
+      "rationale": "An explicit correction changes only the requested amount, keeps its prior value auditable, preserves the distinct paid amount, and invalidates the prior confirmation."
+    },
+    {
+      "id": "E14",
+      "category": "long_single_turn_multiple_facts",
+      "steps": [
+        {"action": "message", "text": "على واتساب في شخص عم يهددني من مبارح الساعة ستة؛ قال إذا ما دفعت 100 دينار رح ينشر محادثاتي الخاصة. اليوم كرر نفس التهديد، وأنا دفعت 130 دينار بمحفظة إلكترونية."}
+      ],
+      "expected_facts": {
+        "threat": {"status": "reported", "value": true},
+        "platform": {"status": "reported", "value_contains": "واتساب"},
+        "publication_threat": {"status": "reported", "value": true},
+        "requested_amount": {"status": "reported", "value_contains": "100"},
+        "paid_amount": {"status": "reported", "value_contains": "130"},
+        "payment_method": {"status": "reported", "value_contains": "محفظة"},
+        "repeated": {"status": "reported", "value": true}
+      },
+      "forbidden_positive": ["published"],
+      "expected_stage": "interview",
+      "expected_pending_slot": "direct_danger",
+      "expected_priority_score": 90,
+      "expected_priority_rule": "R90_REPEATED_HARM",
+      "rationale": "A single volunteered narrative may support several distinct facts, but the conditional demand is not a completed payment and threatened publication is not publication."
+    },
+    {
+      "id": "E15",
+      "category": "why_question_preserves_pending_slot",
+      "steps": [
+        {"action": "message", "text": "شخص هددني برسالة على واتساب."},
+        {"action": "message", "kind": "answer", "text": "ليش بدك تعرف إذا في خطر؟"}
+      ],
+      "expected_facts": {
+        "threat": {"status": "reported", "value": true}
+      },
+      "forbidden_positive": ["direct_danger"],
+      "expected_stage": "interview",
+      "expected_pending_slot": "direct_danger",
+      "expected_priority_score": null,
+      "expected_priority_rule": "none",
+      "expected_response_contains": "خطوة سلامة عاجلة",
+      "rationale": "A question about why safety is asked should be answered locally and should not consume or falsify the pending safety answer."
+    },
+    {
+      "id": "E16",
+      "category": "reference_to_known_amount",
+      "steps": [
+        {"action": "message", "text": "في شخص هددني برسالة وطالبني 100 دينار."},
+        {"action": "message", "text": "رجع بعتلي رسالة ثانية اليوم وطلب مني أحوّل المبلغ نفسه."}
+      ],
+      "expected_facts": {
+        "requested_amount": {"status": "reported", "value_contains": "100"},
+        "repeated": {"status": "reported", "value": true}
+      },
+      "expected_state": {"requested_amount_supporting_statement_contains": "المبلغ نفسه"},
+      "forbidden_positive": [],
+      "expected_stage": "interview",
+      "expected_pending_slot": "direct_danger",
+      "expected_priority_score": 90,
+      "expected_priority_rule": "R90_REPEATED_HARM",
+      "rationale": "A reference to a previously stated amount without a new number is supporting context, not a new unknown amount or conflict."
+    },
+    {
+      "id": "E17",
+      "category": "additional_demand_not_overwrite",
+      "steps": [
+        {"action": "message", "text": "شخص هددني برسالة وطلب مني 100 دينار."},
+        {"action": "message", "text": "لا يوجد خطر مباشر الآن."},
+        {"action": "message", "text": "كتب أنه سيؤذيني إذا رفضت الدفع."},
+        {"action": "message", "text": "بدأ قبل يومين."},
+        {"action": "message", "text": "ما تكرر بعد الرسالة الأولى."},
+        {"action": "message", "text": "بعدها رجع طلب مني 50 دينار."}
+      ],
+      "expected_facts": {
+        "requested_amount": {"status": "reported", "value_contains": "100"}
+      },
+      "expected_state": {"money_events": [{"kind": "requested", "amount_contains": "100", "relation": "initial"}, {"kind": "requested", "amount_contains": "50", "relation": "unresolved"}]},
+      "forbidden_positive": [],
+      "expected_stage": "interview",
+      "expected_pending_slot": "requested_amount_relation",
+      "expected_priority_score": 85,
+      "expected_priority_rule": "R85_DETAILED_THREAT_OR_IMPERSONATION",
+      "rationale": "A second numeric request without an explicit correction/addition relationship must not silently replace the first; ask whether it is additional or a correction."
+    },
+    {
+      "id": "E18",
+      "category": "unknown_identity_contact_available",
+      "steps": [
+        {"action": "message", "text": "شخص هددني برسالة على واتساب."},
+        {"action": "message", "text": "لا، مش بخطر مباشر."},
+        {"action": "message", "text": "التهديد وصل برسالة خاصة."},
+        {"action": "message", "text": "أول رسالة كانت مبارح."},
+        {"action": "message", "text": "ما تكرر بعدها."},
+        {"action": "message", "text": "ما بعرف مين هو، بس عندي رقم واتساب إله وما بدي أكتبه هون."}
+      ],
+      "expected_facts": {
+        "identity": {"status": "unknown", "value": null},
+        "contact": {"status": "reported", "value_contains": "رقم واتساب"}
+      },
+      "forbidden_positive": [],
+      "expected_stage": "interview",
+      "expected_pending_slot": "evidence",
+      "expected_priority_score": 85,
+      "expected_priority_rule": "R85_DETAILED_THREAT_OR_IMPERSONATION",
+      "rationale": "Not knowing the person's identity can coexist with having a contact method; no phone digits may be invented or required."
+    },
+    {
+      "id": "E19",
+      "category": "threat_not_evidence_possession",
+      "steps": [
+        {"action": "message", "text": "شخص هددني إنه ينشر صوري الخاصة على حسابه."},
+        {"action": "message", "text": "ما في خطر مباشر علي."},
+        {"action": "message", "text": "بعتلي تهديد مكتوب وقال رح ينشر الصور."},
+        {"action": "message", "text": "بدأ مبارح."},
+        {"action": "message", "text": "ما تكرر بعد أول رسالة."},
+        {"action": "message", "text": "ما بعرف إذا نشرها أو لا."},
+        {"action": "message", "text": "ما بعرف هويته."},
+        {"action": "message", "text": "ما عندي نسخ ولا لقطات محفوظة من الرسائل."}
+      ],
+      "expected_facts": {
+        "evidence": {"status": "denied", "value": null},
+        "publication_threat": {"status": "reported", "value": true}
+      },
+      "forbidden_positive": ["evidence", "published"],
+      "expected_stage": "review",
+      "expected_pending_slot": null,
+      "expected_priority_score": 85,
+      "expected_priority_rule": "R85_DETAILED_THREAT_OR_IMPERSONATION",
+      "rationale": "Mentioning threatened photos does not mean the user possesses copies; an explicit denial of saved material remains negative."
+    },
+    {
+      "id": "E20",
+      "category": "payment_does_not_answer_deadline",
+      "steps": [
+        {"action": "message", "text": "شخص على واتساب طلب 40 دينار وهدد ينشر صوري إذا ما دفعت."},
+        {"action": "message", "text": "ما في خطر مباشر الآن."},
+        {"action": "message", "text": "أرسل رسالة يقول فيها إنه سينشرها إذا لم أدفع."},
+        {"action": "message", "text": "أول تواصل كان مبارح."},
+        {"action": "message", "text": "ما تكرر التهديد."},
+        {"action": "message", "text": "دفعت 30 دينار."},
+        {"action": "message", "text": "عن طريق محفظة إلكترونية."},
+        {"action": "message", "text": "بس حولت اللي قدرت عليه."}
+      ],
+      "expected_facts": {
+        "requested_amount": {"status": "reported", "value_contains": "40"},
+        "paid_amount": {"status": "reported", "value_contains": "30"}
+      },
+      "forbidden_positive": ["deadline"],
+      "expected_stage": "interview",
+      "expected_pending_slot": "deadline",
+      "expected_priority_score": 85,
+      "expected_priority_rule": "R85_DETAILED_THREAT_OR_IMPERSONATION",
+      "rationale": "A statement that the user paid does not state a deadline; do not overwrite the paid amount or treat payment as an answer to a different field."
+    },
+    {
+      "id": "E21",
+      "category": "additional_payment_not_correction",
+      "steps": [
+        {"action": "message", "text": "صاحب إعلان طلب مني 100 دينار على جهاز مستعمل، وبعدها دفعت 100 دينار بالمحفظة."},
+        {"action": "message", "text": "بعدين دفعت 20 دينار زيادة رسوم توصيل."}
+      ],
+      "expected_facts": {
+        "requested_amount": {"status": "reported", "value_contains": "100"},
+        "paid_amount": {"status": "reported", "value_contains": "100"}
+      },
+      "expected_state": {"money_events": [{"kind": "paid", "amount_contains": "100", "relation": "initial"}, {"kind": "paid", "amount_contains": "20", "relation": "additional"}]},
+      "forbidden_positive": [],
+      "expected_stage": "interview",
+      "expected_pending_slot": "details",
+      "expected_priority_score": null,
+      "expected_priority_rule": "none",
+      "rationale": "A later, explicitly additional 20-dinar transfer is a second payment event, not a correction that replaces the initial 100-dinar payment."
+    }
+  ]
+}

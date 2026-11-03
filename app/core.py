@@ -17,7 +17,9 @@ QUESTIONS: dict[str, str] = {
     "initial_time": "متى بدأت الواقعة أو وصلك أول تواصل؟ اذكر الوقت كما تتذكره.",
     "repeated": "هل تكرر التهديد أو المضايقة المؤثرة؟ ليس مجرد استمرار الرسائل أو التواصل.",
     "requested_amount": "هل طُلب منك مبلغ؟ إذا نعم، كم كان المبلغ المطلوب؟",
+    "requested_amount_relation": "هل المبلغ الجديد مبلغ إضافي، أم تصحيح للمبلغ المطلوب السابق؟",
     "paid_amount": "هل دفعت أو حولت أي مبلغ؟ إذا نعم، كم؟",
+    "paid_amount_relation": "هل المبلغ الجديد دفعة إضافية، أم تصحيح لمبلغ الدفع السابق؟",
     "payment_method": "بأي وسيلة دفعت؟ لا ترسل كلمة مرور أو رمز تحقق.",
     "deadline": "هل حدد الشخص مهلة أو موعدًا للدفع؟",
     "published": "هل نُشر شيء فعلًا، بحسب علمك؟",
@@ -34,6 +36,7 @@ LABELS = {
     "initial_time": "وقت البداية", "latest_time": "أحدث تواصل", "repeated": "تكرار التهديد أو المضايقة",
     "contact_repeated": "تكرار التواصل دون استنتاج تهديد", "harassment": "مضايقة مذكورة",
     "requested_amount": "المبلغ المطلوب", "paid_amount": "المبلغ المدفوع", "payment_method": "وسيلة الدفع",
+    "requested_amount_relation": "علاقة المبلغ المطلوب السابق", "paid_amount_relation": "علاقة مبلغ الدفع السابق",
     "deadline": "مهلة الدفع", "published": "حدوث النشر", "identity": "هوية الشخص",
     "contact": "معرّف التواصل", "evidence": "الأدلة المذكورة", "additional_details": "تفاصيل إضافية من المستخدم",
     "jurisdiction": "الدولة أو الاختصاص",
@@ -58,7 +61,7 @@ def new_state(session_id: str) -> dict[str, Any]:
     stamp = now_iso()
     opening = {"id": "m1", "role": "assistant", "text": QUESTIONS["narrative"], "created_at": stamp, "kind": "question"}
     return {"schema_version": SCHEMA_VERSION, "session_id": session_id, "stage": "interview", "revision": 0,
-            "created_at": stamp, "updated_at": stamp, "messages": [opening], "facts": {},
+            "created_at": stamp, "updated_at": stamp, "messages": [opening], "facts": {}, "money_events": [],
             "pending_slot": "narrative", "clarifications": {}, "assessment": None,
             "confirmed": False, "confirmed_digest": None, "confirmation_history": [],
             "summary_version": 1, "last_response": opening["text"]}
@@ -139,6 +142,13 @@ def _record(state: dict[str, Any], key: str, status: str, value: Any, quote: str
                 old["updated_at"] = now_iso()
                 return True
             return False
+        if key == "details" and old.get("status") == status == "reported" and isinstance(old.get("value"), str) and isinstance(value, str):
+            supports = old.setdefault("supporting_statements", [])
+            if not any(item.get("message_id") == message_id for item in supports):
+                supports.append({"quote": quote, "message_id": message_id, "question_id": question_id, "at": now_iso()})
+                old["updated_at"] = now_iso()
+                return True
+            return False
         is_correction = any(w in normalize(quote) for w in ("تصحيح", "قصدي", "اقصد", "عدّل", "عدلي", "المعلومة الصحيحة", "بدل"))
         if not is_correction:
             alternatives = old.get("alternatives", [{"status": old["status"], "value": old.get("value"), "quote": old.get("quote")}])
@@ -197,7 +207,9 @@ def _threat_polarity(text: str, already_reported: bool) -> bool | None:
                        re.search(r"(?:ما|مش|مو|لم|لا)\s+(?:هددني|هدد|يهددني|يهدد|ابتزني|يبتزني)", clause))
         if denied:
             result = False
-        elif any(term in clause for term in ("هددني", "يهددني", "بهددني", "هددني", "ابتزني", "يبتزني", "التهديد مش مستمر", "التهديد غير مستمر")) or (already_reported and "التهديد" in clause):
+        elif (any(term in clause for term in ("هددني", "يهددني", "بهددني", "ابتزني", "يبتزني", "التهديد مش مستمر", "التهديد غير مستمر")) or
+              re.search(r"(?:^|\s)(?:و)?هدد(?:ني)?\s+(?:انه|ينشر|يؤذي|سي|رح|راح|يلاحق|بانه)", clause) or
+              (already_reported and "التهديد" in clause)):
             result = True
     return result
 
@@ -244,6 +256,26 @@ def _specific_contact_identifier(text: str) -> str | None:
     return named.group(1) if named else None
 
 
+def _contact_availability(text: str) -> str | None:
+    normalized = normalize(text)
+    if any(marker in normalized for marker in ("ما عندي رقم", "ما معي رقم", "ما في رقم", "لا يوجد رقم")):
+        return None
+    contact_type = next((marker for marker in ("رقم واتساب", "رقم تواصل", "رقم حساب", "حساب تواصل", "اسم حساب", "اسم مستخدم") if marker in normalized), None)
+    available = any(marker in normalized for marker in ("عندي", "معي", "متوفر", "المتوفر", "احتفظت"))
+    if not (contact_type and available):
+        return None
+    return _specific_contact_identifier(text) or f"{contact_type} متوفر بحسب الإفادة؛ المعرّف لم يُدرج"
+
+
+def _incident_detail_candidate(text: str) -> bool:
+    normalized = normalize(text)
+    return len(text.strip()) > 7 and any(marker in normalized for marker in (
+        "رسالة", "كتب", "قال", "اتصل", "هدد", "تهديد", "ينشر", "نشر", "صوري", "محادثات",
+        "حساب", "دخل", "اخترق", "انتحال", "ينتحل", "اعلان", "رابط", "كلمة المرور", "غير كلمة",
+        "استولى", "استخدم", "خدعني", "ابتزاز", "لاحق", "يضربني", "سيؤذيني", "يؤذيني",
+    ))
+
+
 def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) -> set[str]:
     t = normalize(text)
     changed: set[str] = set()
@@ -257,7 +289,8 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
             _set_answer(state, "narrative", text, "reported", text, mid, question_id, changed)
         _set_answer(state, "threat", threat_polarity, "reported" if threat_polarity else "denied", text, mid, question_id, changed)
     impersonation_denied = any(term in t for term in ("ما في حساب منتحل", "مش حساب منتحل", "لا يوجد حساب منتحل", "ما في حد منتحل"))
-    impersonation_context = any(term in t for term in ("انتحال", "منتحل", "ينتحل", "ينتحلني", "عامل حساب", "حساب مزيف")) and any(term in t for term in ("باسمي", "اسمي", "صورتي", "ينتحل", "اصحابي", "اصدقائي"))
+    fake_profile = bool(re.search(r"حساب(?:ا)?\s+(?:مزيف(?:ا|ة)?|وهمي)", t))
+    impersonation_context = (any(term in t for term in ("انتحال", "منتحل", "ينتحل", "ينتحلني", "عامل حساب")) or fake_profile) and any(term in t for term in ("باسمي", "اسمي", "صورتي", "ينتحل", "اصحابي", "اصدقائي", "زملائي"))
     if impersonation_denied:
         _set_answer(state, "impersonation", False, "denied", text, mid, question_id, changed)
     elif impersonation_context:
@@ -267,10 +300,10 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
     if platform:
         _set_answer(state, "platform", platform, "reported", text, mid, question_id, changed)
     if any(k in t for k in ("محادثات", "صوري", "صور خاصة", "ينشر", "ينشرها", "نشر", "فضح")):
-        if any(k in t for k in ("إذا ما", "اذا ما", "رح ينشر", "تهديد بالنشر")) or ("ينشر" in t and any(k in t for k in ("بهدد", "يهدد", "هددني"))):
+        if any(normalize(k) in t for k in ("إذا ما", "إذا لم", "رح ينشر", "تهديد بالنشر")) or _threat_polarity(text, state["facts"].get("threat", {}).get("value") is True) is True:
             _set_answer(state, "details", text, "reported", text, mid, question_id, changed)
             _set_answer(state, "publication_threat", True, "reported", text, mid, question_id, changed)
-        elif pending == "published" and ("نشر" in t or "نزل" in t):
+        elif pending == "published" and not unknown_status and ("نشر" in t or "نزل" in t):
             yn = _yes_no(text)
             if yn is not None:
                 _set_answer(state, "published", yn, "reported" if yn else "denied", text, mid, question_id, changed)
@@ -280,11 +313,13 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
         _set_answer(state, "published", None, unknown_status, text, mid, question_id, changed)
     elif any(k in t for k in ("ما نشر", "ما نزل", "لم ينشر", "لم تنشر", "ما اننشرت")):
         _set_answer(state, "published", False, "denied", text, mid, question_id, changed)
-    if ("سرق" in t or "دخل على حساب" in t or "اخترق" in t) and not any(k in t for k in ("ما انسرق", "لم يسرق", "ما اخترق", "لم يخترق", "مش مخترق")):
+    account_access_signal = any(normalize(marker) in t for marker in ("سرق", "دخل على حساب", "دخل حساب", "اخترق"))
+    account_access_denial = any(normalize(marker) in t for marker in ("ما انسرق", "لم يسرق", "ما اخترق", "لم يخترق", "مش مخترق", "ما حدا دخل على حساب", "ما حدا دخل حساب", "ما دخل على حساب", "لم يدخل على حساب", "ما دخل حساب"))
+    if account_access_signal and not account_access_denial:
         _set_answer(state, "account_access", True, "reported", text, mid, question_id, changed)
     if any(k in t for k in ("عم يسحب", "تنسحب اموال", "تحويل بدون اذني", "تحويل دون اذني", "خصم بدون اذني", "سحب غير ماذون")):
         _set_answer(state, "active_unauthorized_funds", True, "reported", text, mid, question_id, changed)
-    if any(k in t for k in ("نصب علي", "اننصب علي", "خدعني حتى ادفع", "خداع مالي واضح", "احتيال مالي واضح")):
+    if any(normalize(k) in t for k in ("نصب علي", "اننصب علي", "خدعني حتى أدفع", "خداع مالي واضح", "احتيال مالي واضح")):
         _set_answer(state, "fraud_description", True, "reported", text, mid, question_id, changed)
 
     if pending == "narrative" and not state["facts"].get("narrative") and _narrative_has_description(text):
@@ -322,50 +357,109 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
     elif pending == "repeated" and unknown_status:
         _set_answer(state, "repeated", None, unknown_status, text, mid, question_id, changed)
 
+    if pending in {"requested_amount_relation", "paid_amount_relation"}:
+        if not _resolve_money_relation(state, text, mid, question_id, pending, changed) and unknown_status:
+            unresolved_relation = _unresolved_money_relation(state)
+            if unresolved_relation and unresolved_relation[1] == pending:
+                unresolved_relation[0]["relation"] = "unknown"
+                unresolved_relation[0]["relation_quote"] = text
+                unresolved_relation[0]["relation_message_id"] = mid
+                changed.add("money_events")
+                _set_answer(state, pending, None, unknown_status, text, mid, question_id, changed)
+    elif pending not in {"requested_amount_relation", "paid_amount_relation"}:
+        unresolved_relation = _unresolved_money_relation(state)
+        if unresolved_relation and _resolve_money_relation(state, text, mid, question_id, unresolved_relation[1], changed):
+            changed.add("money_events")
+
     amount = _first_amount(text)
     payment_clauses = _payment_clauses(text)
-    request_clauses = [clause for clause in payment_clauses if _is_request_clause(clause)]
-    requested_signal = bool(request_clauses)
     request_markers = ("طلب", "طالب", "ادفع", "مطلوب", "اذا ما حولت", "اذا لم تحول", "اذا ما دفعت", "اذا لم تدفع", "لو ما دفعت", "لو لم تدفع")
-    requested_amount = next((_amount_after_marker(clause, request_markers) or _first_amount(clause)
-                             for clause in request_clauses if _amount_after_marker(clause, request_markers) or _first_amount(clause)), None)
+    request_records = [(clause, _amount_after_marker(clause, request_markers) or _first_amount(clause))
+                       for clause in payment_clauses if _is_request_clause(clause)]
     paid_markers = ("دفعت", "حولتله", "حولت له", "حوالة", "حولت مبلغ", "تم التحويل", "حولت")
-    paid_clauses = [clause for clause in payment_clauses if _is_completed_payment_clause(clause)]
-    paid_signal = bool(paid_clauses)
-    paid_amount = next((_amount_after_marker(clause, paid_markers) for clause in paid_clauses if _amount_after_marker(clause, paid_markers)), None)
+    paid_records = [(clause, _amount_after_marker(clause, paid_markers) or _first_amount(clause))
+                    for clause in payment_clauses if _is_completed_payment_clause(clause)]
     denied_request_signal = any(_denied_request(clause) for clause in payment_clauses)
-    denied_payment_signal = not paid_signal and any(_negated_payment(clause) and not _conditional_payment(clause) for clause in payment_clauses)
-    if requested_signal:
-        requested_value = requested_amount or (amount if not paid_signal else None) or "المبلغ المطلوب غير محدد بحسب الإفادة"
-        _set_answer(state, "requested_amount", requested_value, "reported", text, mid, question_id, changed)
+    denied_payment_signal = not paid_records and any(_negated_payment(clause) and not _conditional_payment(clause) for clause in payment_clauses)
+    state.setdefault("money_events", [])
+
+    existing_requested = state["facts"].get("requested_amount")
+    for clause, requested_value in request_records:
+        if not requested_value:
+            continue
+        relation = _money_relation(clause, requested_value, existing_requested)
+        if relation in {"initial", "correction"}:
+            if _add_money_event(state, "requested", requested_value, relation, text, mid, question_id):
+                changed.add("money_events")
+            _set_answer(state, "requested_amount", requested_value, "reported", text, mid, question_id, changed)
+            existing_requested = state["facts"].get("requested_amount")
+        elif relation == "additional":
+            if _add_money_event(state, "requested", requested_value, relation, text, mid, question_id):
+                changed.add("money_events")
+            if existing_requested and existing_requested.get("status") == "reported":
+                _set_answer(state, "requested_amount", existing_requested.get("value"), "reported", text, mid, question_id, changed)
+        elif relation == "same":
+            _set_answer(state, "requested_amount", existing_requested.get("value"), "reported", text, mid, question_id, changed)
+        else:
+            if _add_money_event(state, "requested", requested_value, "unresolved", text, mid, question_id):
+                changed.add("money_events")
+
+    requested_signal = bool(request_records)
+    if request_records and not any(value for _, value in request_records):
+        if existing_requested and existing_requested.get("status") == "reported" and existing_requested.get("value"):
+            _set_answer(state, "requested_amount", existing_requested.get("value"), "reported", text, mid, question_id, changed)
+        elif pending == "requested_amount":
+            _set_answer(state, "requested_amount", "المبلغ المطلوب غير محدد بحسب الإفادة", "reported", text, mid, question_id, changed)
+
     existing_paid = state["facts"].get("paid_amount")
     if denied_payment_signal:
         _set_answer(state, "paid_amount", None, "denied", text, mid, question_id, changed)
-    elif paid_signal:
-        if paid_amount:
-            _set_answer(state, "paid_amount", paid_amount, "reported", text, mid, question_id, changed)
-        elif pending == "paid_amount" or not existing_paid or existing_paid.get("status") == "denied":
-            _set_answer(state, "paid_amount", "دفع بحسب الإفادة؛ المبلغ غير محدد", "reported", text, mid, question_id, changed)
-        elif existing_paid.get("status") == "reported":
+    for clause, paid_value in paid_records:
+        if paid_value:
+            relation = _money_relation(clause, paid_value, existing_paid)
+            if relation in {"initial", "correction"}:
+                if _add_money_event(state, "paid", paid_value, relation, text, mid, question_id):
+                    changed.add("money_events")
+                _set_answer(state, "paid_amount", paid_value, "reported", text, mid, question_id, changed)
+                existing_paid = state["facts"].get("paid_amount")
+            elif relation == "additional":
+                if _add_money_event(state, "paid", paid_value, relation, text, mid, question_id):
+                    changed.add("money_events")
+                if existing_paid and existing_paid.get("status") == "reported":
+                    _set_answer(state, "paid_amount", existing_paid.get("value"), "reported", text, mid, question_id, changed)
+            elif relation == "same":
+                _set_answer(state, "paid_amount", existing_paid.get("value"), "reported", text, mid, question_id, changed)
+            else:
+                if _add_money_event(state, "paid", paid_value, "unresolved", text, mid, question_id):
+                    changed.add("money_events")
+        elif existing_paid and existing_paid.get("status") == "reported" and existing_paid.get("value"):
             _set_answer(state, "paid_amount", existing_paid.get("value"), "reported", text, mid, question_id, changed)
-    elif pending == "paid_amount":
+        elif pending == "paid_amount":
+            _set_answer(state, "paid_amount", "دفع بحسب الإفادة؛ المبلغ غير محدد", "reported", text, mid, question_id, changed)
+
+    if pending == "paid_amount" and not paid_records and not denied_payment_signal:
         if unknown_status:
             _set_answer(state, "paid_amount", None, unknown_status, text, mid, question_id, changed)
-        elif denied_payment_signal or (yn := _yes_no(text)) is False:
+        elif (yn := _yes_no(text)) is False:
             _set_answer(state, "paid_amount", None, "denied", text, mid, question_id, changed)
-        elif amount and not requested_signal:
-            _set_answer(state, "paid_amount", paid_amount or amount, "reported", text, mid, question_id, changed)
+        elif amount and not request_records:
+            if _add_money_event(state, "paid", amount, "initial", text, mid, question_id):
+                changed.add("money_events")
+            _set_answer(state, "paid_amount", amount, "reported", text, mid, question_id, changed)
         elif (yn := _yes_no(text)) is True:
             _set_answer(state, "paid_amount", "نعم، المبلغ غير محدد", "reported", text, mid, question_id, changed)
-    if pending == "requested_amount" and not requested_signal:
+
+    if pending == "requested_amount" and not request_records:
         if unknown_status:
             _set_answer(state, "requested_amount", None, unknown_status, text, mid, question_id, changed)
-        elif denied_request_signal:
+        elif denied_request_signal or (yn := _yes_no(text)) is False:
             _set_answer(state, "requested_amount", None, "denied", text, mid, question_id, changed)
-        elif (yn := _yes_no(text)) is not None and not yn:
-            _set_answer(state, "requested_amount", None, "denied", text, mid, question_id, changed)
-        elif (requested_amount or amount) and not paid_signal:
-            _set_answer(state, "requested_amount", requested_amount or amount, "reported", text, mid, question_id, changed)
+        elif amount and not paid_records:
+            if _add_money_event(state, "requested", amount, "initial", text, mid, question_id):
+                changed.add("money_events")
+            _set_answer(state, "requested_amount", amount, "reported", text, mid, question_id, changed)
+        elif (yn := _yes_no(text)) is True:
+            _set_answer(state, "requested_amount", "المبلغ المطلوب غير محدد بحسب الإفادة", "reported", text, mid, question_id, changed)
 
     if any(k in t for k in ("محفظة", "كليك", "كليك", "بطاقة", "بنك", "تحويل بنكي", "western union", "paypal")):
         method = next((x for x in ("محفظة إلكترونية", "كليك", "بطاقة", "تحويل بنكي", "بنك", "PayPal", "Western Union") if normalize(x) in t), text)
@@ -393,6 +487,9 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
             _set_answer(state, "published", yn, "reported" if yn else "denied", text, mid, question_id, changed)
         elif any(k in t for k in ("نشر", "نزل", "بعت الصور", "انتشرت")):
             _set_answer(state, "published", True, "reported", text, mid, question_id, changed)
+
+    if (contact_value := _contact_availability(text)):
+        _set_answer(state, "contact", contact_value, "reported", text, mid, question_id, changed)
 
     if pending == "identity":
         if unknown_status:
@@ -430,7 +527,7 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
         _set_answer(state, pending, None, unknown_status, text, mid, question_id, changed)
     if pending == "initial_time" and not state["facts"].get("initial_time") and any(k in t for k in ("أمس", "امس", "اليوم", "البارحة", "مبارح", "الساعة", "صباح", "مسا")):
         _set_answer(state, "initial_time", text, "reported", text, mid, question_id, changed)
-    if pending == "details" and not state["facts"].get("details") and len(text) > 7 and unknown_status is None:
+    if pending == "details" and not state["facts"].get("details") and _incident_detail_candidate(text) and unknown_status is None:
         _set_answer(state, "details", text, "reported", text, mid, question_id, changed)
     if pending == "direct_danger" and not state["facts"].get("direct_danger") and unknown_status:
         _set_answer(state, "direct_danger", None, unknown_status, text, mid, question_id, changed)
@@ -482,15 +579,96 @@ def _is_request_clause(clause: str) -> bool:
         return False
     if _conditional_payment(clause):
         return True
-    if any(marker in clause for marker in ("طلب مني", "طلبت مني", "يطلب مني", "تطلب مني", "طالبني", "مطلوب", "بدك تحول", "ادفع له", "ادفعله")) or re.search(r"(?:^|\s)(?:طلب|طلبت|طالب)(?:\s|$)", clause):
+    if any(marker in clause for marker in ("طلب مني", "طلبت مني", "يطلب مني", "تطلب مني", "طالبني", "مطلوب", "بدك تحول", "ادفع له", "ادفعله")) or re.search(r"(?:^|\s|و)(?:طلب|طلبت|طالب)(?:ني)?(?:\s|$)", clause):
         return True
-    return "ادفع" in clause and not _negated_payment(clause)
+    if "ادفع" not in clause or _negated_payment(clause):
+        return False
+    if any(marker in clause for marker in ("خدعني حتى ادفع", "خدعني حتي ادفع", "حتى ادفع", "حتي ادفع")):
+        return False
+    return bool(_first_amount(clause) or any(marker in clause for marker in ("ادفع له", "ادفعله", "ادفع لها", "ادفعلها")))
 
 
 def _is_completed_payment_clause(clause: str) -> bool:
     if _conditional_payment(clause) or _negated_payment(clause):
         return False
     return any(marker in clause for marker in ("دفعت", "حولتله", "حولت له", "حوالة", "حولت مبلغ", "تم التحويل")) or bool(re.search(r"\bحولت\s", clause))
+
+
+def _amount_digits(value: Any) -> str:
+    if value is None:
+        return ""
+    normalized = str(value).translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789"))
+    return re.sub(r"\D", "", normalized)
+
+
+def _same_amount(left: Any, right: Any) -> bool:
+    left_digits, right_digits = _amount_digits(left), _amount_digits(right)
+    return bool(left_digits and right_digits and left_digits == right_digits)
+
+
+def _money_relation(text: str, amount: str, existing: dict[str, Any] | None) -> str:
+    clause = normalize(text)
+    if any(marker in clause for marker in ("تصحيح", "المبلغ الصحيح", "بدل", "قصدي", "اقصد", "تعديل للمبلغ")):
+        return "correction"
+    if any(marker in clause for marker in ("زيادة", "اضافي", "اضافية", "كمان", "مبلغ ثاني", "مبلغ اخر", "دفعة ثانية", "دفعة اخرى")):
+        return "additional"
+    if not existing or existing.get("status") != "reported" or not existing.get("value"):
+        return "initial"
+    return "same" if _same_amount(amount, existing.get("value")) else "unresolved"
+
+
+def _add_money_event(state: dict[str, Any], kind: str, amount: str, relation: str, quote: str,
+                     message_id: str, question_id: str | None) -> bool:
+    events = state.setdefault("money_events", [])
+    if any(event.get("message_id") == message_id and event.get("kind") == kind and
+           event.get("amount") == amount and event.get("relation") == relation for event in events):
+        return False
+    events.append({"id": f"money-{len(events) + 1}", "kind": kind, "amount": amount, "relation": relation,
+                   "quote": quote, "message_id": message_id, "question_id": question_id, "created_at": now_iso()})
+    return True
+
+
+def _unresolved_money_relation(state: dict[str, Any]) -> tuple[dict[str, Any], str] | None:
+    for event in reversed(state.get("money_events", [])):
+        if event.get("relation") == "unresolved":
+            slot = "requested_amount_relation" if event.get("kind") == "requested" else "paid_amount_relation"
+            return event, slot
+    return None
+
+
+def _resolve_money_relation(state: dict[str, Any], text: str, mid: str, question_id: str | None,
+                            pending: str, changed: set[str]) -> bool:
+    unresolved = _unresolved_money_relation(state)
+    if not unresolved or unresolved[1] != pending:
+        return False
+    event, _ = unresolved
+    normalized = normalize(text)
+    if any(marker in normalized for marker in ("زيادة", "اضافي", "اضافية", "كمان", "مبلغ ثاني", "مبلغ اخر", "دفعة ثانية", "دفعة اخرى")):
+        relation = "additional"
+    elif any(marker in normalized for marker in ("تصحيح", "تعديل", "بدل", "المبلغ الصحيح", "قصدي", "اقصد")):
+        relation = "correction"
+    else:
+        return False
+    event["relation"] = relation
+    event["relation_quote"] = text
+    event["relation_message_id"] = mid
+    event["relation_updated_at"] = now_iso()
+    fact_key = "requested_amount" if event["kind"] == "requested" else "paid_amount"
+    relation_key = pending
+    if relation == "correction":
+        old = state["facts"].get(fact_key)
+        if old:
+            old.setdefault("history", []).append({"status": old.get("status"), "value": old.get("value"),
+                "quote": old.get("quote"), "message_id": old.get("message_id"), "at": now_iso(), "reason": "explicit_amount_relation_correction"})
+            old.update({"status": "reported", "value": event["amount"], "quote": event["quote"],
+                        "message_id": event["message_id"], "updated_at": now_iso()})
+            old.setdefault("supporting_statements", []).append({"quote": text, "message_id": mid, "question_id": question_id, "at": now_iso()})
+    elif state["facts"].get(fact_key):
+        fact = state["facts"][fact_key]
+        fact.setdefault("supporting_statements", []).append({"quote": text, "message_id": mid, "question_id": question_id, "at": now_iso()})
+    _set_answer(state, relation_key, relation, "reported", text, mid, question_id, changed)
+    changed.add("money_events")
+    return True
 
 
 def _is_hypothetical_or_metalinguistic(clause: str) -> bool:
@@ -629,6 +807,9 @@ def _relevant_slots(state: dict[str, Any]) -> list[str]:
         slots.append("identity")
     if profile["incident"]:
         slots.append("evidence")
+    unresolved_relation = _unresolved_money_relation(state)
+    if unresolved_relation:
+        slots.append(unresolved_relation[1])
     return list(dict.fromkeys(slots))
 
 
@@ -644,6 +825,9 @@ def _next_slot(state: dict[str, Any]) -> str | None:
     for key, fact in facts.items():
         if fact.get("status") == "conflict" and key in QUESTIONS:
             return key
+    unresolved_relation = _unresolved_money_relation(state)
+    if unresolved_relation:
+        return unresolved_relation[1]
     for key in _relevant_slots(state):
         if key not in QUESTIONS:
             continue
@@ -691,6 +875,7 @@ def _assessment(state: dict[str, Any]) -> dict[str, Any]:
     repeated = facts.get("repeated", {})
     threat = facts.get("threat", {})
     details = facts.get("details", {})
+    normalized_details = normalize(str(details.get("value") or ""))
     impersonation = facts.get("impersonation", {})
     if danger.get("status") == "reported" and danger.get("value") is True:
         score, route = 100, "توقف السلامة وتوجيه عاجل مناسب"
@@ -709,7 +894,7 @@ def _assessment(state: dict[str, Any]) -> dict[str, Any]:
         priority_rule = "R90_ACCOUNT_OR_FRAUD"
         supporting_fields = [key for key in ("account_access", "fraud_description") if _reported_true(state, key)]
         reasons.append("وصف مدعوم لدخول غير مصرح به أو خداع مالي")
-    elif (profile["threat"] or profile["impersonation"]) and details.get("status") == "reported" and details.get("value") and any(term in normalize(str(details.get("value"))) for term in ("رسالة", "ينشر", "نشر", "حساب", "اسمي", "صورتي", "ابتزاز", "لاحق", "قتل", "سلاح", "دينار", "محفظة", "رقم")):
+    elif (profile["threat"] or profile["impersonation"]) and details.get("status") == "reported" and details.get("value") and any(normalize(term) in normalized_details for term in ("رسالة", "ينشر", "ينزل", "نشر", "محادثات", "حساب", "اسمي", "صورتي", "صوري", "هدد", "ابتزاز", "لاحق", "قتل", "سلاح", "دينار", "محفظة", "رقم", "سيؤذيني", "يؤذيني", "سيؤذي", "يضربني", "يقتلني")):
         score, route = 85, "مراجعة بشرية"
         priority_rule = "R85_DETAILED_THREAT_OR_IMPERSONATION"
         supporting_fields = (["threat", "details"] if profile["threat"] else ["impersonation", "details"])
@@ -806,6 +991,13 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
             _finalize_changed_facts(state, changed)
             _add_message(state, "assistant", _short_answer(text) + QUESTIONS[pending], "clarification")
             return state
+        if pending in {"requested_amount_relation", "paid_amount_relation"}:
+            unresolved_relation = _unresolved_money_relation(state)
+            if unresolved_relation and unresolved_relation[1] == pending:
+                unresolved_relation[0]["relation"] = "unresolved_after_clarification"
+                unresolved_relation[0]["relation_quote"] = text
+                unresolved_relation[0]["relation_message_id"] = user_msg["id"]
+                changed.add("money_events")
         if _record(state, pending, "unresolved", None, text, user_msg["id"], state["messages"][-2]["id"] if len(state["messages"]) > 1 else None, "clarification_limit"):
             changed.add(pending)
 

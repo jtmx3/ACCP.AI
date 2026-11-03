@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app.core import (
-    QUESTIONS, _add_message, _assessment, _explain_why, _next_slot, _record,
+    QUESTIONS, _add_message, _assessment, _explain_why, _next_slot, _record, _unresolved_money_relation,
     _user_intent, classify_current_danger, confirmation_is_current, handle_turn, now_iso, render_report,
     report_data, resume_state, screen_current_danger, summary_digest,
 )
@@ -214,6 +214,8 @@ def confirm(session_id: str, body: RevisionRequest, x_case_token: str = Header(d
             raise ValueError("راجع المعلومات أولًا قبل تأكيدها.")
         if any(fact.get("status") == "conflict" for fact in state.get("facts", {}).values()):
             raise ValueError("وضّح المعلومات المتعارضة أو صححها قبل تأكيد الملخص.")
+        if _unresolved_money_relation(state):
+            raise ValueError("وضّح علاقة المبلغ غير المحسومة قبل تأكيد الملخص.")
         state["assessment"] = _assessment(state)
         state["confirmed"] = True
         state["confirmed_digest"] = summary_digest(state)

@@ -61,18 +61,19 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 ### تشغيل نموذج Ollama محلي على Windows
 
-ثبّت Ollama من دليل Windows الرسمي وشغّله. ثم اسحب المثال `qwen3:4b` أو اختر وسمًا آخر متاحًا، وتحقق من الاسم عبر `ollama list`. الوسم مثال فقط، وحجم التنزيل لا يضمن قدرة الجهاز أو جودة العربية. راجع [`PROVIDER_SETUP_AR.md`](PROVIDER_SETUP_AR.md) لخطوات المزود الخارجي أيضًا.
+ثبّت Ollama من دليل Windows الرسمي وشغّله. في إعادة اختبار F83 استخدم وسم الجهاز الذي أبلغ عنه المشغّل `qwen3.5:4b-q4_K_M` كما يظهر في `ollama list`؛ لا تستبدله بوسم آخر. راجع [`PROVIDER_SETUP_AR.md`](PROVIDER_SETUP_AR.md) لفحص الاتصال والتشخيص بالموجه الحقيقي.
 
 ```powershell
 ollama --version
-ollama pull qwen3:4b
+ollama pull qwen3.5:4b-q4_K_M
 ollama list
 Set-Location C:\path\to\accp-ai
 .\.venv\Scripts\Activate.ps1
 $env:MODEL_PROVIDER = "ollama"
 $env:MODEL_BASE_URL = "http://127.0.0.1:11434/v1"
-$env:MODEL_NAME = "qwen3:4b"
+$env:MODEL_NAME = "qwen3.5:4b-q4_K_M"
 $env:MODEL_TIMEOUT_SECONDS = "120"
+$env:OLLAMA_REASONING_EFFORT = "none"
 python -m app.rag --reindex
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```

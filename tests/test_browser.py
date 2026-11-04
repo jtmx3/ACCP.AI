@@ -270,21 +270,20 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         facts = self.page.locator("#facts-list")
 
         await self._send(turns[0])
+        await expect(self.page.locator("#stage-badge")).to_have_text("مراجعة")
+        await expect(facts).to_contain_text("وقت اكتشاف الواقعة")
+
+        await self._send(turns[1])
+        await expect(self.page.locator("#chat")).not_to_contain_text("ما قدرت أحدد نوع الواقعة")
+
+        await self._send(turns[2])
+        await expect(self.page.locator("#stage-badge")).to_have_text("مراجعة")
         await expect(facts).to_contain_text("انتحال شخصية")
         await expect(facts).to_contain_text("الأدلة المذكورة")
         await expect(facts).to_contain_text("القدرة على الدخول للحساب الأصلي")
         await expect(facts).to_contain_text("هوية الشخص")
         await expect(facts).not_to_contain_text("توضيح واقعة غير مصنفة")
         await expect(facts).not_to_contain_text("تعارض فعلي يحتاج إلى توضيح")
-
-        await self._send(turns[1])
-        await expect(facts).not_to_contain_text("تعارض فعلي يحتاج إلى توضيح")
-        await expect(self.page.locator("#stage-badge")).to_have_text("مراجعة")
-        await expect(self.page.locator("#chat")).not_to_contain_text("ما قدرت أحدد نوع الواقعة")
-
-        await self._send(turns[2])
-        await expect(facts).not_to_contain_text("تعارض فعلي يحتاج إلى توضيح")
-        await expect(self.page.locator("#stage-badge")).to_have_text("مراجعة")
 
         async with self.page.expect_download() as json_event:
             await self.page.locator("#download-json").click()
@@ -313,6 +312,65 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(turns[0], markdown)
         self.assertIn(turns[2], markdown)
         self.assertIn("القدرة على الدخول للحساب الأصلي", markdown)
+
+    async def test_temporal_clarification_ui_exports_and_resume_keep_times_separate(self):
+        await self.page.goto(self.base_url)
+        await self.page.locator("#start-case").click()
+        first = (
+            "اليوم اكتشفت حساب على إنستغرام مستخدم اسمي وصورتي وبحكي للناس إنه أنا. "
+            "حسابي الأصلي معي وبقدر أدخل عليه. ما بعرف مين عامل الحساب، وعندي لقطات شاشة للحساب المزيف، "
+            "وما في تهديد أو طلب مصاري."
+        )
+        clarification = "للتوضيح: أنا اكتشفت الحساب المزيف اليوم، لكن ما بعرف متى أنشأه الشخص."
+        facts = self.page.locator("#facts-list")
+
+        await self._send(first)
+        await expect(self.page.locator("#stage-badge")).to_have_text("مراجعة")
+        await expect(facts).to_contain_text("وقت اكتشاف الواقعة")
+        await expect(facts).to_contain_text("اليوم")
+        await expect(facts).not_to_contain_text("وقت بدء التصرف أو أول تواصل")
+        await self.page.locator("#confirm-summary").click()
+        await expect(self.page.locator("#confirmation-state")).to_contain_text("مؤكد لهذا الإصدار")
+
+        await self._send(clarification)
+        await expect(facts).to_contain_text("وقت اكتشاف الواقعة")
+        await expect(facts).to_contain_text("وقت إنشاء الحساب المزيف")
+        await expect(facts).to_contain_text("غير معروفة للمستخدم")
+        await expect(facts).to_contain_text("لا يُستنتج من وقت اكتشافه")
+        self.assertEqual(await self.page.locator("#review").get_attribute("data-confirmed"), "false")
+        await expect(facts).not_to_contain_text("توضيح واقعة غير مصنفة")
+
+        await self.page.locator("#pause-case").click()
+        await expect(self.page.locator("#stage-badge")).to_have_text("محفوظة")
+        await self.page.locator("#pause-case").click()
+        await expect(self.page.locator("#stage-badge")).to_have_text("مقابلة")
+        await self._send("اعرض الملخص")
+        await expect(self.page.locator("#stage-badge")).to_have_text("مراجعة")
+
+        displayed_version = await self.page.locator("#review").get_attribute("data-summary-version")
+        async with self.page.expect_download() as json_event:
+            await self.page.locator("#download-json").click()
+        json_download = await json_event.value
+        json_path = Path(self.tmp.name) / json_download.suggested_filename
+        await json_download.save_as(json_path)
+        exported = json.loads(json_path.read_text(encoding="utf-8"))
+        self.assertEqual(str(exported["summary_version"]), displayed_version)
+        self.assertFalse(exported["confirmed"])
+        self.assertEqual(exported["facts"]["discovery_time"]["value"], "اليوم")
+        self.assertEqual(exported["facts"]["account_creation_time"]["status"], "unknown")
+        self.assertEqual(exported["facts"]["account_creation_time"]["quote"], "ما بعرف متى أنشأه الشخص")
+        self.assertIn(clarification.split("،")[0], [item["quote"] for item in exported["facts"]["discovery_time"]["supporting_statements"]])
+        self.assertEqual(exported["field_labels"]["discovery_time"], "وقت اكتشاف الواقعة")
+
+        async with self.page.expect_download() as markdown_event:
+            await self.page.locator("#download-report").click()
+        markdown_download = await markdown_event.value
+        markdown_path = Path(self.tmp.name) / markdown_download.suggested_filename
+        await markdown_download.save_as(markdown_path)
+        markdown = markdown_path.read_text(encoding="utf-8")
+        self.assertIn("وقت اكتشاف الواقعة: اليوم", markdown)
+        self.assertIn("وقت إنشاء الحساب المزيف؛ لا يُستنتج من وقت اكتشافه", markdown)
+        self.assertIn("ما بعرف متى أنشأه الشخص", markdown)
 
     async def test_chat_pause_resume_correction_confirmation_and_download(self):
         await self.page.add_init_script("window.__accpPrintCalled=false;window.print=()=>{window.__accpPrintCalled=true;};")

@@ -555,6 +555,62 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertFalse(a_result["external_model_used"])
         self.assertEqual(b_result["session"]["revision"], 2)
 
+    def test_temporal_clarification_survives_review_confirmation_resume_and_exports(self):
+        first_text = (
+            "اليوم اكتشفت حساب على إنستغرام مستخدم اسمي وصورتي وبحكي للناس إنه أنا. "
+            "حسابي الأصلي معي وبقدر أدخل عليه. ما بعرف مين عامل الحساب، وعندي لقطات شاشة للحساب المزيف، "
+            "وما في تهديد أو طلب مصاري."
+        )
+        clarification = "للتوضيح: أنا اكتشفت الحساب المزيف اليوم، لكن ما بعرف متى أنشأه الشخص."
+        first = self.turn(first_text)
+        self.assertEqual(first["facts"]["discovery_time"]["value"], "اليوم")
+        self.assertNotIn("initial_time", first["facts"])
+
+        review = self.turn("اعرض الملخص")
+        self.assertEqual(review["stage"], "review")
+        confirmed = self.client.post(f"/api/sessions/{self.case_id}/confirm", headers=self.headers,
+                                     json={"expected_revision": self.revision})
+        self.assertEqual(confirmed.status_code, 200, confirmed.text)
+        self.revision = confirmed.json()["session"]["revision"]
+        self.assertTrue(confirmed.json()["session"]["confirmed"])
+
+        updated = self.turn(clarification)
+        self.assertFalse(updated["confirmed"])
+        self.assertIsNone(updated["confirmed_digest"])
+        self.assertEqual(updated["facts"]["discovery_time"]["value"], "اليوم")
+        self.assertEqual(updated["facts"]["account_creation_time"]["status"], "unknown")
+        self.assertNotIn("additional_details", updated["facts"])
+        self.assertEqual(updated["facts"]["impersonation"]["quote"], first_text)
+        self.assertEqual(updated["facts"]["evidence"]["quote"], first_text)
+        self.assertEqual(updated["facts"]["original_account_access_available"]["quote"], first_text)
+
+        json_report = self.client.get(f"/api/sessions/{self.case_id}/report.json", headers=self.headers).json()
+        self.assertFalse(json_report["confirmed"])
+        self.assertEqual(json_report["summary_version"], updated["summary_version"])
+        self.assertEqual(json_report["facts"]["discovery_time"]["value"], "اليوم")
+        self.assertEqual(json_report["facts"]["account_creation_time"]["status"], "unknown")
+        self.assertIn("لا يُستنتج من وقت اكتشافه", json_report["field_notes"]["account_creation_time"])
+        source_times = {message["id"]: message["created_at"] for message in updated["messages"]}
+        for key in ("discovery_time", "account_creation_time"):
+            fact = json_report["facts"][key]
+            self.assertEqual(fact["source_message_at"], source_times[fact["message_id"]])
+            self.assertTrue(fact["last_updated_at"])
+
+        markdown = self.client.get(f"/api/sessions/{self.case_id}/report.md", headers=self.headers).text
+        self.assertIn("وقت اكتشاف الواقعة: اليوم", markdown)
+        self.assertIn("وقت إنشاء الحساب المزيف", markdown)
+        self.assertIn("ما بعرف متى أنشأه الشخص", markdown)
+
+        self.assertEqual(self.turn("احفظ الجلسة")["stage"], "paused")
+        resumed = self.client.post(f"/api/sessions/{self.case_id}/resume", headers=self.headers,
+                                   json={"expected_revision": self.revision})
+        self.assertEqual(resumed.status_code, 200, resumed.text)
+        self.revision = resumed.json()["session"]["revision"]
+        resumed_report = resumed.json()["report"]
+        self.assertFalse(resumed_report["confirmed"])
+        self.assertEqual(resumed_report["facts"]["discovery_time"]["value"], "اليوم")
+        self.assertEqual(resumed_report["facts"]["account_creation_time"]["status"], "unknown")
+
 
 if __name__ == "__main__":
     unittest.main()

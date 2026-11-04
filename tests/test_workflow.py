@@ -178,7 +178,9 @@ class InterviewWorkflowTests(unittest.TestCase):
         self.assertEqual(state["facts"]["platform"]["value"], "إنستغرام")
         self.assertNotIn("account_access", state["facts"])
         self.assertNotIn("contact", state["facts"])
-        self.assertIn("initial_time", state["facts"])
+        self.assertNotIn("initial_time", state["facts"])
+        self.assertNotIn("discovery_time", state["facts"])
+        self.assertEqual(state["pending_slot"], "identity")
         self.assertNotIn("latest_time", state["facts"])
 
     def test_nonfinancial_threat_does_not_ask_payment_or_publication_fields(self):

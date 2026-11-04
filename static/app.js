@@ -6,13 +6,19 @@
     unclassified_details: 'توضيح واقعة غير مصنفة', incident_type_review: 'مراجعة تصنيف الواقعة',
     additional_details: 'تفاصيل إضافية', publication_threat: 'تهديد بالنشر', direct_danger: 'الخطر المباشر الحالي',
     active_unauthorized_funds: 'أموال معرضة لتصرف دون إذن', fraud_description: 'وصف خداع مالي', harassment: 'مضايقة مذكورة',
-    contact_repeated: 'تكرار التواصل دون استنتاج تهديد', initial_time: 'وقت البداية', latest_time: 'أحدث تواصل',
+    contact_repeated: 'تكرار التواصل دون استنتاج تهديد', initial_time: 'وقت بدء التصرف أو أول تواصل',
+    discovery_time: 'وقت اكتشاف الواقعة', account_creation_time: 'وقت إنشاء الحساب المزيف', latest_time: 'أحدث تواصل',
     repeated: 'تكرار التهديد أو المضايقة', requested_amount: 'المبلغ المطلوب', paid_amount: 'المبلغ المدفوع',
     payment_method: 'وسيلة الدفع', deadline: 'مهلة الدفع', published: 'حدوث النشر', identity: 'هوية الشخص',
     contact: 'معرّف التواصل', contact_identifier_disclosure: 'الإفصاح عن معرّف التواصل',
     evidence: 'الأدلة المذكورة', account_access: 'دخول غير مصرح به',
     original_account_access_available: 'القدرة على الدخول للحساب الأصلي',
     requested_amount_relation: 'علاقة المبلغ المطلوب الجديد بالسابق', paid_amount_relation: 'علاقة مبلغ الدفع الجديد بالسابق'
+  };
+  const fieldNotes = {
+    initial_time: 'وقت بدء التصرف أو أول تواصل، وليس وقت اكتشاف الواقعة.',
+    discovery_time: 'وقت اكتشاف المستخدم للواقعة؛ لا يدل وحده على وقت حدوثها أو إنشاء الحساب.',
+    account_creation_time: 'وقت إنشاء الحساب المزيف؛ لا يُستنتج من وقت اكتشافه.'
   };
   const factStatusLabels = {
     reported: 'مذكورة بحسب الإفادة', denied: 'منفية صراحة بحسب الإفادة', unknown: 'غير معروفة للمستخدم',
@@ -196,7 +202,7 @@
     factsList.replaceChildren();
     const facts = state.facts || {};
     const messagesById = new Map((state.messages || []).map(message => [message.id, message]));
-    const order = ['narrative', 'threat', 'impersonation', 'platform', 'details', 'additional_details', 'publication_threat', 'direct_danger', 'active_unauthorized_funds', 'fraud_description', 'harassment', 'contact_repeated', 'initial_time', 'latest_time', 'repeated', 'requested_amount', 'paid_amount', 'payment_method', 'deadline', 'published', 'identity', 'contact', 'contact_identifier_disclosure', 'evidence', 'original_account_access_available', 'account_access'];
+    const order = ['narrative', 'threat', 'impersonation', 'platform', 'details', 'additional_details', 'publication_threat', 'direct_danger', 'active_unauthorized_funds', 'fraud_description', 'harassment', 'contact_repeated', 'initial_time', 'discovery_time', 'account_creation_time', 'latest_time', 'repeated', 'requested_amount', 'paid_amount', 'payment_method', 'deadline', 'published', 'identity', 'contact', 'contact_identifier_disclosure', 'evidence', 'original_account_access_available', 'account_access'];
     for (const key of order) {
       const fact = facts[key];
       if (!fact) continue;
@@ -213,6 +219,12 @@
       status.className = `fact-status status-${fact.status || 'unknown'}`;
       status.textContent = `الحالة: ${factStatusLabels[fact.status] || 'غير متاحة'}`;
       wrapper.append(term, status, description);
+      if (fieldNotes[key]) {
+        const note = document.createElement('div');
+        note.className = 'fact-note';
+        note.textContent = fieldNotes[key];
+        wrapper.append(note);
+      }
       if (fact.quote) {
         const quote = document.createElement('div');
         quote.className = 'fact-quote';

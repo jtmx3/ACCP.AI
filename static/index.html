@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#102a43">
+  <meta name="description" content="نموذج أولي محلي لتوثيق إفادات الوقائع الإلكترونية ومراجعتها.">
+  <title>ACCP.AI | توثيق إفادة إلكترونية</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="ACCP.AI الصفحة الرئيسية"><span class="brand-mark">A</span><span><strong>ACCP.AI</strong><small>توثيق ومراجعة الإفادات الإلكترونية</small></span></a>
+    <div class="header-actions">
+      <label class="jurisdiction-label" for="jurisdiction">الاختصاص للمصادر:</label>
+      <select id="jurisdiction" aria-label="اختر الاختصاص للمصادر">
+        <option value="">غير محدد</option>
+      </select>
+      <button id="new-case" class="button button-outline" type="button">حالة جديدة</button>
+    </div>
+  </header>
+  <main class="layout">
+    <aside class="side-panel">
+      <section class="case-card">
+        <p class="eyebrow">مساحة خاصة بهذا المتصفح</p>
+        <h2>جلساتك</h2>
+        <p class="muted">تُحفظ محليًا على الخادم. احتفظ برمز الحالة ولا تشاركه.</p>
+        <label for="case-list" class="sr-only">استكمل جلسة محفوظة</label>
+        <select id="case-list" aria-label="استكمل جلسة محفوظة"><option value="">اختر جلسة محفوظة</option></select>
+        <button id="resume-case" class="button button-outline full" type="button" disabled>فتح الجلسة</button>
+      </section>
+      <section class="runtime-card" aria-labelledby="runtime-heading">
+        <h3 id="runtime-heading">مسار التشغيل الفعلي</h3>
+        <p id="runtime-mode" class="runtime-mode">القواعد المحلية — لم يُضبط مزود نموذج.</p>
+        <p id="runtime-detail" class="muted small">لم يُفحص اتصال خدمة النموذج أو توفره.</p>
+        <div class="runtime-actions">
+          <button id="check-provider" class="button button-outline full" type="button">فحص الإعداد والخدمة والنموذج</button>
+          <button id="test-provider-generation" class="button button-outline full" type="button" disabled>اختبار توليد ثابت</button>
+        </div>
+        <p class="muted small">اختبار التوليد يرسل نصًا ثابتًا غير متعلق بالحالة. ضبط الإعدادات وحده لا يثبت الاتصال.</p>
+      </section>
+      <section class="privacy-card">
+        <h3>الخصوصية والحدود</h3>
+        <p>الافتراضي استخراج محلي بقواعد محدودة. إذا ضبط المشغّل مزودًا خارجيًا، فموافقة مستقلة لكل إرسال: في وضع السؤال يُرسل نص السؤال الحالي والمقتطفات المختارة؛ وفي وضع المقابلة يُرسل نص رسالتك الحالية فقط لاستخراج حقائق منظمة مع اقتباساتها.</p>
+        <p>لا يُرسل سجل المحادثة أو الحقائق السابقة أو رمز الجلسة تلقائيًا. أي تفاصيل شخصية تكتبها داخل الرسالة الحالية ستُرسل للمزود عند الموافقة. لا تُرسل كلمة مرور أو رمز تحقق أو معلومات لا تحتاجها.</p>
+        <p>لا تكتب كلمات مرور أو رموز تحقق أو معلومات لا تحتاجها المقابلة. لا ترفع أدلة؛ النظام لا يستلمها ولا يفحصها.</p>
+        <p>التأكيد يخص الملخص المعروض فقط، وليس بلاغًا رسميًا أو تحققًا مستقلًا.</p>
+      </section>
+    </aside>
+    <section class="work-area" aria-label="محادثة توثيق الإفادة">
+      <div id="welcome" class="welcome-card">
+        <div class="welcome-symbol" aria-hidden="true">01</div>
+        <p class="eyebrow">مقابلة تكيفية • عربية • RTL</p>
+        <h1>وثّق اللي صار، خطوة بخطوة</h1>
+        <p>ابدأ بوصفك، وسنسأل سؤالًا واحدًا في كل مرة. تقدر تسألنا، تصحح معلومة، أو تحفظ الجلسة وتكمل لاحقًا.</p>
+        <button id="start-case" class="button button-primary" type="button">ابدأ إفادة جديدة</button>
+        <p class="notice">إذا كنت بخطر مباشر، تواصل الآن مع خدمات الطوارئ المحلية أو شخص موثوق قريب منك.</p>
+      </div>
+      <section id="case-view" class="hidden">
+        <div class="case-heading">
+          <div><p class="eyebrow">جلسة محفوظة</p><h1 id="case-title">إفادة جديدة</h1><p id="case-updated-at" class="muted small">آخر تحديث للحالة: غير متاح</p></div>
+          <div class="case-tools"><span id="stage-badge" class="badge">مقابلة</span><button id="pause-case" class="button button-quiet" type="button">حفظ ومتابعة لاحقًا</button></div>
+        </div>
+        <div class="thread-shell">
+          <div id="chat" class="chat" aria-live="polite" aria-label="رسائل المقابلة"></div>
+          <form id="chat-form" class="composer">
+            <div class="composer-tools"><span id="mode-label">وضع المقابلة</span><button id="toggle-mode" class="text-button" type="button">عندي سؤال للبوت</button></div>
+            <label id="model-consent-row" class="model-consent hidden"><input id="model-consent" type="checkbox"> <span id="model-consent-copy">أوافق على إرسال البيانات المذكورة لهذا الطلب فقط إلى مزود خارجي.</span></label>
+            <label for="message" class="sr-only">اكتب رسالتك</label>
+            <textarea id="message" rows="2" maxlength="5000" placeholder="اكتب إجابتك هنا…" required></textarea>
+            <div class="composer-bottom"><span class="muted small">لا تشارك كلمات مرور أو رموز تحقق.</span><button id="send" class="button button-primary" type="submit">إرسال</button></div>
+          </form>
+        </div>
+        <section id="review" class="review-card hidden" aria-labelledby="review-heading">
+          <div class="review-heading"><div><p class="eyebrow">راجع قبل التأكيد</p><h2 id="review-heading">ملخص الإفادة</h2></div><div id="priority-chip" class="priority-chip">الأولوية: غير محددة</div></div>
+          <p class="review-caution">التقييم أولوية مراجعة تجريبية، وليس احتمالًا لوقوع ضرر أو إثباتًا للواقعة.</p>
+          <div id="assessment-reasons" class="reason-box"></div>
+          <dl id="facts-list" class="facts-list"></dl>
+          <section id="information-gaps" class="information-gaps" aria-label="المعلومات الناقصة أو غير المحسومة"></section>
+          <div class="review-actions"><button id="download-report" class="button button-outline" type="button">تنزيل التقرير Markdown</button><button id="download-json" class="button button-outline" type="button">تنزيل JSON</button><button id="print-report" class="button button-outline" type="button">طباعة الملخص</button><button id="confirm-summary" class="button button-primary" type="button">أؤكد مراجعة هذا الملخص</button></div>
+          <p id="confirmation-state" class="confirmation-state" role="status"></p>
+        </section>
+      </section>
+      <div id="status-message" class="status-message" role="status" aria-live="polite"></div>
+      <footer class="page-foot">نسخة تجريبية محلية • لا ترفع بلاغات ولا تتصل بأي جهة نيابة عنك</footer>
+    </section>
+  </main>
+  <script src="/app.js" defer></script>
+</body>
+</html>

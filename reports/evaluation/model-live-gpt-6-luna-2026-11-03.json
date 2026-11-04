@@ -1,0 +1,4797 @@
+{
+  "dataset_id": "ACCP-SYNTH-AR-01",
+  "dataset_version": 2,
+  "classification": "synthetic; authored for software regression evaluation; not independently reviewed and not representative of real users",
+  "oracle_basis": "Acceptance criteria and documented experimental triage rules, not observed application output",
+  "mode": "model",
+  "provider_configured": true,
+  "provider": {
+    "provider": "openai-compatible",
+    "mode": "external_model",
+    "local": false,
+    "model": "gpt-6-luna",
+    "base_url_host": "api.manus.im",
+    "api_key_present": true,
+    "configuration_complete": true,
+    "configured": true,
+    "valid_provider": true
+  },
+  "provider_preflight": {
+    "provider": "openai-compatible",
+    "mode": "external_model",
+    "model": "gpt-6-luna",
+    "configured": true,
+    "service_reachable": true,
+    "model_available": true,
+    "models_count": 10,
+    "failure_code": null,
+    "available_model_names": [
+      "gpt-6-luna",
+      "gpt-6-sol",
+      "gpt-6.1-sol",
+      "gemini-3.8-flash",
+      "gpt-5-nano",
+      "gpt-5-mini",
+      "gpt-5",
+      "gpt-5.5",
+      "gemini-3-flash-preview",
+      "gemini-3.1-pro-preview"
+    ]
+  },
+  "provider_generation_test": {
+    "success": true,
+    "attempted": true,
+    "latency_ms": 1957.748,
+    "failure_code": null,
+    "provider": "openai-compatible",
+    "model": "gpt-6-luna"
+  },
+  "run_status": "completed",
+  "blocked_reason": null,
+  "model_call_attempted": true,
+  "run_at": "2026-11-03T19:18:48.454023+00:00",
+  "result": {
+    "case_count": 21,
+    "cases_passed": 5,
+    "cases_failed": 16,
+    "integrated_cases_passed": 19,
+    "model_cases_passed": 5,
+    "assertion_failure_count": 5,
+    "provider_calls_attempted": 76,
+    "provider_results_accepted": 57,
+    "provider_results_rejected": 19,
+    "fallback_count": 19,
+    "fallback_successes_counted_as_model_success": 0,
+    "median_provider_latency_ms": 3310.798,
+    "p95_provider_latency_ms": 5245.625,
+    "median_case_latency_ms": 10288.503,
+    "p95_case_latency_ms": 25820.305,
+    "total_elapsed_ms": 263260.982
+  },
+  "cases": [
+    {
+      "id": "E01",
+      "category": "repeated_threat",
+      "passed": false,
+      "integrated_passed": true,
+      "model_passed": false,
+      "failures": [],
+      "actual": {
+        "stage": "interview",
+        "pending_slot": "paid_amount",
+        "priority_score": 90,
+        "priority_rule": "R90_REPEATED_HARM",
+        "facts": {
+          "narrative": {
+            "field": "narrative",
+            "status": "reported",
+            "value": "في واحد عم يهددني برسائل على واتساب.",
+            "quote": "في واحد عم يهددني برسائل على واتساب.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:14:28+00:00",
+            "history": []
+          },
+          "threat": {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "في واحد عم يهددني برسائل على واتساب.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:14:44+00:00",
+            "history": [],
+            "supporting_statements": [
+              {
+                "quote": "رجع اليوم وكرر نفس التهديد.",
+                "message_id": "m10",
+                "question_id": "m9",
+                "at": "2026-11-03T19:14:44+00:00"
+              }
+            ]
+          },
+          "platform": {
+            "field": "platform",
+            "status": "reported",
+            "value": "واتساب",
+            "quote": "في واحد عم يهددني برسائل على واتساب.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:14:28+00:00",
+            "history": []
+          },
+          "direct_danger": {
+            "field": "direct_danger",
+            "status": "denied",
+            "value": false,
+            "quote": "لا، ما في خطر مباشر علي هسا.",
+            "message_id": "m4",
+            "question_id": "m3",
+            "updated_at": "2026-11-03T19:14:30+00:00",
+            "history": []
+          },
+          "details": {
+            "field": "details",
+            "status": "reported",
+            "value": "قال رح ينشر محادثاتي الخاصة إذا ما حولتله 100 دينار.",
+            "quote": "قال رح ينشر محادثاتي الخاصة إذا ما حولتله 100 دينار.",
+            "message_id": "m6",
+            "question_id": "m5",
+            "updated_at": "2026-11-03T19:14:34+00:00",
+            "history": []
+          },
+          "publication_threat": {
+            "field": "publication_threat",
+            "status": "reported",
+            "value": true,
+            "quote": "قال رح ينشر محادثاتي الخاصة إذا ما حولتله 100 دينار.",
+            "message_id": "m6",
+            "question_id": "m5",
+            "updated_at": "2026-11-03T19:14:34+00:00",
+            "history": []
+          },
+          "requested_amount": {
+            "field": "requested_amount",
+            "status": "reported",
+            "value": "100 دينار",
+            "quote": "قال رح ينشر محادثاتي الخاصة إذا ما حولتله 100 دينار.",
+            "message_id": "m6",
+            "question_id": "m5",
+            "updated_at": "2026-11-03T19:14:34+00:00",
+            "history": []
+          },
+          "initial_time": {
+            "field": "initial_time",
+            "status": "reported",
+            "value": "أول رسالة وصلتني مبارح بعد الساعة 6.",
+            "quote": "أول رسالة وصلتني مبارح بعد الساعة 6.",
+            "message_id": "m8",
+            "question_id": "m7",
+            "updated_at": "2026-11-03T19:14:37+00:00",
+            "history": []
+          },
+          "latest_time": {
+            "field": "latest_time",
+            "status": "reported",
+            "value": "رجع اليوم وكرر نفس التهديد.",
+            "quote": "رجع اليوم وكرر نفس التهديد.",
+            "message_id": "m10",
+            "question_id": "m9",
+            "updated_at": "2026-11-03T19:14:44+00:00",
+            "history": []
+          },
+          "repeated": {
+            "field": "repeated",
+            "status": "reported",
+            "value": true,
+            "quote": "رجع اليوم وكرر نفس التهديد.",
+            "message_id": "m10",
+            "question_id": "m9",
+            "updated_at": "2026-11-03T19:14:44+00:00",
+            "history": []
+          }
+        },
+        "expected_facts": {
+          "threat": {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "في واحد عم يهددني برسائل على واتساب.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:14:44+00:00",
+            "history": [],
+            "supporting_statements": [
+              {
+                "quote": "رجع اليوم وكرر نفس التهديد.",
+                "message_id": "m10",
+                "question_id": "m9",
+                "at": "2026-11-03T19:14:44+00:00"
+              }
+            ]
+          },
+          "direct_danger": {
+            "field": "direct_danger",
+            "status": "denied",
+            "value": false,
+            "quote": "لا، ما في خطر مباشر علي هسا.",
+            "message_id": "m4",
+            "question_id": "m3",
+            "updated_at": "2026-11-03T19:14:30+00:00",
+            "history": []
+          },
+          "publication_threat": {
+            "field": "publication_threat",
+            "status": "reported",
+            "value": true,
+            "quote": "قال رح ينشر محادثاتي الخاصة إذا ما حولتله 100 دينار.",
+            "message_id": "m6",
+            "question_id": "m5",
+            "updated_at": "2026-11-03T19:14:34+00:00",
+            "history": []
+          },
+          "requested_amount": {
+            "field": "requested_amount",
+            "status": "reported",
+            "value": "100 دينار",
+            "quote": "قال رح ينشر محادثاتي الخاصة إذا ما حولتله 100 دينار.",
+            "message_id": "m6",
+            "question_id": "m5",
+            "updated_at": "2026-11-03T19:14:34+00:00",
+            "history": []
+          },
+          "repeated": {
+            "field": "repeated",
+            "status": "reported",
+            "value": true,
+            "quote": "رجع اليوم وكرر نفس التهديد.",
+            "message_id": "m10",
+            "question_id": "m9",
+            "updated_at": "2026-11-03T19:14:44+00:00",
+            "history": []
+          }
+        },
+        "money_events": [
+          {
+            "id": "money-1",
+            "kind": "requested",
+            "amount": "100 دينار",
+            "relation": "initial",
+            "quote": "قال رح ينشر محادثاتي الخاصة إذا ما حولتله 100 دينار.",
+            "message_id": "m6",
+            "question_id": "m5",
+            "created_at": "2026-11-03T19:14:34+00:00"
+          }
+        ],
+        "confirmed": false,
+        "confirmation_history_count": 0,
+        "question_messages": [
+          "احكيلي شو صار معك.",
+          "هل أنت بخطر مباشر الآن؟",
+          "شو قال لك تحديدًا أو شو صار؟",
+          "متى بدأت الواقعة أو وصلك أول تواصل؟ اذكر الوقت كما تتذكره.",
+          "هل تكرر التهديد أو المضايقة المؤثرة؟ ليس مجرد استمرار الرسائل أو التواصل.",
+          "هل دفعت أو حولت أي مبلغ؟ إذا نعم، كم؟"
+        ],
+        "last_assistant_message": "هل دفعت أو حولت أي مبلغ؟ إذا نعم، كم؟"
+      },
+      "latency_ms": {
+        "total": 18919.814,
+        "per_step": [
+          3294.792,
+          2427.484,
+          3689.203,
+          2941.168,
+          6516.649
+        ]
+      },
+      "model_evaluation": {
+        "calls": [
+          {
+            "step": 1,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 3277.461,
+            "fact_fields": [
+              "threat",
+              "platform",
+              "narrative"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 2,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2418.289,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 3,
+            "result_accepted": false,
+            "fallback_used": true,
+            "failure_code": "schema_rejected",
+            "latency_ms": 3681.166,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 4,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2932.501,
+            "fact_fields": [
+              "initial_time"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 5,
+            "result_accepted": false,
+            "fallback_used": true,
+            "failure_code": "schema_rejected",
+            "latency_ms": 6507.373,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          }
+        ],
+        "calls_attempted": 5,
+        "results_accepted": 3,
+        "results_rejected": 2,
+        "fallback_count": 2,
+        "candidate_fact_count": 4,
+        "candidate_facts": [
+          {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "عم يهددني"
+          },
+          {
+            "field": "platform",
+            "status": "reported",
+            "value": "واتساب",
+            "quote": "واتساب"
+          },
+          {
+            "field": "narrative",
+            "status": "reported",
+            "value": "في واحد عم يهددني برسائل على واتساب.",
+            "quote": "في واحد عم يهددني برسائل على واتساب."
+          },
+          {
+            "field": "initial_time",
+            "status": "reported",
+            "value": "مبارح بعد الساعة 6",
+            "quote": "أول رسالة وصلتني مبارح بعد الساعة 6."
+          }
+        ],
+        "expected_fact_matches": {
+          "threat": true,
+          "direct_danger": false,
+          "publication_threat": false,
+          "requested_amount": false,
+          "repeated": false
+        },
+        "expected_facts_not_covered_by_model": [
+          "direct_danger",
+          "publication_threat",
+          "requested_amount",
+          "repeated"
+        ],
+        "fallback_success_counted_as_model_success": false
+      }
+    },
+    {
+      "id": "E02",
+      "category": "threat_not_repeated",
+      "passed": false,
+      "integrated_passed": true,
+      "model_passed": false,
+      "failures": [],
+      "actual": {
+        "stage": "interview",
+        "pending_slot": "identity",
+        "priority_score": 85,
+        "priority_rule": "R85_DETAILED_THREAT_OR_IMPERSONATION",
+        "facts": {
+          "narrative": {
+            "field": "narrative",
+            "status": "reported",
+            "value": "شخص هددني برسالة وقال إنه سيؤذيني إذا حكيت لحدا.",
+            "quote": "شخص هددني برسالة وقال إنه سيؤذيني إذا حكيت لحدا.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:14:47+00:00",
+            "history": []
+          },
+          "threat": {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "شخص هددني برسالة وقال إنه سيؤذيني إذا حكيت لحدا.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:14:47+00:00",
+            "history": []
+          },
+          "direct_danger": {
+            "field": "direct_danger",
+            "status": "denied",
+            "value": false,
+            "quote": "لا، مش بخطر مباشر هسا.",
+            "message_id": "m4",
+            "question_id": "m3",
+            "updated_at": "2026-11-03T19:14:50+00:00",
+            "history": []
+          },
+          "details": {
+            "field": "details",
+            "status": "reported",
+            "value": "كانت الرسالة تقول إنه سيلاحقني إذا خرجت من البيت.",
+            "quote": "كانت الرسالة تقول إنه سيلاحقني إذا خرجت من البيت.",
+            "message_id": "m6",
+            "question_id": "m5",
+            "updated_at": "2026-11-03T19:14:54+00:00",
+            "history": []
+          },
+          "initial_time": {
+            "field": "initial_time",
+            "status": "reported",
+            "value": "بدأت قبل يومين.",
+            "quote": "بدأت قبل يومين.",
+            "message_id": "m8",
+            "question_id": "m7",
+            "updated_at": "2026-11-03T19:14:56+00:00",
+            "history": []
+          },
+          "repeated": {
+            "field": "repeated",
+            "status": "denied",
+            "value": false,
+            "quote": "ما تكرر بعد الرسالة الأولى.",
+            "message_id": "m10",
+            "question_id": "m9",
+            "updated_at": "2026-11-03T19:14:59+00:00",
+            "history": []
+          }
+        },
+        "expected_facts": {
+          "threat": {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "شخص هددني برسالة وقال إنه سيؤذيني إذا حكيت لحدا.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:14:47+00:00",
+            "history": []
+          },
+          "direct_danger": {
+            "field": "direct_danger",
+            "status": "denied",
+            "value": false,
+            "quote": "لا، مش بخطر مباشر هسا.",
+            "message_id": "m4",
+            "question_id": "m3",
+            "updated_at": "2026-11-03T19:14:50+00:00",
+            "history": []
+          },
+          "repeated": {
+            "field": "repeated",
+            "status": "denied",
+            "value": false,
+            "quote": "ما تكرر بعد الرسالة الأولى.",
+            "message_id": "m10",
+            "question_id": "m9",
+            "updated_at": "2026-11-03T19:14:59+00:00",
+            "history": []
+          }
+        },
+        "money_events": [],
+        "confirmed": false,
+        "confirmation_history_count": 0,
+        "question_messages": [
+          "احكيلي شو صار معك.",
+          "هل أنت بخطر مباشر الآن؟",
+          "شو قال لك تحديدًا أو شو صار؟",
+          "متى بدأت الواقعة أو وصلك أول تواصل؟ اذكر الوقت كما تتذكره.",
+          "هل تكرر التهديد أو المضايقة المؤثرة؟ ليس مجرد استمرار الرسائل أو التواصل.",
+          "هل بتعرف هوية الشخص، ولا المتوفر عندك بس اسم حساب أو رقم تواصل؟"
+        ],
+        "last_assistant_message": "هل بتعرف هوية الشخص، ولا المتوفر عندك بس اسم حساب أو رقم تواصل؟"
+      },
+      "latency_ms": {
+        "total": 15296.115,
+        "per_step": [
+          3836.481,
+          2551.367,
+          3880.385,
+          2572.82,
+          2447.86
+        ]
+      },
+      "model_evaluation": {
+        "calls": [
+          {
+            "step": 1,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 3830.331,
+            "fact_fields": [
+              "narrative",
+              "threat"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 2,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2542.781,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 3,
+            "result_accepted": false,
+            "fallback_used": true,
+            "failure_code": "schema_rejected",
+            "latency_ms": 3873.852,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 4,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2566.232,
+            "fact_fields": [
+              "initial_time"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 5,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2440.714,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          }
+        ],
+        "calls_attempted": 5,
+        "results_accepted": 4,
+        "results_rejected": 1,
+        "fallback_count": 1,
+        "candidate_fact_count": 3,
+        "candidate_facts": [
+          {
+            "field": "narrative",
+            "status": "reported",
+            "value": "شخص هددني برسالة وقال إنه سيؤذيني إذا حكيت لحدا.",
+            "quote": "شخص هددني برسالة وقال إنه سيؤذيني إذا حكيت لحدا."
+          },
+          {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "شخص هددني"
+          },
+          {
+            "field": "initial_time",
+            "status": "reported",
+            "value": "قبل يومين",
+            "quote": "بدأت قبل يومين."
+          }
+        ],
+        "expected_fact_matches": {
+          "threat": true,
+          "direct_danger": false,
+          "repeated": false
+        },
+        "expected_facts_not_covered_by_model": [
+          "direct_danger",
+          "repeated"
+        ],
+        "fallback_success_counted_as_model_success": false
+      }
+    },
+    {
+      "id": "E03",
+      "category": "impersonation_not_account_compromise",
+      "passed": false,
+      "integrated_passed": true,
+      "model_passed": false,
+      "failures": [],
+      "actual": {
+        "stage": "interview",
+        "pending_slot": "identity",
+        "priority_score": 85,
+        "priority_rule": "R85_DETAILED_THREAT_OR_IMPERSONATION",
+        "facts": {
+          "impersonation": {
+            "field": "impersonation",
+            "status": "reported",
+            "value": true,
+            "quote": "اليوم لقيت حسابًا مزيفًا على إنستغرام حاط اسمي وصورتي وبيحكي مع زملائي كأنه أنا.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:03+00:00",
+            "history": []
+          },
+          "platform": {
+            "field": "platform",
+            "status": "reported",
+            "value": "إنستغرام",
+            "quote": "اليوم لقيت حسابًا مزيفًا على إنستغرام حاط اسمي وصورتي وبيحكي مع زملائي كأنه أنا.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:03+00:00",
+            "history": []
+          },
+          "narrative": {
+            "field": "narrative",
+            "status": "reported",
+            "value": "اليوم لقيت حسابًا مزيفًا على إنستغرام حاط اسمي وصورتي وبيحكي مع زملائي كأنه أنا.",
+            "quote": "اليوم لقيت حسابًا مزيفًا على إنستغرام حاط اسمي وصورتي وبيحكي مع زملائي كأنه أنا.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:03+00:00",
+            "history": []
+          },
+          "initial_time": {
+            "field": "initial_time",
+            "status": "reported",
+            "value": "اليوم لقيت حسابًا مزيفًا على إنستغرام حاط اسمي وصورتي وبيحكي مع زملائي كأنه أنا.",
+            "quote": "اليوم لقيت حسابًا مزيفًا على إنستغرام حاط اسمي وصورتي وبيحكي مع زملائي كأنه أنا.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:03+00:00",
+            "history": []
+          },
+          "details": {
+            "field": "details",
+            "status": "reported",
+            "value": "الحساب يرسل لهم رسائل باسمي ويطلب منهم تحويل المال.",
+            "quote": "الحساب يرسل لهم رسائل باسمي ويطلب منهم تحويل المال.",
+            "message_id": "m4",
+            "question_id": "m3",
+            "updated_at": "2026-11-03T19:15:09+00:00",
+            "history": []
+          }
+        },
+        "expected_facts": {
+          "impersonation": {
+            "field": "impersonation",
+            "status": "reported",
+            "value": true,
+            "quote": "اليوم لقيت حسابًا مزيفًا على إنستغرام حاط اسمي وصورتي وبيحكي مع زملائي كأنه أنا.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:03+00:00",
+            "history": []
+          },
+          "platform": {
+            "field": "platform",
+            "status": "reported",
+            "value": "إنستغرام",
+            "quote": "اليوم لقيت حسابًا مزيفًا على إنستغرام حاط اسمي وصورتي وبيحكي مع زملائي كأنه أنا.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:03+00:00",
+            "history": []
+          }
+        },
+        "money_events": [],
+        "confirmed": false,
+        "confirmation_history_count": 0,
+        "question_messages": [
+          "احكيلي شو صار معك.",
+          "شو قال لك تحديدًا أو شو صار؟",
+          "هل بتعرف هوية الشخص، ولا المتوفر عندك بس اسم حساب أو رقم تواصل؟"
+        ],
+        "last_assistant_message": "هل بتعرف هوية الشخص، ولا المتوفر عندك بس اسم حساب أو رقم تواصل؟"
+      },
+      "latency_ms": {
+        "total": 9687.704,
+        "per_step": [
+          4424.292,
+          5253.9
+        ]
+      },
+      "model_evaluation": {
+        "calls": [
+          {
+            "step": 1,
+            "result_accepted": false,
+            "fallback_used": true,
+            "failure_code": "schema_rejected",
+            "latency_ms": 4417.7,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 2,
+            "result_accepted": false,
+            "fallback_used": true,
+            "failure_code": "schema_rejected",
+            "latency_ms": 5245.625,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          }
+        ],
+        "calls_attempted": 2,
+        "results_accepted": 0,
+        "results_rejected": 2,
+        "fallback_count": 2,
+        "candidate_fact_count": 0,
+        "candidate_facts": [],
+        "expected_fact_matches": {
+          "impersonation": false,
+          "platform": false
+        },
+        "expected_facts_not_covered_by_model": [
+          "impersonation",
+          "platform"
+        ],
+        "fallback_success_counted_as_model_success": false
+      }
+    },
+    {
+      "id": "E04",
+      "category": "unauthorized_account_access",
+      "passed": true,
+      "integrated_passed": true,
+      "model_passed": true,
+      "failures": [],
+      "actual": {
+        "stage": "interview",
+        "pending_slot": "details",
+        "priority_score": 90,
+        "priority_rule": "R90_ACCOUNT_OR_FRAUD",
+        "facts": {
+          "account_access": {
+            "field": "account_access",
+            "status": "reported",
+            "value": true,
+            "quote": "شخص دخل على حسابي من جهاز ما بعرفه وغيّر كلمة السر، وبعدها ما قدرت أفتحه.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:12+00:00",
+            "history": []
+          },
+          "narrative": {
+            "field": "narrative",
+            "status": "reported",
+            "value": "شخص دخل على حسابي من جهاز ما بعرفه وغيّر كلمة السر، وبعدها ما قدرت أفتحه.",
+            "quote": "شخص دخل على حسابي من جهاز ما بعرفه وغيّر كلمة السر، وبعدها ما قدرت أفتحه.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:12+00:00",
+            "history": []
+          }
+        },
+        "expected_facts": {
+          "account_access": {
+            "field": "account_access",
+            "status": "reported",
+            "value": true,
+            "quote": "شخص دخل على حسابي من جهاز ما بعرفه وغيّر كلمة السر، وبعدها ما قدرت أفتحه.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:12+00:00",
+            "history": []
+          }
+        },
+        "money_events": [],
+        "confirmed": false,
+        "confirmation_history_count": 0,
+        "question_messages": [
+          "احكيلي شو صار معك.",
+          "شو قال لك تحديدًا أو شو صار؟"
+        ],
+        "last_assistant_message": "شو قال لك تحديدًا أو شو صار؟"
+      },
+      "latency_ms": {
+        "total": 3475.38,
+        "per_step": [
+          3467.232
+        ]
+      },
+      "model_evaluation": {
+        "calls": [
+          {
+            "step": 1,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 3457.166,
+            "fact_fields": [
+              "account_access",
+              "narrative"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          }
+        ],
+        "calls_attempted": 1,
+        "results_accepted": 1,
+        "results_rejected": 0,
+        "fallback_count": 0,
+        "candidate_fact_count": 2,
+        "candidate_facts": [
+          {
+            "field": "account_access",
+            "status": "reported",
+            "value": true,
+            "quote": "شخص دخل على حسابي من جهاز ما بعرفه وغيّر كلمة السر، وبعدها ما قدرت أفتحه."
+          },
+          {
+            "field": "narrative",
+            "status": "reported",
+            "value": "شخص دخل على حسابي من جهاز ما بعرفه وغيّر كلمة السر، وبعدها ما قدرت أفتحه.",
+            "quote": "شخص دخل على حسابي من جهاز ما بعرفه وغيّر كلمة السر، وبعدها ما قدرت أفتحه."
+          }
+        ],
+        "expected_fact_matches": {
+          "account_access": true
+        },
+        "expected_facts_not_covered_by_model": [],
+        "fallback_success_counted_as_model_success": false
+      }
+    },
+    {
+      "id": "E05",
+      "category": "financial_fraud_with_payment",
+      "passed": false,
+      "integrated_passed": true,
+      "model_passed": false,
+      "failures": [],
+      "actual": {
+        "stage": "interview",
+        "pending_slot": "details",
+        "priority_score": 90,
+        "priority_rule": "R90_ACCOUNT_OR_FRAUD",
+        "facts": {
+          "fraud_description": {
+            "field": "fraud_description",
+            "status": "reported",
+            "value": true,
+            "quote": "صاحب إعلان وهمي خدعني حتى أدفع، وبالفعل دفعت 75 دينار بمحفظة إلكترونية وما وصلني الجهاز.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:17+00:00",
+            "history": []
+          },
+          "narrative": {
+            "field": "narrative",
+            "status": "reported",
+            "value": "صاحب إعلان وهمي خدعني حتى أدفع، وبالفعل دفعت 75 دينار بمحفظة إلكترونية وما وصلني الجهاز.",
+            "quote": "صاحب إعلان وهمي خدعني حتى أدفع، وبالفعل دفعت 75 دينار بمحفظة إلكترونية وما وصلني الجهاز.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:17+00:00",
+            "history": []
+          },
+          "paid_amount": {
+            "field": "paid_amount",
+            "status": "reported",
+            "value": "75 دينار",
+            "quote": "صاحب إعلان وهمي خدعني حتى أدفع، وبالفعل دفعت 75 دينار بمحفظة إلكترونية وما وصلني الجهاز.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:17+00:00",
+            "history": []
+          },
+          "payment_method": {
+            "field": "payment_method",
+            "status": "reported",
+            "value": "محفظة إلكترونية",
+            "quote": "صاحب إعلان وهمي خدعني حتى أدفع، وبالفعل دفعت 75 دينار بمحفظة إلكترونية وما وصلني الجهاز.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:17+00:00",
+            "history": []
+          }
+        },
+        "expected_facts": {
+          "fraud_description": {
+            "field": "fraud_description",
+            "status": "reported",
+            "value": true,
+            "quote": "صاحب إعلان وهمي خدعني حتى أدفع، وبالفعل دفعت 75 دينار بمحفظة إلكترونية وما وصلني الجهاز.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:17+00:00",
+            "history": []
+          },
+          "paid_amount": {
+            "field": "paid_amount",
+            "status": "reported",
+            "value": "75 دينار",
+            "quote": "صاحب إعلان وهمي خدعني حتى أدفع، وبالفعل دفعت 75 دينار بمحفظة إلكترونية وما وصلني الجهاز.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:17+00:00",
+            "history": []
+          },
+          "payment_method": {
+            "field": "payment_method",
+            "status": "reported",
+            "value": "محفظة إلكترونية",
+            "quote": "صاحب إعلان وهمي خدعني حتى أدفع، وبالفعل دفعت 75 دينار بمحفظة إلكترونية وما وصلني الجهاز.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:17+00:00",
+            "history": []
+          }
+        },
+        "money_events": [
+          {
+            "id": "money-1",
+            "kind": "paid",
+            "amount": "75 دينار",
+            "relation": "initial",
+            "quote": "صاحب إعلان وهمي خدعني حتى أدفع، وبالفعل دفعت 75 دينار بمحفظة إلكترونية وما وصلني الجهاز.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "created_at": "2026-11-03T19:15:17+00:00"
+          }
+        ],
+        "confirmed": false,
+        "confirmation_history_count": 0,
+        "question_messages": [
+          "احكيلي شو صار معك.",
+          "شو قال لك تحديدًا أو شو صار؟"
+        ],
+        "last_assistant_message": "شو قال لك تحديدًا أو شو صار؟"
+      },
+      "latency_ms": {
+        "total": 4604.129,
+        "per_step": [
+          4597.352
+        ]
+      },
+      "model_evaluation": {
+        "calls": [
+          {
+            "step": 1,
+            "result_accepted": false,
+            "fallback_used": true,
+            "failure_code": "schema_rejected",
+            "latency_ms": 4590.936,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          }
+        ],
+        "calls_attempted": 1,
+        "results_accepted": 0,
+        "results_rejected": 1,
+        "fallback_count": 1,
+        "candidate_fact_count": 0,
+        "candidate_facts": [],
+        "expected_fact_matches": {
+          "fraud_description": false,
+          "paid_amount": false,
+          "payment_method": false
+        },
+        "expected_facts_not_covered_by_model": [
+          "fraud_description",
+          "paid_amount",
+          "payment_method"
+        ],
+        "fallback_success_counted_as_model_success": false
+      }
+    },
+    {
+      "id": "E06",
+      "category": "conditional_demand_and_no_payment",
+      "passed": false,
+      "integrated_passed": true,
+      "model_passed": false,
+      "failures": [],
+      "actual": {
+        "stage": "interview",
+        "pending_slot": "deadline",
+        "priority_score": 85,
+        "priority_rule": "R85_DETAILED_THREAT_OR_IMPERSONATION",
+        "facts": {
+          "narrative": {
+            "field": "narrative",
+            "status": "reported",
+            "value": "هددني إنه ينشر صوري إذا ما حولتله 60 دينار.",
+            "quote": "هددني إنه ينشر صوري إذا ما حولتله 60 دينار.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:21+00:00",
+            "history": []
+          },
+          "threat": {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "هددني إنه ينشر صوري إذا ما حولتله 60 دينار.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:21+00:00",
+            "history": []
+          },
+          "details": {
+            "field": "details",
+            "status": "reported",
+            "value": "هددني إنه ينشر صوري إذا ما حولتله 60 دينار.",
+            "quote": "هددني إنه ينشر صوري إذا ما حولتله 60 دينار.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:21+00:00",
+            "history": []
+          },
+          "publication_threat": {
+            "field": "publication_threat",
+            "status": "reported",
+            "value": true,
+            "quote": "هددني إنه ينشر صوري إذا ما حولتله 60 دينار.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:21+00:00",
+            "history": []
+          },
+          "requested_amount": {
+            "field": "requested_amount",
+            "status": "reported",
+            "value": "60 دينار",
+            "quote": "هددني إنه ينشر صوري إذا ما حولتله 60 دينار.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:21+00:00",
+            "history": []
+          },
+          "direct_danger": {
+            "field": "direct_danger",
+            "status": "denied",
+            "value": false,
+            "quote": "ما في خطر مباشر علي الآن.",
+            "message_id": "m4",
+            "question_id": "m3",
+            "updated_at": "2026-11-03T19:15:24+00:00",
+            "history": []
+          },
+          "initial_time": {
+            "field": "initial_time",
+            "status": "reported",
+            "value": "أول تهديد وصلني أمس.",
+            "quote": "أول تهديد وصلني أمس.",
+            "message_id": "m6",
+            "question_id": "m5",
+            "updated_at": "2026-11-03T19:15:27+00:00",
+            "history": []
+          },
+          "repeated": {
+            "field": "repeated",
+            "status": "denied",
+            "value": false,
+            "quote": "ما تكرر بعد أول رسالة.",
+            "message_id": "m8",
+            "question_id": "m7",
+            "updated_at": "2026-11-03T19:15:30+00:00",
+            "history": []
+          },
+          "paid_amount": {
+            "field": "paid_amount",
+            "status": "denied",
+            "value": null,
+            "quote": "بس أنا ما دفعت أي مبلغ.",
+            "message_id": "m10",
+            "question_id": "m9",
+            "updated_at": "2026-11-03T19:15:34+00:00",
+            "history": []
+          }
+        },
+        "expected_facts": {
+          "threat": {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "هددني إنه ينشر صوري إذا ما حولتله 60 دينار.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:21+00:00",
+            "history": []
+          },
+          "requested_amount": {
+            "field": "requested_amount",
+            "status": "reported",
+            "value": "60 دينار",
+            "quote": "هددني إنه ينشر صوري إذا ما حولتله 60 دينار.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:21+00:00",
+            "history": []
+          },
+          "paid_amount": {
+            "field": "paid_amount",
+            "status": "denied",
+            "value": null,
+            "quote": "بس أنا ما دفعت أي مبلغ.",
+            "message_id": "m10",
+            "question_id": "m9",
+            "updated_at": "2026-11-03T19:15:34+00:00",
+            "history": []
+          },
+          "publication_threat": {
+            "field": "publication_threat",
+            "status": "reported",
+            "value": true,
+            "quote": "هددني إنه ينشر صوري إذا ما حولتله 60 دينار.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:21+00:00",
+            "history": []
+          }
+        },
+        "money_events": [
+          {
+            "id": "money-1",
+            "kind": "requested",
+            "amount": "60 دينار",
+            "relation": "initial",
+            "quote": "هددني إنه ينشر صوري إذا ما حولتله 60 دينار.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "created_at": "2026-11-03T19:15:21+00:00"
+          }
+        ],
+        "confirmed": false,
+        "confirmation_history_count": 0,
+        "question_messages": [
+          "احكيلي شو صار معك.",
+          "هل أنت بخطر مباشر الآن؟",
+          "متى بدأت الواقعة أو وصلك أول تواصل؟ اذكر الوقت كما تتذكره.",
+          "هل تكرر التهديد أو المضايقة المؤثرة؟ ليس مجرد استمرار الرسائل أو التواصل.",
+          "هل دفعت أو حولت أي مبلغ؟ إذا نعم، كم؟",
+          "هل حدد الشخص مهلة أو موعدًا للدفع؟"
+        ],
+        "last_assistant_message": "هل حدد الشخص مهلة أو موعدًا للدفع؟"
+      },
+      "latency_ms": {
+        "total": 17009.433,
+        "per_step": [
+          4268.334,
+          2994.422,
+          3032.117,
+          3398.903,
+          3305.676
+        ]
+      },
+      "model_evaluation": {
+        "calls": [
+          {
+            "step": 1,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 4261.884,
+            "fact_fields": [
+              "publication_threat",
+              "requested_amount",
+              "narrative"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 2,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2985.63,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 3,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 3022.346,
+            "fact_fields": [
+              "initial_time"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 4,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 3385.647,
+            "fact_fields": [
+              "repeated"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 5,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 3297.551,
+            "fact_fields": [
+              "paid_amount"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          }
+        ],
+        "calls_attempted": 5,
+        "results_accepted": 5,
+        "results_rejected": 0,
+        "fallback_count": 0,
+        "candidate_fact_count": 6,
+        "candidate_facts": [
+          {
+            "field": "publication_threat",
+            "status": "reported",
+            "value": true,
+            "quote": "ينشر صوري"
+          },
+          {
+            "field": "requested_amount",
+            "status": "reported",
+            "value": "60 دينار",
+            "quote": "60 دينار"
+          },
+          {
+            "field": "narrative",
+            "status": "reported",
+            "value": "هددني إنه ينشر صوري إذا ما حولتله 60 دينار.",
+            "quote": "هددني إنه ينشر صوري إذا ما حولتله 60 دينار."
+          },
+          {
+            "field": "initial_time",
+            "status": "reported",
+            "value": "أمس",
+            "quote": "أول تهديد وصلني أمس."
+          },
+          {
+            "field": "repeated",
+            "status": "denied",
+            "value": false,
+            "quote": "ما تكرر بعد أول رسالة."
+          },
+          {
+            "field": "paid_amount",
+            "status": "denied",
+            "value": null,
+            "quote": "ما دفعت أي مبلغ."
+          }
+        ],
+        "expected_fact_matches": {
+          "threat": false,
+          "requested_amount": true,
+          "paid_amount": true,
+          "publication_threat": true
+        },
+        "expected_facts_not_covered_by_model": [
+          "threat"
+        ],
+        "fallback_success_counted_as_model_success": false
+      }
+    },
+    {
+      "id": "E07",
+      "category": "unclassified_narrative",
+      "passed": true,
+      "integrated_passed": true,
+      "model_passed": true,
+      "failures": [],
+      "actual": {
+        "stage": "interview",
+        "pending_slot": "unclassified_details",
+        "priority_score": null,
+        "priority_rule": null,
+        "facts": {
+          "narrative": {
+            "field": "narrative",
+            "status": "reported",
+            "value": "وصلني تنبيه، وبعده اختفى زر الدخول وما فهمت شو السبب.",
+            "quote": "وصلني تنبيه، وبعده اختفى زر الدخول وما فهمت شو السبب.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:37+00:00",
+            "history": []
+          }
+        },
+        "expected_facts": {
+          "narrative": {
+            "field": "narrative",
+            "status": "reported",
+            "value": "وصلني تنبيه، وبعده اختفى زر الدخول وما فهمت شو السبب.",
+            "quote": "وصلني تنبيه، وبعده اختفى زر الدخول وما فهمت شو السبب.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:37+00:00",
+            "history": []
+          }
+        },
+        "money_events": [],
+        "confirmed": false,
+        "confirmation_history_count": 0,
+        "question_messages": [
+          "احكيلي شو صار معك.",
+          "ما قدرت أحدد نوع الواقعة من الوصف وحده. ممكن توضح شو حدث خطوة بخطوة أو شو الرسالة أو التصرف اللي وصلك؟"
+        ],
+        "last_assistant_message": "ما قدرت أحدد نوع الواقعة من الوصف وحده. ممكن توضح شو حدث خطوة بخطوة أو شو الرسالة أو التصرف اللي وصلك؟"
+      },
+      "latency_ms": {
+        "total": 3169.861,
+        "per_step": [
+          3160.549
+        ]
+      },
+      "model_evaluation": {
+        "calls": [
+          {
+            "step": 1,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 3153.749,
+            "fact_fields": [
+              "narrative"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          }
+        ],
+        "calls_attempted": 1,
+        "results_accepted": 1,
+        "results_rejected": 0,
+        "fallback_count": 0,
+        "candidate_fact_count": 1,
+        "candidate_facts": [
+          {
+            "field": "narrative",
+            "status": "reported",
+            "value": "وصلني تنبيه، وبعده اختفى زر الدخول وما فهمت شو السبب.",
+            "quote": "وصلني تنبيه، وبعده اختفى زر الدخول وما فهمت شو السبب."
+          }
+        ],
+        "expected_fact_matches": {
+          "narrative": true
+        },
+        "expected_facts_not_covered_by_model": [],
+        "fallback_success_counted_as_model_success": false
+      }
+    },
+    {
+      "id": "E08",
+      "category": "explicit_denial",
+      "passed": false,
+      "integrated_passed": true,
+      "model_passed": false,
+      "failures": [],
+      "actual": {
+        "stage": "interview",
+        "pending_slot": "unclassified_details",
+        "priority_score": null,
+        "priority_rule": null,
+        "facts": {
+          "threat": {
+            "field": "threat",
+            "status": "denied",
+            "value": false,
+            "quote": "ما في أي تهديد وما حدا دخل حسابي، بس وصلتني رسالة عادية عن تحديث التطبيق.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:41+00:00",
+            "history": []
+          },
+          "narrative": {
+            "field": "narrative",
+            "status": "reported",
+            "value": "ما في أي تهديد وما حدا دخل حسابي، بس وصلتني رسالة عادية عن تحديث التطبيق.",
+            "quote": "ما في أي تهديد وما حدا دخل حسابي، بس وصلتني رسالة عادية عن تحديث التطبيق.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:41+00:00",
+            "history": []
+          }
+        },
+        "expected_facts": {
+          "threat": {
+            "field": "threat",
+            "status": "denied",
+            "value": false,
+            "quote": "ما في أي تهديد وما حدا دخل حسابي، بس وصلتني رسالة عادية عن تحديث التطبيق.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:41+00:00",
+            "history": []
+          }
+        },
+        "money_events": [],
+        "confirmed": false,
+        "confirmation_history_count": 0,
+        "question_messages": [
+          "احكيلي شو صار معك.",
+          "ما قدرت أحدد نوع الواقعة من الوصف وحده. ممكن توضح شو حدث خطوة بخطوة أو شو الرسالة أو التصرف اللي وصلك؟"
+        ],
+        "last_assistant_message": "ما قدرت أحدد نوع الواقعة من الوصف وحده. ممكن توضح شو حدث خطوة بخطوة أو شو الرسالة أو التصرف اللي وصلك؟"
+      },
+      "latency_ms": {
+        "total": 3810.097,
+        "per_step": [
+          3801.731
+        ]
+      },
+      "model_evaluation": {
+        "calls": [
+          {
+            "step": 1,
+            "result_accepted": false,
+            "fallback_used": true,
+            "failure_code": "schema_rejected",
+            "latency_ms": 3794.441,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          }
+        ],
+        "calls_attempted": 1,
+        "results_accepted": 0,
+        "results_rejected": 1,
+        "fallback_count": 1,
+        "candidate_fact_count": 0,
+        "candidate_facts": [],
+        "expected_fact_matches": {
+          "threat": false
+        },
+        "expected_facts_not_covered_by_model": [
+          "threat"
+        ],
+        "fallback_success_counted_as_model_success": false
+      }
+    },
+    {
+      "id": "E09",
+      "category": "publication_unknown_not_conflict",
+      "passed": false,
+      "integrated_passed": true,
+      "model_passed": false,
+      "failures": [],
+      "actual": {
+        "stage": "interview",
+        "pending_slot": "identity",
+        "priority_score": 85,
+        "priority_rule": "R85_DETAILED_THREAT_OR_IMPERSONATION",
+        "facts": {
+          "narrative": {
+            "field": "narrative",
+            "status": "reported",
+            "value": "شخص هددني على واتساب إنه ينزل محادثاتي الخاصة.",
+            "quote": "شخص هددني على واتساب إنه ينزل محادثاتي الخاصة.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:44+00:00",
+            "history": []
+          },
+          "threat": {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "شخص هددني على واتساب إنه ينزل محادثاتي الخاصة.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:44+00:00",
+            "history": []
+          },
+          "platform": {
+            "field": "platform",
+            "status": "reported",
+            "value": "واتساب",
+            "quote": "شخص هددني على واتساب إنه ينزل محادثاتي الخاصة.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:44+00:00",
+            "history": []
+          },
+          "details": {
+            "field": "details",
+            "status": "reported",
+            "value": "شخص هددني على واتساب إنه ينزل محادثاتي الخاصة.",
+            "quote": "شخص هددني على واتساب إنه ينزل محادثاتي الخاصة.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:51+00:00",
+            "history": [],
+            "supporting_statements": [
+              {
+                "quote": "الرسالة قالت إنه رح يفضحني إذا ما استجبت.",
+                "message_id": "m6",
+                "question_id": "m5",
+                "at": "2026-11-03T19:15:51+00:00"
+              }
+            ]
+          },
+          "publication_threat": {
+            "field": "publication_threat",
+            "status": "reported",
+            "value": true,
+            "quote": "شخص هددني على واتساب إنه ينزل محادثاتي الخاصة.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:51+00:00",
+            "history": [],
+            "supporting_statements": [
+              {
+                "quote": "الرسالة قالت إنه رح يفضحني إذا ما استجبت.",
+                "message_id": "m6",
+                "question_id": "m5",
+                "at": "2026-11-03T19:15:51+00:00"
+              }
+            ]
+          },
+          "direct_danger": {
+            "field": "direct_danger",
+            "status": "denied",
+            "value": false,
+            "quote": "لا، ما في خطر مباشر هسا.",
+            "message_id": "m4",
+            "question_id": "m3",
+            "updated_at": "2026-11-03T19:15:47+00:00",
+            "history": []
+          },
+          "initial_time": {
+            "field": "initial_time",
+            "status": "reported",
+            "value": "بدأ الموضوع مبارح.",
+            "quote": "بدأ الموضوع مبارح.",
+            "message_id": "m8",
+            "question_id": "m7",
+            "updated_at": "2026-11-03T19:15:53+00:00",
+            "history": []
+          },
+          "repeated": {
+            "field": "repeated",
+            "status": "denied",
+            "value": false,
+            "quote": "ما تكرر بعد أول مرة.",
+            "message_id": "m10",
+            "question_id": "m9",
+            "updated_at": "2026-11-03T19:15:56+00:00",
+            "history": []
+          },
+          "published": {
+            "field": "published",
+            "status": "unknown",
+            "value": null,
+            "quote": "ما بعرف إذا نزّلها فعلًا أو لا.",
+            "message_id": "m12",
+            "question_id": "m11",
+            "updated_at": "2026-11-03T19:15:59+00:00",
+            "history": []
+          }
+        },
+        "expected_facts": {
+          "published": {
+            "field": "published",
+            "status": "unknown",
+            "value": null,
+            "quote": "ما بعرف إذا نزّلها فعلًا أو لا.",
+            "message_id": "m12",
+            "question_id": "m11",
+            "updated_at": "2026-11-03T19:15:59+00:00",
+            "history": []
+          },
+          "publication_threat": {
+            "field": "publication_threat",
+            "status": "reported",
+            "value": true,
+            "quote": "شخص هددني على واتساب إنه ينزل محادثاتي الخاصة.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:15:51+00:00",
+            "history": [],
+            "supporting_statements": [
+              {
+                "quote": "الرسالة قالت إنه رح يفضحني إذا ما استجبت.",
+                "message_id": "m6",
+                "question_id": "m5",
+                "at": "2026-11-03T19:15:51+00:00"
+              }
+            ]
+          }
+        },
+        "money_events": [],
+        "confirmed": false,
+        "confirmation_history_count": 0,
+        "question_messages": [
+          "احكيلي شو صار معك.",
+          "هل أنت بخطر مباشر الآن؟",
+          "متى بدأت الواقعة أو وصلك أول تواصل؟ اذكر الوقت كما تتذكره.",
+          "هل تكرر التهديد أو المضايقة المؤثرة؟ ليس مجرد استمرار الرسائل أو التواصل.",
+          "هل نُشر شيء فعلًا، بحسب علمك؟",
+          "هل بتعرف هوية الشخص، ولا المتوفر عندك بس اسم حساب أو رقم تواصل؟"
+        ],
+        "last_assistant_message": "هل بتعرف هوية الشخص، ولا المتوفر عندك بس اسم حساب أو رقم تواصل؟"
+      },
+      "latency_ms": {
+        "total": 18410.696,
+        "per_step": [
+          3402.4,
+          3123.886,
+          3441.856,
+          2700.642,
+          2857.762,
+          2875.608
+        ]
+      },
+      "model_evaluation": {
+        "calls": [
+          {
+            "step": 1,
+            "result_accepted": false,
+            "fallback_used": true,
+            "failure_code": "schema_rejected",
+            "latency_ms": 3393.247,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 2,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 3115.476,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 3,
+            "result_accepted": false,
+            "fallback_used": true,
+            "failure_code": "schema_rejected",
+            "latency_ms": 3432.513,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 4,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2690.649,
+            "fact_fields": [
+              "initial_time"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 5,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2844.091,
+            "fact_fields": [
+              "repeated"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 6,
+            "result_accepted": false,
+            "fallback_used": true,
+            "failure_code": "schema_rejected",
+            "latency_ms": 2867.887,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          }
+        ],
+        "calls_attempted": 6,
+        "results_accepted": 3,
+        "results_rejected": 3,
+        "fallback_count": 3,
+        "candidate_fact_count": 2,
+        "candidate_facts": [
+          {
+            "field": "initial_time",
+            "status": "reported",
+            "value": "مبارح",
+            "quote": "بدأ الموضوع مبارح."
+          },
+          {
+            "field": "repeated",
+            "status": "denied",
+            "value": false,
+            "quote": "ما تكرر بعد أول مرة."
+          }
+        ],
+        "expected_fact_matches": {
+          "published": false,
+          "publication_threat": false
+        },
+        "expected_facts_not_covered_by_model": [
+          "published",
+          "publication_threat"
+        ],
+        "fallback_success_counted_as_model_success": false
+      }
+    },
+    {
+      "id": "E10",
+      "category": "onset_not_remembered",
+      "passed": false,
+      "integrated_passed": true,
+      "model_passed": false,
+      "failures": [],
+      "actual": {
+        "stage": "interview",
+        "pending_slot": "repeated",
+        "priority_score": 85,
+        "priority_rule": "R85_DETAILED_THREAT_OR_IMPERSONATION",
+        "facts": {
+          "narrative": {
+            "field": "narrative",
+            "status": "reported",
+            "value": "شخص هددني برسالة خاصة.",
+            "quote": "شخص هددني برسالة خاصة.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:03+00:00",
+            "history": []
+          },
+          "threat": {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "شخص هددني برسالة خاصة.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:03+00:00",
+            "history": []
+          },
+          "contact": {
+            "field": "contact",
+            "status": "reported",
+            "value": "رسالة خاصة",
+            "quote": "برسالة خاصة",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:03+00:00",
+            "history": []
+          },
+          "direct_danger": {
+            "field": "direct_danger",
+            "status": "denied",
+            "value": false,
+            "quote": "لا، مش بخطر مباشر الآن.",
+            "message_id": "m4",
+            "question_id": "m3",
+            "updated_at": "2026-11-03T19:16:06+00:00",
+            "history": []
+          },
+          "details": {
+            "field": "details",
+            "status": "reported",
+            "value": "بعتلي رسالة مكتوب فيها: رح أضرك إذا حكيت عن الموضوع.",
+            "quote": "بعتلي رسالة مكتوب فيها: رح أضرك إذا حكيت عن الموضوع.",
+            "message_id": "m6",
+            "question_id": "m5",
+            "updated_at": "2026-11-03T19:16:09+00:00",
+            "history": []
+          },
+          "initial_time": {
+            "field": "initial_time",
+            "status": "not_remembered",
+            "value": null,
+            "quote": "مش متذكر متى بلشت القصة.",
+            "message_id": "m8",
+            "question_id": "m7",
+            "updated_at": "2026-11-03T19:16:12+00:00",
+            "history": []
+          }
+        },
+        "expected_facts": {
+          "initial_time": {
+            "field": "initial_time",
+            "status": "not_remembered",
+            "value": null,
+            "quote": "مش متذكر متى بلشت القصة.",
+            "message_id": "m8",
+            "question_id": "m7",
+            "updated_at": "2026-11-03T19:16:12+00:00",
+            "history": []
+          },
+          "threat": {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "شخص هددني برسالة خاصة.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:03+00:00",
+            "history": []
+          }
+        },
+        "money_events": [],
+        "confirmed": false,
+        "confirmation_history_count": 0,
+        "question_messages": [
+          "احكيلي شو صار معك.",
+          "هل أنت بخطر مباشر الآن؟",
+          "شو قال لك تحديدًا أو شو صار؟",
+          "متى بدأت الواقعة أو وصلك أول تواصل؟ اذكر الوقت كما تتذكره.",
+          "هل تكرر التهديد أو المضايقة المؤثرة؟ ليس مجرد استمرار الرسائل أو التواصل."
+        ],
+        "last_assistant_message": "هل تكرر التهديد أو المضايقة المؤثرة؟ ليس مجرد استمرار الرسائل أو التواصل."
+      },
+      "latency_ms": {
+        "total": 12893.578,
+        "per_step": [
+          4004.103,
+          2793.846,
+          3462.209,
+          2626.484
+        ]
+      },
+      "model_evaluation": {
+        "calls": [
+          {
+            "step": 1,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 3998.092,
+            "fact_fields": [
+              "threat",
+              "contact"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 2,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2786.851,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 3,
+            "result_accepted": false,
+            "fallback_used": true,
+            "failure_code": "schema_rejected",
+            "latency_ms": 3455.629,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 4,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2619.096,
+            "fact_fields": [
+              "initial_time"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          }
+        ],
+        "calls_attempted": 4,
+        "results_accepted": 3,
+        "results_rejected": 1,
+        "fallback_count": 1,
+        "candidate_fact_count": 3,
+        "candidate_facts": [
+          {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "هددني"
+          },
+          {
+            "field": "contact",
+            "status": "reported",
+            "value": "رسالة خاصة",
+            "quote": "برسالة خاصة"
+          },
+          {
+            "field": "initial_time",
+            "status": "not_remembered",
+            "value": null,
+            "quote": "مش متذكر متى بلشت القصة."
+          }
+        ],
+        "expected_fact_matches": {
+          "initial_time": true,
+          "threat": true
+        },
+        "expected_facts_not_covered_by_model": [],
+        "fallback_success_counted_as_model_success": false
+      }
+    },
+    {
+      "id": "E11",
+      "category": "declined_answer",
+      "passed": false,
+      "integrated_passed": true,
+      "model_passed": false,
+      "failures": [],
+      "actual": {
+        "stage": "interview",
+        "pending_slot": "repeated",
+        "priority_score": 85,
+        "priority_rule": "R85_DETAILED_THREAT_OR_IMPERSONATION",
+        "facts": {
+          "narrative": {
+            "field": "narrative",
+            "status": "reported",
+            "value": "في شخص هددني برسالة على الخاص.",
+            "quote": "في شخص هددني برسالة على الخاص.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:14+00:00",
+            "history": []
+          },
+          "threat": {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "في شخص هددني برسالة على الخاص.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:14+00:00",
+            "history": []
+          },
+          "direct_danger": {
+            "field": "direct_danger",
+            "status": "denied",
+            "value": false,
+            "quote": "لا، ما في خطر مباشر.",
+            "message_id": "m4",
+            "question_id": "m3",
+            "updated_at": "2026-11-03T19:16:17+00:00",
+            "history": []
+          },
+          "details": {
+            "field": "details",
+            "status": "reported",
+            "value": "كتب لي إنه رح يلاحقني إذا حكيت لحدا.",
+            "quote": "كتب لي إنه رح يلاحقني إذا حكيت لحدا.",
+            "message_id": "m6",
+            "question_id": "m5",
+            "updated_at": "2026-11-03T19:16:20+00:00",
+            "history": []
+          },
+          "initial_time": {
+            "field": "initial_time",
+            "status": "declined",
+            "value": null,
+            "quote": "بفضّل ما أحكي عن وقت البداية.",
+            "message_id": "m8",
+            "question_id": "m7",
+            "updated_at": "2026-11-03T19:16:22+00:00",
+            "history": []
+          }
+        },
+        "expected_facts": {
+          "initial_time": {
+            "field": "initial_time",
+            "status": "declined",
+            "value": null,
+            "quote": "بفضّل ما أحكي عن وقت البداية.",
+            "message_id": "m8",
+            "question_id": "m7",
+            "updated_at": "2026-11-03T19:16:22+00:00",
+            "history": []
+          },
+          "threat": {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "في شخص هددني برسالة على الخاص.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:14+00:00",
+            "history": []
+          }
+        },
+        "money_events": [],
+        "confirmed": false,
+        "confirmation_history_count": 0,
+        "question_messages": [
+          "احكيلي شو صار معك.",
+          "هل أنت بخطر مباشر الآن؟",
+          "شو قال لك تحديدًا أو شو صار؟",
+          "متى بدأت الواقعة أو وصلك أول تواصل؟ اذكر الوقت كما تتذكره.",
+          "هل تكرر التهديد أو المضايقة المؤثرة؟ ليس مجرد استمرار الرسائل أو التواصل."
+        ],
+        "last_assistant_message": "هل تكرر التهديد أو المضايقة المؤثرة؟ ليس مجرد استمرار الرسائل أو التواصل."
+      },
+      "latency_ms": {
+        "total": 10288.503,
+        "per_step": [
+          2444.616,
+          2142.962,
+          3511.614,
+          2179.748
+        ]
+      },
+      "model_evaluation": {
+        "calls": [
+          {
+            "step": 1,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2435.634,
+            "fact_fields": [
+              "threat"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 2,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2135.96,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 3,
+            "result_accepted": false,
+            "fallback_used": true,
+            "failure_code": "schema_rejected",
+            "latency_ms": 3504.276,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 4,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2173.039,
+            "fact_fields": [
+              "initial_time"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          }
+        ],
+        "calls_attempted": 4,
+        "results_accepted": 3,
+        "results_rejected": 1,
+        "fallback_count": 1,
+        "candidate_fact_count": 2,
+        "candidate_facts": [
+          {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "هددني"
+          },
+          {
+            "field": "initial_time",
+            "status": "declined",
+            "value": null,
+            "quote": "بفضّل ما أحكي عن وقت البداية."
+          }
+        ],
+        "expected_fact_matches": {
+          "initial_time": true,
+          "threat": true
+        },
+        "expected_facts_not_covered_by_model": [],
+        "fallback_success_counted_as_model_success": false
+      }
+    },
+    {
+      "id": "E12",
+      "category": "direct_danger_mid_interview",
+      "passed": false,
+      "integrated_passed": true,
+      "model_passed": false,
+      "failures": [],
+      "actual": {
+        "stage": "urgent_stop",
+        "pending_slot": null,
+        "priority_score": 100,
+        "priority_rule": "R100_DIRECT_DANGER",
+        "facts": {
+          "narrative": {
+            "field": "narrative",
+            "status": "reported",
+            "value": "في شخص يهددني.",
+            "quote": "في شخص يهددني.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:26+00:00",
+            "history": []
+          },
+          "threat": {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "في شخص يهددني.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:26+00:00",
+            "history": []
+          },
+          "direct_danger": {
+            "field": "direct_danger",
+            "status": "reported",
+            "value": true,
+            "quote": "هو واقف قدام بابي هسا ومعه سلاح، وأنا بخطر مباشر.",
+            "message_id": "m6",
+            "question_id": "m5",
+            "updated_at": "2026-11-03T19:16:30+00:00",
+            "history": [
+              {
+                "status": "denied",
+                "value": false,
+                "quote": "ما في خطر مباشر حاليًا.",
+                "message_id": "m4",
+                "at": "2026-11-03T19:16:30+00:00",
+                "reason": "new_temporal_information"
+              }
+            ]
+          }
+        },
+        "expected_facts": {
+          "direct_danger": {
+            "field": "direct_danger",
+            "status": "reported",
+            "value": true,
+            "quote": "هو واقف قدام بابي هسا ومعه سلاح، وأنا بخطر مباشر.",
+            "message_id": "m6",
+            "question_id": "m5",
+            "updated_at": "2026-11-03T19:16:30+00:00",
+            "history": [
+              {
+                "status": "denied",
+                "value": false,
+                "quote": "ما في خطر مباشر حاليًا.",
+                "message_id": "m4",
+                "at": "2026-11-03T19:16:30+00:00",
+                "reason": "new_temporal_information"
+              }
+            ]
+          },
+          "threat": {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "في شخص يهددني.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:26+00:00",
+            "history": []
+          }
+        },
+        "money_events": [],
+        "confirmed": false,
+        "confirmation_history_count": 0,
+        "question_messages": [
+          "احكيلي شو صار معك.",
+          "هل أنت بخطر مباشر الآن؟",
+          "شو قال لك تحديدًا أو شو صار؟"
+        ],
+        "last_assistant_message": "سلامتك أولًا. إذا كنت بخطر مباشر، ابتعد لمكان آمن إن أمكن، وتواصل الآن مع خدمات الطوارئ المحلية أو شخص موثوق قريب منك. لا أستطيع تحديد رقم طوارئ من دون معرفة موقعك."
+      },
+      "latency_ms": {
+        "total": 7540.165,
+        "per_step": [
+          4152.636,
+          3372.956,
+          7.161
+        ]
+      },
+      "model_evaluation": {
+        "calls": [
+          {
+            "step": 1,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 4145.616,
+            "fact_fields": [
+              "threat"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 2,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 3365.696,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          }
+        ],
+        "calls_attempted": 2,
+        "results_accepted": 2,
+        "results_rejected": 0,
+        "fallback_count": 0,
+        "candidate_fact_count": 1,
+        "candidate_facts": [
+          {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "في شخص يهددني."
+          }
+        ],
+        "expected_fact_matches": {
+          "direct_danger": false,
+          "threat": true
+        },
+        "expected_facts_not_covered_by_model": [
+          "direct_danger"
+        ],
+        "fallback_success_counted_as_model_success": false
+      }
+    },
+    {
+      "id": "E13",
+      "category": "review_correction_preserves_paid_amount",
+      "passed": false,
+      "integrated_passed": true,
+      "model_passed": false,
+      "failures": [],
+      "actual": {
+        "stage": "review",
+        "pending_slot": null,
+        "priority_score": 85,
+        "priority_rule": "R85_DETAILED_THREAT_OR_IMPERSONATION",
+        "facts": {
+          "narrative": {
+            "field": "narrative",
+            "status": "reported",
+            "value": "شخص هددني وطلب 100 دينار.",
+            "quote": "شخص هددني وطلب 100 دينار.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:33+00:00",
+            "history": []
+          },
+          "threat": {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "شخص هددني وطلب 100 دينار.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:33+00:00",
+            "history": []
+          },
+          "requested_amount": {
+            "field": "requested_amount",
+            "status": "reported",
+            "value": "120 دينار",
+            "quote": "تصحيح: المبلغ المطلوب كان 120 دينار بدل 100.",
+            "message_id": "m13",
+            "question_id": "m12",
+            "updated_at": "2026-11-03T19:16:46+00:00",
+            "history": [
+              {
+                "status": "reported",
+                "value": "100 دينار",
+                "quote": "شخص هددني وطلب 100 دينار.",
+                "message_id": "m2",
+                "at": "2026-11-03T19:16:46+00:00",
+                "reason": "explicit_correction"
+              }
+            ]
+          },
+          "direct_danger": {
+            "field": "direct_danger",
+            "status": "denied",
+            "value": false,
+            "quote": "لا، ما في خطر مباشر هسا.",
+            "message_id": "m4",
+            "question_id": "m3",
+            "updated_at": "2026-11-03T19:16:36+00:00",
+            "history": []
+          },
+          "details": {
+            "field": "details",
+            "status": "reported",
+            "value": "قال برسالة إنه رح يرسل محادثاتي الخاصة إذا ما دفعت.",
+            "quote": "قال برسالة إنه رح يرسل محادثاتي الخاصة إذا ما دفعت.",
+            "message_id": "m6",
+            "question_id": "m5",
+            "updated_at": "2026-11-03T19:16:40+00:00",
+            "history": []
+          },
+          "publication_threat": {
+            "field": "publication_threat",
+            "status": "reported",
+            "value": true,
+            "quote": "قال برسالة إنه رح يرسل محادثاتي الخاصة إذا ما دفعت.",
+            "message_id": "m6",
+            "question_id": "m5",
+            "updated_at": "2026-11-03T19:16:40+00:00",
+            "history": []
+          },
+          "paid_amount": {
+            "field": "paid_amount",
+            "status": "reported",
+            "value": "130 دينار",
+            "quote": "دفعت 130 دينار.",
+            "message_id": "m8",
+            "question_id": "m7",
+            "updated_at": "2026-11-03T19:16:43+00:00",
+            "history": []
+          }
+        },
+        "expected_facts": {
+          "requested_amount": {
+            "field": "requested_amount",
+            "status": "reported",
+            "value": "120 دينار",
+            "quote": "تصحيح: المبلغ المطلوب كان 120 دينار بدل 100.",
+            "message_id": "m13",
+            "question_id": "m12",
+            "updated_at": "2026-11-03T19:16:46+00:00",
+            "history": [
+              {
+                "status": "reported",
+                "value": "100 دينار",
+                "quote": "شخص هددني وطلب 100 دينار.",
+                "message_id": "m2",
+                "at": "2026-11-03T19:16:46+00:00",
+                "reason": "explicit_correction"
+              }
+            ]
+          },
+          "paid_amount": {
+            "field": "paid_amount",
+            "status": "reported",
+            "value": "130 دينار",
+            "quote": "دفعت 130 دينار.",
+            "message_id": "m8",
+            "question_id": "m7",
+            "updated_at": "2026-11-03T19:16:43+00:00",
+            "history": []
+          }
+        },
+        "money_events": [
+          {
+            "id": "money-1",
+            "kind": "requested",
+            "amount": "100 دينار",
+            "relation": "initial",
+            "quote": "شخص هددني وطلب 100 دينار.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "created_at": "2026-11-03T19:16:33+00:00"
+          },
+          {
+            "id": "money-2",
+            "kind": "paid",
+            "amount": "130 دينار",
+            "relation": "initial",
+            "quote": "دفعت 130 دينار.",
+            "message_id": "m8",
+            "question_id": "m7",
+            "created_at": "2026-11-03T19:16:43+00:00"
+          },
+          {
+            "id": "money-3",
+            "kind": "requested",
+            "amount": "120 دينار",
+            "relation": "correction",
+            "quote": "تصحيح: المبلغ المطلوب كان 120 دينار بدل 100.",
+            "message_id": "m13",
+            "question_id": "m12",
+            "created_at": "2026-11-03T19:16:46+00:00"
+          }
+        ],
+        "confirmed": false,
+        "confirmation_history_count": 1,
+        "question_messages": [
+          "احكيلي شو صار معك.",
+          "هل أنت بخطر مباشر الآن؟",
+          "شو قال لك تحديدًا أو شو صار؟",
+          "متى بدأت الواقعة أو وصلك أول تواصل؟ اذكر الوقت كما تتذكره."
+        ],
+        "last_assistant_message": "سجلت التحديث. راجع الملخص الحالي وأي معلومات ما زالت غير معروفة قبل التأكيد."
+      },
+      "latency_ms": {
+        "total": 16098.76,
+        "per_step": [
+          3324.693,
+          3080.14,
+          4257.53,
+          2804.345,
+          7.04,
+          7.153,
+          2608.808
+        ]
+      },
+      "model_evaluation": {
+        "calls": [
+          {
+            "step": 1,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 3318.8,
+            "fact_fields": [
+              "threat",
+              "requested_amount"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 2,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 3072.405,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 3,
+            "result_accepted": false,
+            "fallback_used": true,
+            "failure_code": "schema_rejected",
+            "latency_ms": 4246.17,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 4,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2796.013,
+            "fact_fields": [
+              "paid_amount"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 7,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2599.838,
+            "fact_fields": [
+              "requested_amount"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          }
+        ],
+        "calls_attempted": 5,
+        "results_accepted": 4,
+        "results_rejected": 1,
+        "fallback_count": 1,
+        "candidate_fact_count": 4,
+        "candidate_facts": [
+          {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "شخص هددني"
+          },
+          {
+            "field": "requested_amount",
+            "status": "reported",
+            "value": "100 دينار",
+            "quote": "طلب 100 دينار"
+          },
+          {
+            "field": "paid_amount",
+            "status": "reported",
+            "value": "130 دينار",
+            "quote": "دفعت 130 دينار."
+          },
+          {
+            "field": "requested_amount",
+            "status": "reported",
+            "value": "120 دينار",
+            "quote": "المبلغ المطلوب كان 120 دينار"
+          }
+        ],
+        "expected_fact_matches": {
+          "requested_amount": true,
+          "paid_amount": true
+        },
+        "expected_facts_not_covered_by_model": [],
+        "fallback_success_counted_as_model_success": false
+      }
+    },
+    {
+      "id": "E14",
+      "category": "long_single_turn_multiple_facts",
+      "passed": false,
+      "integrated_passed": true,
+      "model_passed": false,
+      "failures": [],
+      "actual": {
+        "stage": "interview",
+        "pending_slot": "direct_danger",
+        "priority_score": 90,
+        "priority_rule": "R90_REPEATED_HARM",
+        "facts": {
+          "narrative": {
+            "field": "narrative",
+            "status": "reported",
+            "value": "على واتساب في شخص عم يهددني من مبارح الساعة ستة؛ قال إذا ما دفعت 100 دينار رح ينشر محادثاتي الخاصة. اليوم كرر نفس التهديد، وأنا دفعت 130 دينار بمحفظة إلكترونية.",
+            "quote": "على واتساب في شخص عم يهددني من مبارح الساعة ستة؛ قال إذا ما دفعت 100 دينار رح ينشر محادثاتي الخاصة. اليوم كرر نفس التهديد، وأنا دفعت 130 دينار بمحفظة إلكترونية.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:53+00:00",
+            "history": []
+          },
+          "threat": {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "على واتساب في شخص عم يهددني من مبارح الساعة ستة؛ قال إذا ما دفعت 100 دينار رح ينشر محادثاتي الخاصة. اليوم كرر نفس التهديد، وأنا دفعت 130 دينار بمحفظة إلكترونية.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:53+00:00",
+            "history": []
+          },
+          "platform": {
+            "field": "platform",
+            "status": "reported",
+            "value": "واتساب",
+            "quote": "على واتساب في شخص عم يهددني من مبارح الساعة ستة؛ قال إذا ما دفعت 100 دينار رح ينشر محادثاتي الخاصة. اليوم كرر نفس التهديد، وأنا دفعت 130 دينار بمحفظة إلكترونية.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:53+00:00",
+            "history": []
+          },
+          "details": {
+            "field": "details",
+            "status": "reported",
+            "value": "على واتساب في شخص عم يهددني من مبارح الساعة ستة؛ قال إذا ما دفعت 100 دينار رح ينشر محادثاتي الخاصة. اليوم كرر نفس التهديد، وأنا دفعت 130 دينار بمحفظة إلكترونية.",
+            "quote": "على واتساب في شخص عم يهددني من مبارح الساعة ستة؛ قال إذا ما دفعت 100 دينار رح ينشر محادثاتي الخاصة. اليوم كرر نفس التهديد، وأنا دفعت 130 دينار بمحفظة إلكترونية.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:53+00:00",
+            "history": []
+          },
+          "publication_threat": {
+            "field": "publication_threat",
+            "status": "reported",
+            "value": true,
+            "quote": "على واتساب في شخص عم يهددني من مبارح الساعة ستة؛ قال إذا ما دفعت 100 دينار رح ينشر محادثاتي الخاصة. اليوم كرر نفس التهديد، وأنا دفعت 130 دينار بمحفظة إلكترونية.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:53+00:00",
+            "history": []
+          },
+          "initial_time": {
+            "field": "initial_time",
+            "status": "reported",
+            "value": "على واتساب في شخص عم يهددني من مبارح الساعة ستة؛ قال إذا ما دفعت 100 دينار رح ينشر محادثاتي الخاصة. اليوم كرر نفس التهديد، وأنا دفعت 130 دينار بمحفظة إلكترونية.",
+            "quote": "على واتساب في شخص عم يهددني من مبارح الساعة ستة؛ قال إذا ما دفعت 100 دينار رح ينشر محادثاتي الخاصة. اليوم كرر نفس التهديد، وأنا دفعت 130 دينار بمحفظة إلكترونية.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:53+00:00",
+            "history": []
+          },
+          "latest_time": {
+            "field": "latest_time",
+            "status": "reported",
+            "value": "على واتساب في شخص عم يهددني من مبارح الساعة ستة؛ قال إذا ما دفعت 100 دينار رح ينشر محادثاتي الخاصة. اليوم كرر نفس التهديد، وأنا دفعت 130 دينار بمحفظة إلكترونية.",
+            "quote": "على واتساب في شخص عم يهددني من مبارح الساعة ستة؛ قال إذا ما دفعت 100 دينار رح ينشر محادثاتي الخاصة. اليوم كرر نفس التهديد، وأنا دفعت 130 دينار بمحفظة إلكترونية.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:53+00:00",
+            "history": []
+          },
+          "repeated": {
+            "field": "repeated",
+            "status": "reported",
+            "value": true,
+            "quote": "على واتساب في شخص عم يهددني من مبارح الساعة ستة؛ قال إذا ما دفعت 100 دينار رح ينشر محادثاتي الخاصة. اليوم كرر نفس التهديد، وأنا دفعت 130 دينار بمحفظة إلكترونية.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:53+00:00",
+            "history": []
+          },
+          "requested_amount": {
+            "field": "requested_amount",
+            "status": "reported",
+            "value": "100 دينار",
+            "quote": "على واتساب في شخص عم يهددني من مبارح الساعة ستة؛ قال إذا ما دفعت 100 دينار رح ينشر محادثاتي الخاصة. اليوم كرر نفس التهديد، وأنا دفعت 130 دينار بمحفظة إلكترونية.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:53+00:00",
+            "history": []
+          },
+          "paid_amount": {
+            "field": "paid_amount",
+            "status": "reported",
+            "value": "130 دينار",
+            "quote": "على واتساب في شخص عم يهددني من مبارح الساعة ستة؛ قال إذا ما دفعت 100 دينار رح ينشر محادثاتي الخاصة. اليوم كرر نفس التهديد، وأنا دفعت 130 دينار بمحفظة إلكترونية.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:53+00:00",
+            "history": []
+          },
+          "payment_method": {
+            "field": "payment_method",
+            "status": "reported",
+            "value": "محفظة إلكترونية",
+            "quote": "على واتساب في شخص عم يهددني من مبارح الساعة ستة؛ قال إذا ما دفعت 100 دينار رح ينشر محادثاتي الخاصة. اليوم كرر نفس التهديد، وأنا دفعت 130 دينار بمحفظة إلكترونية.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:53+00:00",
+            "history": []
+          }
+        },
+        "expected_facts": {
+          "threat": {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "على واتساب في شخص عم يهددني من مبارح الساعة ستة؛ قال إذا ما دفعت 100 دينار رح ينشر محادثاتي الخاصة. اليوم كرر نفس التهديد، وأنا دفعت 130 دينار بمحفظة إلكترونية.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:53+00:00",
+            "history": []
+          },
+          "platform": {
+            "field": "platform",
+            "status": "reported",
+            "value": "واتساب",
+            "quote": "على واتساب في شخص عم يهددني من مبارح الساعة ستة؛ قال إذا ما دفعت 100 دينار رح ينشر محادثاتي الخاصة. اليوم كرر نفس التهديد، وأنا دفعت 130 دينار بمحفظة إلكترونية.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:53+00:00",
+            "history": []
+          },
+          "publication_threat": {
+            "field": "publication_threat",
+            "status": "reported",
+            "value": true,
+            "quote": "على واتساب في شخص عم يهددني من مبارح الساعة ستة؛ قال إذا ما دفعت 100 دينار رح ينشر محادثاتي الخاصة. اليوم كرر نفس التهديد، وأنا دفعت 130 دينار بمحفظة إلكترونية.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:53+00:00",
+            "history": []
+          },
+          "requested_amount": {
+            "field": "requested_amount",
+            "status": "reported",
+            "value": "100 دينار",
+            "quote": "على واتساب في شخص عم يهددني من مبارح الساعة ستة؛ قال إذا ما دفعت 100 دينار رح ينشر محادثاتي الخاصة. اليوم كرر نفس التهديد، وأنا دفعت 130 دينار بمحفظة إلكترونية.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:53+00:00",
+            "history": []
+          },
+          "paid_amount": {
+            "field": "paid_amount",
+            "status": "reported",
+            "value": "130 دينار",
+            "quote": "على واتساب في شخص عم يهددني من مبارح الساعة ستة؛ قال إذا ما دفعت 100 دينار رح ينشر محادثاتي الخاصة. اليوم كرر نفس التهديد، وأنا دفعت 130 دينار بمحفظة إلكترونية.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:53+00:00",
+            "history": []
+          },
+          "payment_method": {
+            "field": "payment_method",
+            "status": "reported",
+            "value": "محفظة إلكترونية",
+            "quote": "على واتساب في شخص عم يهددني من مبارح الساعة ستة؛ قال إذا ما دفعت 100 دينار رح ينشر محادثاتي الخاصة. اليوم كرر نفس التهديد، وأنا دفعت 130 دينار بمحفظة إلكترونية.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:53+00:00",
+            "history": []
+          },
+          "repeated": {
+            "field": "repeated",
+            "status": "reported",
+            "value": true,
+            "quote": "على واتساب في شخص عم يهددني من مبارح الساعة ستة؛ قال إذا ما دفعت 100 دينار رح ينشر محادثاتي الخاصة. اليوم كرر نفس التهديد، وأنا دفعت 130 دينار بمحفظة إلكترونية.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:53+00:00",
+            "history": []
+          }
+        },
+        "money_events": [
+          {
+            "id": "money-1",
+            "kind": "requested",
+            "amount": "100 دينار",
+            "relation": "initial",
+            "quote": "على واتساب في شخص عم يهددني من مبارح الساعة ستة؛ قال إذا ما دفعت 100 دينار رح ينشر محادثاتي الخاصة. اليوم كرر نفس التهديد، وأنا دفعت 130 دينار بمحفظة إلكترونية.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "created_at": "2026-11-03T19:16:53+00:00"
+          },
+          {
+            "id": "money-2",
+            "kind": "paid",
+            "amount": "130 دينار",
+            "relation": "initial",
+            "quote": "على واتساب في شخص عم يهددني من مبارح الساعة ستة؛ قال إذا ما دفعت 100 دينار رح ينشر محادثاتي الخاصة. اليوم كرر نفس التهديد، وأنا دفعت 130 دينار بمحفظة إلكترونية.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "created_at": "2026-11-03T19:16:53+00:00"
+          }
+        ],
+        "confirmed": false,
+        "confirmation_history_count": 0,
+        "question_messages": [
+          "احكيلي شو صار معك.",
+          "هل أنت بخطر مباشر الآن؟"
+        ],
+        "last_assistant_message": "هل أنت بخطر مباشر الآن؟"
+      },
+      "latency_ms": {
+        "total": 6892.001,
+        "per_step": [
+          6885.237
+        ]
+      },
+      "model_evaluation": {
+        "calls": [
+          {
+            "step": 1,
+            "result_accepted": false,
+            "fallback_used": true,
+            "failure_code": "schema_rejected",
+            "latency_ms": 6876.419,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          }
+        ],
+        "calls_attempted": 1,
+        "results_accepted": 0,
+        "results_rejected": 1,
+        "fallback_count": 1,
+        "candidate_fact_count": 0,
+        "candidate_facts": [],
+        "expected_fact_matches": {
+          "threat": false,
+          "platform": false,
+          "publication_threat": false,
+          "requested_amount": false,
+          "paid_amount": false,
+          "payment_method": false,
+          "repeated": false
+        },
+        "expected_facts_not_covered_by_model": [
+          "threat",
+          "platform",
+          "publication_threat",
+          "requested_amount",
+          "paid_amount",
+          "payment_method",
+          "repeated"
+        ],
+        "fallback_success_counted_as_model_success": false
+      }
+    },
+    {
+      "id": "E15",
+      "category": "why_question_preserves_pending_slot",
+      "passed": true,
+      "integrated_passed": true,
+      "model_passed": true,
+      "failures": [],
+      "actual": {
+        "stage": "interview",
+        "pending_slot": "direct_danger",
+        "priority_score": null,
+        "priority_rule": null,
+        "facts": {
+          "narrative": {
+            "field": "narrative",
+            "status": "reported",
+            "value": "شخص هددني برسالة على واتساب.",
+            "quote": "شخص هددني برسالة على واتساب.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:57+00:00",
+            "history": []
+          },
+          "threat": {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "شخص هددني برسالة على واتساب.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:57+00:00",
+            "history": []
+          },
+          "platform": {
+            "field": "platform",
+            "status": "reported",
+            "value": "واتساب",
+            "quote": "شخص هددني برسالة على واتساب.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:57+00:00",
+            "history": []
+          }
+        },
+        "expected_facts": {
+          "threat": {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "شخص هددني برسالة على واتساب.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:16:57+00:00",
+            "history": []
+          }
+        },
+        "money_events": [],
+        "confirmed": false,
+        "confirmation_history_count": 0,
+        "question_messages": [
+          "احكيلي شو صار معك.",
+          "هل أنت بخطر مباشر الآن؟",
+          "نكمل من السؤال السابق: هل أنت بخطر مباشر الآن؟"
+        ],
+        "last_assistant_message": "نكمل من السؤال السابق: هل أنت بخطر مباشر الآن؟"
+      },
+      "latency_ms": {
+        "total": 4057.517,
+        "per_step": [
+          4045.927,
+          4.802
+        ]
+      },
+      "model_evaluation": {
+        "calls": [
+          {
+            "step": 1,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 4039.921,
+            "fact_fields": [
+              "narrative",
+              "threat",
+              "platform"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          }
+        ],
+        "calls_attempted": 1,
+        "results_accepted": 1,
+        "results_rejected": 0,
+        "fallback_count": 0,
+        "candidate_fact_count": 3,
+        "candidate_facts": [
+          {
+            "field": "narrative",
+            "status": "reported",
+            "value": "شخص هددني برسالة على واتساب.",
+            "quote": "شخص هددني برسالة على واتساب."
+          },
+          {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "شخص هددني برسالة"
+          },
+          {
+            "field": "platform",
+            "status": "reported",
+            "value": "واتساب",
+            "quote": "واتساب"
+          }
+        ],
+        "expected_fact_matches": {
+          "threat": true
+        },
+        "expected_facts_not_covered_by_model": [],
+        "fallback_success_counted_as_model_success": false
+      }
+    },
+    {
+      "id": "E16",
+      "category": "reference_to_known_amount",
+      "passed": false,
+      "integrated_passed": true,
+      "model_passed": false,
+      "failures": [],
+      "actual": {
+        "stage": "interview",
+        "pending_slot": "direct_danger",
+        "priority_score": 90,
+        "priority_rule": "R90_REPEATED_HARM",
+        "facts": {
+          "narrative": {
+            "field": "narrative",
+            "status": "reported",
+            "value": "في شخص هددني برسالة وطالبني 100 دينار.",
+            "quote": "في شخص هددني برسالة وطالبني 100 دينار.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:17:00+00:00",
+            "history": []
+          },
+          "threat": {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "في شخص هددني برسالة وطالبني 100 دينار.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:17:00+00:00",
+            "history": []
+          },
+          "requested_amount": {
+            "field": "requested_amount",
+            "status": "reported",
+            "value": "100 دينار",
+            "quote": "في شخص هددني برسالة وطالبني 100 دينار.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:17:05+00:00",
+            "history": [],
+            "supporting_statements": [
+              {
+                "quote": "رجع بعتلي رسالة ثانية اليوم وطلب مني أحوّل المبلغ نفسه.",
+                "message_id": "m4",
+                "question_id": "m3",
+                "at": "2026-11-03T19:17:05+00:00"
+              }
+            ]
+          },
+          "latest_time": {
+            "field": "latest_time",
+            "status": "reported",
+            "value": "رجع بعتلي رسالة ثانية اليوم وطلب مني أحوّل المبلغ نفسه.",
+            "quote": "رجع بعتلي رسالة ثانية اليوم وطلب مني أحوّل المبلغ نفسه.",
+            "message_id": "m4",
+            "question_id": "m3",
+            "updated_at": "2026-11-03T19:17:05+00:00",
+            "history": []
+          },
+          "repeated": {
+            "field": "repeated",
+            "status": "reported",
+            "value": true,
+            "quote": "رجع بعتلي رسالة ثانية اليوم وطلب مني أحوّل المبلغ نفسه.",
+            "message_id": "m4",
+            "question_id": "m3",
+            "updated_at": "2026-11-03T19:17:05+00:00",
+            "history": []
+          }
+        },
+        "expected_facts": {
+          "requested_amount": {
+            "field": "requested_amount",
+            "status": "reported",
+            "value": "100 دينار",
+            "quote": "في شخص هددني برسالة وطالبني 100 دينار.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:17:05+00:00",
+            "history": [],
+            "supporting_statements": [
+              {
+                "quote": "رجع بعتلي رسالة ثانية اليوم وطلب مني أحوّل المبلغ نفسه.",
+                "message_id": "m4",
+                "question_id": "m3",
+                "at": "2026-11-03T19:17:05+00:00"
+              }
+            ]
+          },
+          "repeated": {
+            "field": "repeated",
+            "status": "reported",
+            "value": true,
+            "quote": "رجع بعتلي رسالة ثانية اليوم وطلب مني أحوّل المبلغ نفسه.",
+            "message_id": "m4",
+            "question_id": "m3",
+            "updated_at": "2026-11-03T19:17:05+00:00",
+            "history": []
+          }
+        },
+        "money_events": [
+          {
+            "id": "money-1",
+            "kind": "requested",
+            "amount": "100 دينار",
+            "relation": "initial",
+            "quote": "في شخص هددني برسالة وطالبني 100 دينار.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "created_at": "2026-11-03T19:17:00+00:00"
+          }
+        ],
+        "confirmed": false,
+        "confirmation_history_count": 0,
+        "question_messages": [
+          "احكيلي شو صار معك.",
+          "هل أنت بخطر مباشر الآن؟"
+        ],
+        "last_assistant_message": "فهمت عليك. هل أنت بخطر مباشر الآن؟"
+      },
+      "latency_ms": {
+        "total": 7913.517,
+        "per_step": [
+          3397.625,
+          4508.219
+        ]
+      },
+      "model_evaluation": {
+        "calls": [
+          {
+            "step": 1,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 3389.654,
+            "fact_fields": [
+              "threat",
+              "requested_amount",
+              "narrative"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 2,
+            "result_accepted": false,
+            "fallback_used": true,
+            "failure_code": "schema_rejected",
+            "latency_ms": 4499.749,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          }
+        ],
+        "calls_attempted": 2,
+        "results_accepted": 1,
+        "results_rejected": 1,
+        "fallback_count": 1,
+        "candidate_fact_count": 3,
+        "candidate_facts": [
+          {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "هددني"
+          },
+          {
+            "field": "requested_amount",
+            "status": "reported",
+            "value": "100 دينار",
+            "quote": "طالبني 100 دينار"
+          },
+          {
+            "field": "narrative",
+            "status": "reported",
+            "value": "في شخص هددني برسالة وطالبني 100 دينار.",
+            "quote": "في شخص هددني برسالة وطالبني 100 دينار."
+          }
+        ],
+        "expected_fact_matches": {
+          "requested_amount": true,
+          "repeated": false
+        },
+        "expected_facts_not_covered_by_model": [
+          "repeated"
+        ],
+        "fallback_success_counted_as_model_success": false
+      }
+    },
+    {
+      "id": "E17",
+      "category": "additional_demand_not_overwrite",
+      "passed": false,
+      "integrated_passed": false,
+      "model_passed": false,
+      "failures": [
+        "requested_amount.status expected 'reported', got 'conflict'",
+        "requested_amount.value expected to contain '100', got None",
+        "pending_slot expected 'requested_amount_relation', got 'requested_amount'"
+      ],
+      "actual": {
+        "stage": "interview",
+        "pending_slot": "requested_amount",
+        "priority_score": 85,
+        "priority_rule": "R85_DETAILED_THREAT_OR_IMPERSONATION",
+        "facts": {
+          "narrative": {
+            "field": "narrative",
+            "status": "reported",
+            "value": "شخص هددني برسالة وطلب مني 100 دينار.",
+            "quote": "شخص هددني برسالة وطلب مني 100 دينار.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:17:09+00:00",
+            "history": []
+          },
+          "threat": {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "شخص هددني برسالة وطلب مني 100 دينار.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:17:09+00:00",
+            "history": []
+          },
+          "requested_amount": {
+            "field": "requested_amount",
+            "status": "conflict",
+            "value": null,
+            "quote": "بعدها رجع طلب مني 50 دينار.",
+            "message_id": "m12",
+            "question_id": "m11",
+            "updated_at": "2026-11-03T19:17:25+00:00",
+            "history": [
+              {
+                "status": "reported",
+                "value": "100 دينار",
+                "quote": "شخص هددني برسالة وطلب مني 100 دينار.",
+                "message_id": "m2",
+                "at": "2026-11-03T19:17:25+00:00",
+                "reason": "conflicting_statement"
+              }
+            ],
+            "alternatives": [
+              {
+                "status": "reported",
+                "value": "100 دينار",
+                "quote": "شخص هددني برسالة وطلب مني 100 دينار."
+              },
+              {
+                "status": "reported",
+                "value": "50 دينار",
+                "quote": "بعدها رجع طلب مني 50 دينار.",
+                "message_id": "m12"
+              }
+            ]
+          },
+          "direct_danger": {
+            "field": "direct_danger",
+            "status": "denied",
+            "value": false,
+            "quote": "لا يوجد خطر مباشر الآن.",
+            "message_id": "m4",
+            "question_id": "m3",
+            "updated_at": "2026-11-03T19:17:12+00:00",
+            "history": []
+          },
+          "details": {
+            "field": "details",
+            "status": "reported",
+            "value": "كتب أنه سيؤذيني إذا رفضت الدفع.",
+            "quote": "كتب أنه سيؤذيني إذا رفضت الدفع.",
+            "message_id": "m6",
+            "question_id": "m5",
+            "updated_at": "2026-11-03T19:17:16+00:00",
+            "history": []
+          },
+          "initial_time": {
+            "field": "initial_time",
+            "status": "reported",
+            "value": "بدأ قبل يومين.",
+            "quote": "بدأ قبل يومين.",
+            "message_id": "m8",
+            "question_id": "m7",
+            "updated_at": "2026-11-03T19:17:19+00:00",
+            "history": []
+          },
+          "repeated": {
+            "field": "repeated",
+            "status": "denied",
+            "value": false,
+            "quote": "ما تكرر بعد الرسالة الأولى.",
+            "message_id": "m10",
+            "question_id": "m9",
+            "updated_at": "2026-11-03T19:17:23+00:00",
+            "history": []
+          }
+        },
+        "expected_facts": {
+          "requested_amount": {
+            "field": "requested_amount",
+            "status": "conflict",
+            "value": null,
+            "quote": "بعدها رجع طلب مني 50 دينار.",
+            "message_id": "m12",
+            "question_id": "m11",
+            "updated_at": "2026-11-03T19:17:25+00:00",
+            "history": [
+              {
+                "status": "reported",
+                "value": "100 دينار",
+                "quote": "شخص هددني برسالة وطلب مني 100 دينار.",
+                "message_id": "m2",
+                "at": "2026-11-03T19:17:25+00:00",
+                "reason": "conflicting_statement"
+              }
+            ],
+            "alternatives": [
+              {
+                "status": "reported",
+                "value": "100 دينار",
+                "quote": "شخص هددني برسالة وطلب مني 100 دينار."
+              },
+              {
+                "status": "reported",
+                "value": "50 دينار",
+                "quote": "بعدها رجع طلب مني 50 دينار.",
+                "message_id": "m12"
+              }
+            ]
+          }
+        },
+        "money_events": [
+          {
+            "id": "money-1",
+            "kind": "requested",
+            "amount": "100 دينار",
+            "relation": "initial",
+            "quote": "شخص هددني برسالة وطلب مني 100 دينار.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "created_at": "2026-11-03T19:17:09+00:00"
+          },
+          {
+            "id": "money-2",
+            "kind": "requested",
+            "amount": "50 دينار",
+            "relation": "unresolved",
+            "quote": "بعدها رجع طلب مني 50 دينار.",
+            "message_id": "m12",
+            "question_id": "m11",
+            "created_at": "2026-11-03T19:17:25+00:00"
+          }
+        ],
+        "confirmed": false,
+        "confirmation_history_count": 0,
+        "question_messages": [
+          "احكيلي شو صار معك.",
+          "هل أنت بخطر مباشر الآن؟",
+          "شو قال لك تحديدًا أو شو صار؟",
+          "متى بدأت الواقعة أو وصلك أول تواصل؟ اذكر الوقت كما تتذكره.",
+          "هل تكرر التهديد أو المضايقة المؤثرة؟ ليس مجرد استمرار الرسائل أو التواصل.",
+          "هل دفعت أو حولت أي مبلغ؟ إذا نعم، كم؟",
+          "هل طُلب منك مبلغ؟ إذا نعم، كم كان المبلغ المطلوب؟"
+        ],
+        "last_assistant_message": "هل طُلب منك مبلغ؟ إذا نعم، كم كان المبلغ المطلوب؟"
+      },
+      "latency_ms": {
+        "total": 20609.2,
+        "per_step": [
+          3812.026,
+          3028.545,
+          4526.424,
+          2746.169,
+          3813.337,
+          2669.358
+        ]
+      },
+      "model_evaluation": {
+        "calls": [
+          {
+            "step": 1,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 3801.753,
+            "fact_fields": [
+              "threat",
+              "requested_amount",
+              "narrative"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 2,
+            "result_accepted": false,
+            "fallback_used": true,
+            "failure_code": "schema_rejected",
+            "latency_ms": 3018.981,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 3,
+            "result_accepted": false,
+            "fallback_used": true,
+            "failure_code": "schema_rejected",
+            "latency_ms": 4517.109,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 4,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2736.08,
+            "fact_fields": [
+              "initial_time"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 5,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 3802.588,
+            "fact_fields": [
+              "repeated"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 6,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2656.81,
+            "fact_fields": [
+              "requested_amount"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          }
+        ],
+        "calls_attempted": 6,
+        "results_accepted": 4,
+        "results_rejected": 2,
+        "fallback_count": 2,
+        "candidate_fact_count": 6,
+        "candidate_facts": [
+          {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "هددني برسالة"
+          },
+          {
+            "field": "requested_amount",
+            "status": "reported",
+            "value": "100 دينار",
+            "quote": "طلب مني 100 دينار"
+          },
+          {
+            "field": "narrative",
+            "status": "reported",
+            "value": "شخص هددني برسالة وطلب مني 100 دينار.",
+            "quote": "شخص هددني برسالة وطلب مني 100 دينار."
+          },
+          {
+            "field": "initial_time",
+            "status": "reported",
+            "value": "بدأ قبل يومين.",
+            "quote": "بدأ قبل يومين."
+          },
+          {
+            "field": "repeated",
+            "status": "reported",
+            "value": true,
+            "quote": "ما تكرر بعد الرسالة الأولى."
+          },
+          {
+            "field": "requested_amount",
+            "status": "reported",
+            "value": "50 دينار",
+            "quote": "بعدها رجع طلب مني 50 دينار."
+          }
+        ],
+        "expected_fact_matches": {
+          "requested_amount": true
+        },
+        "expected_facts_not_covered_by_model": [],
+        "fallback_success_counted_as_model_success": false
+      }
+    },
+    {
+      "id": "E18",
+      "category": "unknown_identity_contact_available",
+      "passed": false,
+      "integrated_passed": false,
+      "model_passed": false,
+      "failures": [
+        "contact.status expected 'reported', got 'conflict'",
+        "contact.value expected to contain 'رقم واتساب', got None"
+      ],
+      "actual": {
+        "stage": "interview",
+        "pending_slot": "evidence",
+        "priority_score": 85,
+        "priority_rule": "R85_DETAILED_THREAT_OR_IMPERSONATION",
+        "facts": {
+          "narrative": {
+            "field": "narrative",
+            "status": "reported",
+            "value": "شخص هددني برسالة على واتساب.",
+            "quote": "شخص هددني برسالة على واتساب.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:17:29+00:00",
+            "history": []
+          },
+          "threat": {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "شخص هددني برسالة على واتساب.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:17:35+00:00",
+            "history": [],
+            "supporting_statements": [
+              {
+                "quote": "التهديد وصل برسالة خاصة.",
+                "message_id": "m6",
+                "question_id": "m5",
+                "at": "2026-11-03T19:17:35+00:00"
+              }
+            ]
+          },
+          "platform": {
+            "field": "platform",
+            "status": "reported",
+            "value": "واتساب",
+            "quote": "شخص هددني برسالة على واتساب.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:17:50+00:00",
+            "history": [],
+            "supporting_statements": [
+              {
+                "quote": "ما بعرف مين هو، بس عندي رقم واتساب إله وما بدي أكتبه هون.",
+                "message_id": "m12",
+                "question_id": "m11",
+                "at": "2026-11-03T19:17:50+00:00"
+              }
+            ]
+          },
+          "direct_danger": {
+            "field": "direct_danger",
+            "status": "denied",
+            "value": false,
+            "quote": "لا، مش بخطر مباشر.",
+            "message_id": "m4",
+            "question_id": "m3",
+            "updated_at": "2026-11-03T19:17:31+00:00",
+            "history": []
+          },
+          "details": {
+            "field": "details",
+            "status": "reported",
+            "value": "التهديد وصل برسالة خاصة.",
+            "quote": "التهديد وصل برسالة خاصة.",
+            "message_id": "m6",
+            "question_id": "m5",
+            "updated_at": "2026-11-03T19:17:35+00:00",
+            "history": []
+          },
+          "contact": {
+            "field": "contact",
+            "status": "conflict",
+            "value": null,
+            "quote": "ما بعرف مين هو، بس عندي رقم واتساب إله وما بدي أكتبه هون.",
+            "message_id": "m12",
+            "question_id": "m11",
+            "updated_at": "2026-11-03T19:17:50+00:00",
+            "history": [
+              {
+                "status": "reported",
+                "value": "رسالة خاصة",
+                "quote": "التهديد وصل برسالة خاصة.",
+                "message_id": "m6",
+                "at": "2026-11-03T19:17:50+00:00",
+                "reason": "conflicting_statement"
+              }
+            ],
+            "alternatives": [
+              {
+                "status": "reported",
+                "value": "رسالة خاصة",
+                "quote": "التهديد وصل برسالة خاصة."
+              },
+              {
+                "status": "reported",
+                "value": "رقم واتساب متوفر بحسب الإفادة؛ المعرّف لم يُدرج",
+                "quote": "ما بعرف مين هو، بس عندي رقم واتساب إله وما بدي أكتبه هون.",
+                "message_id": "m12"
+              }
+            ]
+          },
+          "initial_time": {
+            "field": "initial_time",
+            "status": "reported",
+            "value": "أول رسالة كانت مبارح.",
+            "quote": "أول رسالة كانت مبارح.",
+            "message_id": "m8",
+            "question_id": "m7",
+            "updated_at": "2026-11-03T19:17:38+00:00",
+            "history": []
+          },
+          "repeated": {
+            "field": "repeated",
+            "status": "denied",
+            "value": false,
+            "quote": "ما تكرر بعدها.",
+            "message_id": "m10",
+            "question_id": "m9",
+            "updated_at": "2026-11-03T19:17:46+00:00",
+            "history": []
+          },
+          "identity": {
+            "field": "identity",
+            "status": "unknown",
+            "value": null,
+            "quote": "ما بعرف مين هو، بس عندي رقم واتساب إله وما بدي أكتبه هون.",
+            "message_id": "m12",
+            "question_id": "m11",
+            "updated_at": "2026-11-03T19:17:50+00:00",
+            "history": []
+          }
+        },
+        "expected_facts": {
+          "identity": {
+            "field": "identity",
+            "status": "unknown",
+            "value": null,
+            "quote": "ما بعرف مين هو، بس عندي رقم واتساب إله وما بدي أكتبه هون.",
+            "message_id": "m12",
+            "question_id": "m11",
+            "updated_at": "2026-11-03T19:17:50+00:00",
+            "history": []
+          },
+          "contact": {
+            "field": "contact",
+            "status": "conflict",
+            "value": null,
+            "quote": "ما بعرف مين هو، بس عندي رقم واتساب إله وما بدي أكتبه هون.",
+            "message_id": "m12",
+            "question_id": "m11",
+            "updated_at": "2026-11-03T19:17:50+00:00",
+            "history": [
+              {
+                "status": "reported",
+                "value": "رسالة خاصة",
+                "quote": "التهديد وصل برسالة خاصة.",
+                "message_id": "m6",
+                "at": "2026-11-03T19:17:50+00:00",
+                "reason": "conflicting_statement"
+              }
+            ],
+            "alternatives": [
+              {
+                "status": "reported",
+                "value": "رسالة خاصة",
+                "quote": "التهديد وصل برسالة خاصة."
+              },
+              {
+                "status": "reported",
+                "value": "رقم واتساب متوفر بحسب الإفادة؛ المعرّف لم يُدرج",
+                "quote": "ما بعرف مين هو، بس عندي رقم واتساب إله وما بدي أكتبه هون.",
+                "message_id": "m12"
+              }
+            ]
+          }
+        },
+        "money_events": [],
+        "confirmed": false,
+        "confirmation_history_count": 0,
+        "question_messages": [
+          "احكيلي شو صار معك.",
+          "هل أنت بخطر مباشر الآن؟",
+          "شو قال لك تحديدًا أو شو صار؟",
+          "متى بدأت الواقعة أو وصلك أول تواصل؟ اذكر الوقت كما تتذكره.",
+          "هل تكرر التهديد أو المضايقة المؤثرة؟ ليس مجرد استمرار الرسائل أو التواصل.",
+          "هل بتعرف هوية الشخص، ولا المتوفر عندك بس اسم حساب أو رقم تواصل؟",
+          "شو الأدلة المتوفرة عندك بحسب إفادتك؟ لا ترفع أو ترسل محتوى حساس هون."
+        ],
+        "last_assistant_message": "شو الأدلة المتوفرة عندك بحسب إفادتك؟ لا ترفع أو ترسل محتوى حساس هون."
+      },
+      "latency_ms": {
+        "total": 24208.477,
+        "per_step": [
+          3311.461,
+          2639.827,
+          3425.37,
+          3095.612,
+          8052.697,
+          3672.604
+        ]
+      },
+      "model_evaluation": {
+        "calls": [
+          {
+            "step": 1,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 3302.797,
+            "fact_fields": [
+              "threat",
+              "platform"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 2,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2630.455,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 3,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 3417.641,
+            "fact_fields": [
+              "threat",
+              "contact"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 4,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 3087.323,
+            "fact_fields": [
+              "initial_time"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 5,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 8044.437,
+            "fact_fields": [
+              "repeated"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 6,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 3664.932,
+            "fact_fields": [
+              "identity",
+              "contact"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          }
+        ],
+        "calls_attempted": 6,
+        "results_accepted": 6,
+        "results_rejected": 0,
+        "fallback_count": 0,
+        "candidate_fact_count": 8,
+        "candidate_facts": [
+          {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "شخص هددني برسالة على واتساب."
+          },
+          {
+            "field": "platform",
+            "status": "reported",
+            "value": "واتساب",
+            "quote": "واتساب"
+          },
+          {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "التهديد وصل برسالة خاصة."
+          },
+          {
+            "field": "contact",
+            "status": "reported",
+            "value": "رسالة خاصة",
+            "quote": "التهديد وصل برسالة خاصة."
+          },
+          {
+            "field": "initial_time",
+            "status": "reported",
+            "value": "مبارح",
+            "quote": "أول رسالة كانت مبارح."
+          },
+          {
+            "field": "repeated",
+            "status": "denied",
+            "value": false,
+            "quote": "ما تكرر بعدها."
+          },
+          {
+            "field": "identity",
+            "status": "unknown",
+            "value": null,
+            "quote": "ما بعرف مين هو"
+          },
+          {
+            "field": "contact",
+            "status": "declined",
+            "value": null,
+            "quote": "ما بدي أكتبه هون."
+          }
+        ],
+        "expected_fact_matches": {
+          "identity": true,
+          "contact": false
+        },
+        "expected_facts_not_covered_by_model": [
+          "contact"
+        ],
+        "fallback_success_counted_as_model_success": false
+      }
+    },
+    {
+      "id": "E19",
+      "category": "threat_not_evidence_possession",
+      "passed": true,
+      "integrated_passed": true,
+      "model_passed": true,
+      "failures": [],
+      "actual": {
+        "stage": "review",
+        "pending_slot": null,
+        "priority_score": 85,
+        "priority_rule": "R85_DETAILED_THREAT_OR_IMPERSONATION",
+        "facts": {
+          "narrative": {
+            "field": "narrative",
+            "status": "reported",
+            "value": "شخص هددني إنه ينشر صوري الخاصة على حسابه.",
+            "quote": "شخص هددني إنه ينشر صوري الخاصة على حسابه.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:17:53+00:00",
+            "history": []
+          },
+          "threat": {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "شخص هددني إنه ينشر صوري الخاصة على حسابه.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:18:00+00:00",
+            "history": [],
+            "supporting_statements": [
+              {
+                "quote": "بعتلي تهديد مكتوب",
+                "message_id": "m6",
+                "question_id": "m5",
+                "at": "2026-11-03T19:18:00+00:00"
+              }
+            ]
+          },
+          "details": {
+            "field": "details",
+            "status": "reported",
+            "value": "شخص هددني إنه ينشر صوري الخاصة على حسابه.",
+            "quote": "شخص هددني إنه ينشر صوري الخاصة على حسابه.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:18:00+00:00",
+            "history": [],
+            "supporting_statements": [
+              {
+                "quote": "بعتلي تهديد مكتوب وقال رح ينشر الصور.",
+                "message_id": "m6",
+                "question_id": "m5",
+                "at": "2026-11-03T19:18:00+00:00"
+              }
+            ]
+          },
+          "publication_threat": {
+            "field": "publication_threat",
+            "status": "reported",
+            "value": true,
+            "quote": "شخص هددني إنه ينشر صوري الخاصة على حسابه.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:18:00+00:00",
+            "history": [],
+            "supporting_statements": [
+              {
+                "quote": "بعتلي تهديد مكتوب وقال رح ينشر الصور.",
+                "message_id": "m6",
+                "question_id": "m5",
+                "at": "2026-11-03T19:18:00+00:00"
+              }
+            ]
+          },
+          "direct_danger": {
+            "field": "direct_danger",
+            "status": "denied",
+            "value": false,
+            "quote": "ما في خطر مباشر علي.",
+            "message_id": "m4",
+            "question_id": "m3",
+            "updated_at": "2026-11-03T19:17:56+00:00",
+            "history": []
+          },
+          "initial_time": {
+            "field": "initial_time",
+            "status": "reported",
+            "value": "بدأ مبارح.",
+            "quote": "بدأ مبارح.",
+            "message_id": "m8",
+            "question_id": "m7",
+            "updated_at": "2026-11-03T19:18:02+00:00",
+            "history": []
+          },
+          "repeated": {
+            "field": "repeated",
+            "status": "denied",
+            "value": false,
+            "quote": "ما تكرر بعد أول رسالة.",
+            "message_id": "m10",
+            "question_id": "m9",
+            "updated_at": "2026-11-03T19:18:07+00:00",
+            "history": []
+          },
+          "published": {
+            "field": "published",
+            "status": "unknown",
+            "value": null,
+            "quote": "ما بعرف إذا نشرها أو لا.",
+            "message_id": "m12",
+            "question_id": "m11",
+            "updated_at": "2026-11-03T19:18:09+00:00",
+            "history": []
+          },
+          "identity": {
+            "field": "identity",
+            "status": "unknown",
+            "value": null,
+            "quote": "ما بعرف هويته.",
+            "message_id": "m14",
+            "question_id": "m13",
+            "updated_at": "2026-11-03T19:18:12+00:00",
+            "history": []
+          },
+          "evidence": {
+            "field": "evidence",
+            "status": "denied",
+            "value": null,
+            "quote": "ما عندي نسخ ولا لقطات محفوظة من الرسائل.",
+            "message_id": "m16",
+            "question_id": "m15",
+            "updated_at": "2026-11-03T19:18:15+00:00",
+            "history": []
+          }
+        },
+        "expected_facts": {
+          "evidence": {
+            "field": "evidence",
+            "status": "denied",
+            "value": null,
+            "quote": "ما عندي نسخ ولا لقطات محفوظة من الرسائل.",
+            "message_id": "m16",
+            "question_id": "m15",
+            "updated_at": "2026-11-03T19:18:15+00:00",
+            "history": []
+          },
+          "publication_threat": {
+            "field": "publication_threat",
+            "status": "reported",
+            "value": true,
+            "quote": "شخص هددني إنه ينشر صوري الخاصة على حسابه.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:18:00+00:00",
+            "history": [],
+            "supporting_statements": [
+              {
+                "quote": "بعتلي تهديد مكتوب وقال رح ينشر الصور.",
+                "message_id": "m6",
+                "question_id": "m5",
+                "at": "2026-11-03T19:18:00+00:00"
+              }
+            ]
+          }
+        },
+        "money_events": [],
+        "confirmed": false,
+        "confirmation_history_count": 0,
+        "question_messages": [
+          "احكيلي شو صار معك.",
+          "هل أنت بخطر مباشر الآن؟",
+          "متى بدأت الواقعة أو وصلك أول تواصل؟ اذكر الوقت كما تتذكره.",
+          "هل تكرر التهديد أو المضايقة المؤثرة؟ ليس مجرد استمرار الرسائل أو التواصل.",
+          "هل نُشر شيء فعلًا، بحسب علمك؟",
+          "هل بتعرف هوية الشخص، ولا المتوفر عندك بس اسم حساب أو رقم تواصل؟",
+          "شو الأدلة المتوفرة عندك بحسب إفادتك؟ لا ترفع أو ترسل محتوى حساس هون."
+        ],
+        "last_assistant_message": "اكتملت الأسئلة الأساسية بحسب المعلومات المتاحة. راجع الملخص، وصحح أو أضف تفاصيل قبل التأكيد."
+      },
+      "latency_ms": {
+        "total": 25820.305,
+        "per_step": [
+          3771.239,
+          2725.798,
+          3562.777,
+          2406.605,
+          4845.268,
+          2597.727,
+          2191.228,
+          3711.441
+        ]
+      },
+      "model_evaluation": {
+        "calls": [
+          {
+            "step": 1,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 3764.393,
+            "fact_fields": [
+              "threat",
+              "publication_threat"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 2,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2717.756,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 3,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 3553.448,
+            "fact_fields": [
+              "threat",
+              "publication_threat"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 4,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2399.412,
+            "fact_fields": [
+              "initial_time"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 5,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 4837.585,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 6,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2591.014,
+            "fact_fields": [
+              "published"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 7,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2182.998,
+            "fact_fields": [
+              "identity"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 8,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 3704.434,
+            "fact_fields": [
+              "evidence"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          }
+        ],
+        "calls_attempted": 8,
+        "results_accepted": 8,
+        "results_rejected": 0,
+        "fallback_count": 0,
+        "candidate_fact_count": 8,
+        "candidate_facts": [
+          {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "شخص هددني"
+          },
+          {
+            "field": "publication_threat",
+            "status": "reported",
+            "value": true,
+            "quote": "إنه ينشر صوري الخاصة على حسابه."
+          },
+          {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "بعتلي تهديد مكتوب"
+          },
+          {
+            "field": "publication_threat",
+            "status": "reported",
+            "value": true,
+            "quote": "رح ينشر الصور"
+          },
+          {
+            "field": "initial_time",
+            "status": "reported",
+            "value": "بدأ مبارح.",
+            "quote": "بدأ مبارح."
+          },
+          {
+            "field": "published",
+            "status": "unknown",
+            "value": null,
+            "quote": "ما بعرف إذا نشرها أو لا."
+          },
+          {
+            "field": "identity",
+            "status": "unknown",
+            "value": null,
+            "quote": "ما بعرف هويته."
+          },
+          {
+            "field": "evidence",
+            "status": "denied",
+            "value": null,
+            "quote": "ما عندي نسخ ولا لقطات محفوظة من الرسائل."
+          }
+        ],
+        "expected_fact_matches": {
+          "evidence": true,
+          "publication_threat": true
+        },
+        "expected_facts_not_covered_by_model": [],
+        "fallback_success_counted_as_model_success": false
+      }
+    },
+    {
+      "id": "E20",
+      "category": "payment_does_not_answer_deadline",
+      "passed": false,
+      "integrated_passed": true,
+      "model_passed": false,
+      "failures": [],
+      "actual": {
+        "stage": "interview",
+        "pending_slot": "deadline",
+        "priority_score": 85,
+        "priority_rule": "R85_DETAILED_THREAT_OR_IMPERSONATION",
+        "facts": {
+          "narrative": {
+            "field": "narrative",
+            "status": "reported",
+            "value": "شخص على واتساب طلب 40 دينار وهدد ينشر صوري إذا ما دفعت.",
+            "quote": "شخص على واتساب طلب 40 دينار وهدد ينشر صوري إذا ما دفعت.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:18:20+00:00",
+            "history": []
+          },
+          "threat": {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "شخص على واتساب طلب 40 دينار وهدد ينشر صوري إذا ما دفعت.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:18:32+00:00",
+            "history": [],
+            "supporting_statements": [
+              {
+                "quote": "ما تكرر التهديد.",
+                "message_id": "m10",
+                "question_id": "m9",
+                "at": "2026-11-03T19:18:32+00:00"
+              }
+            ]
+          },
+          "platform": {
+            "field": "platform",
+            "status": "reported",
+            "value": "واتساب",
+            "quote": "شخص على واتساب طلب 40 دينار وهدد ينشر صوري إذا ما دفعت.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:18:20+00:00",
+            "history": []
+          },
+          "details": {
+            "field": "details",
+            "status": "reported",
+            "value": "شخص على واتساب طلب 40 دينار وهدد ينشر صوري إذا ما دفعت.",
+            "quote": "شخص على واتساب طلب 40 دينار وهدد ينشر صوري إذا ما دفعت.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:18:26+00:00",
+            "history": [],
+            "supporting_statements": [
+              {
+                "quote": "أرسل رسالة يقول فيها إنه سينشرها إذا لم أدفع.",
+                "message_id": "m6",
+                "question_id": "m5",
+                "at": "2026-11-03T19:18:26+00:00"
+              }
+            ]
+          },
+          "publication_threat": {
+            "field": "publication_threat",
+            "status": "reported",
+            "value": true,
+            "quote": "شخص على واتساب طلب 40 دينار وهدد ينشر صوري إذا ما دفعت.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:18:26+00:00",
+            "history": [],
+            "supporting_statements": [
+              {
+                "quote": "أرسل رسالة يقول فيها إنه سينشرها إذا لم أدفع.",
+                "message_id": "m6",
+                "question_id": "m5",
+                "at": "2026-11-03T19:18:26+00:00"
+              }
+            ]
+          },
+          "requested_amount": {
+            "field": "requested_amount",
+            "status": "reported",
+            "value": "40 دينار",
+            "quote": "شخص على واتساب طلب 40 دينار وهدد ينشر صوري إذا ما دفعت.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:18:26+00:00",
+            "history": [],
+            "supporting_statements": [
+              {
+                "quote": "أرسل رسالة يقول فيها إنه سينشرها إذا لم أدفع.",
+                "message_id": "m6",
+                "question_id": "m5",
+                "at": "2026-11-03T19:18:26+00:00"
+              }
+            ]
+          },
+          "direct_danger": {
+            "field": "direct_danger",
+            "status": "denied",
+            "value": false,
+            "quote": "ما في خطر مباشر الآن.",
+            "message_id": "m4",
+            "question_id": "m3",
+            "updated_at": "2026-11-03T19:18:22+00:00",
+            "history": []
+          },
+          "initial_time": {
+            "field": "initial_time",
+            "status": "reported",
+            "value": "أول تواصل كان مبارح.",
+            "quote": "أول تواصل كان مبارح.",
+            "message_id": "m8",
+            "question_id": "m7",
+            "updated_at": "2026-11-03T19:18:29+00:00",
+            "history": []
+          },
+          "repeated": {
+            "field": "repeated",
+            "status": "denied",
+            "value": false,
+            "quote": "ما تكرر التهديد.",
+            "message_id": "m10",
+            "question_id": "m9",
+            "updated_at": "2026-11-03T19:18:32+00:00",
+            "history": []
+          },
+          "paid_amount": {
+            "field": "paid_amount",
+            "status": "reported",
+            "value": "30 دينار",
+            "quote": "دفعت 30 دينار.",
+            "message_id": "m12",
+            "question_id": "m11",
+            "updated_at": "2026-11-03T19:18:42+00:00",
+            "history": [],
+            "supporting_statements": [
+              {
+                "quote": "بس حولت اللي قدرت عليه.",
+                "message_id": "m16",
+                "question_id": "m15",
+                "at": "2026-11-03T19:18:42+00:00"
+              }
+            ]
+          },
+          "payment_method": {
+            "field": "payment_method",
+            "status": "reported",
+            "value": "محفظة إلكترونية",
+            "quote": "عن طريق محفظة إلكترونية.",
+            "message_id": "m14",
+            "question_id": "m13",
+            "updated_at": "2026-11-03T19:18:37+00:00",
+            "history": []
+          }
+        },
+        "expected_facts": {
+          "requested_amount": {
+            "field": "requested_amount",
+            "status": "reported",
+            "value": "40 دينار",
+            "quote": "شخص على واتساب طلب 40 دينار وهدد ينشر صوري إذا ما دفعت.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:18:26+00:00",
+            "history": [],
+            "supporting_statements": [
+              {
+                "quote": "أرسل رسالة يقول فيها إنه سينشرها إذا لم أدفع.",
+                "message_id": "m6",
+                "question_id": "m5",
+                "at": "2026-11-03T19:18:26+00:00"
+              }
+            ]
+          },
+          "paid_amount": {
+            "field": "paid_amount",
+            "status": "reported",
+            "value": "30 دينار",
+            "quote": "دفعت 30 دينار.",
+            "message_id": "m12",
+            "question_id": "m11",
+            "updated_at": "2026-11-03T19:18:42+00:00",
+            "history": [],
+            "supporting_statements": [
+              {
+                "quote": "بس حولت اللي قدرت عليه.",
+                "message_id": "m16",
+                "question_id": "m15",
+                "at": "2026-11-03T19:18:42+00:00"
+              }
+            ]
+          }
+        },
+        "money_events": [
+          {
+            "id": "money-1",
+            "kind": "requested",
+            "amount": "40 دينار",
+            "relation": "initial",
+            "quote": "شخص على واتساب طلب 40 دينار وهدد ينشر صوري إذا ما دفعت.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "created_at": "2026-11-03T19:18:20+00:00"
+          },
+          {
+            "id": "money-2",
+            "kind": "paid",
+            "amount": "30 دينار",
+            "relation": "initial",
+            "quote": "دفعت 30 دينار.",
+            "message_id": "m12",
+            "question_id": "m11",
+            "created_at": "2026-11-03T19:18:34+00:00"
+          }
+        ],
+        "confirmed": false,
+        "confirmation_history_count": 0,
+        "question_messages": [
+          "احكيلي شو صار معك.",
+          "هل أنت بخطر مباشر الآن؟",
+          "متى بدأت الواقعة أو وصلك أول تواصل؟ اذكر الوقت كما تتذكره.",
+          "هل تكرر التهديد أو المضايقة المؤثرة؟ ليس مجرد استمرار الرسائل أو التواصل.",
+          "هل دفعت أو حولت أي مبلغ؟ إذا نعم، كم؟",
+          "بأي وسيلة دفعت؟ لا ترسل كلمة مرور أو رمز تحقق.",
+          "هل حدد الشخص مهلة أو موعدًا للدفع؟"
+        ],
+        "last_assistant_message": "فهمت إنك ذكرت الدفع. هل حدد الشخص مهلة أو موعدًا للدفع؟"
+      },
+      "latency_ms": {
+        "total": 26256.175,
+        "per_step": [
+          4667.696,
+          2302.165,
+          3548.847,
+          2975.612,
+          2933.825,
+          2497.123,
+          2981.218,
+          4340.315
+        ]
+      },
+      "model_evaluation": {
+        "calls": [
+          {
+            "step": 1,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 4659.769,
+            "fact_fields": [
+              "platform",
+              "requested_amount",
+              "publication_threat",
+              "threat",
+              "narrative"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 2,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2292.624,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 3,
+            "result_accepted": false,
+            "fallback_used": true,
+            "failure_code": "schema_rejected",
+            "latency_ms": 3540.313,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 4,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2967.826,
+            "fact_fields": [
+              "initial_time"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 5,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2926.755,
+            "fact_fields": [
+              "repeated"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 6,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2487.199,
+            "fact_fields": [
+              "paid_amount"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 7,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2970.964,
+            "fact_fields": [
+              "payment_method"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 8,
+            "result_accepted": false,
+            "fallback_used": true,
+            "failure_code": "schema_rejected",
+            "latency_ms": 4331.074,
+            "fact_fields": [],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          }
+        ],
+        "calls_attempted": 8,
+        "results_accepted": 6,
+        "results_rejected": 2,
+        "fallback_count": 2,
+        "candidate_fact_count": 9,
+        "candidate_facts": [
+          {
+            "field": "platform",
+            "status": "reported",
+            "value": "واتساب",
+            "quote": "على واتساب"
+          },
+          {
+            "field": "requested_amount",
+            "status": "reported",
+            "value": "40 دينار",
+            "quote": "طلب 40 دينار"
+          },
+          {
+            "field": "publication_threat",
+            "status": "reported",
+            "value": true,
+            "quote": "هدد ينشر صوري إذا ما دفعت."
+          },
+          {
+            "field": "threat",
+            "status": "reported",
+            "value": true,
+            "quote": "هدد ينشر صوري إذا ما دفعت."
+          },
+          {
+            "field": "narrative",
+            "status": "reported",
+            "value": "شخص على واتساب طلب 40 دينار وهدد ينشر صوري إذا ما دفعت.",
+            "quote": "شخص على واتساب طلب 40 دينار وهدد ينشر صوري إذا ما دفعت."
+          },
+          {
+            "field": "initial_time",
+            "status": "reported",
+            "value": "مبارح",
+            "quote": "أول تواصل كان مبارح."
+          },
+          {
+            "field": "repeated",
+            "status": "denied",
+            "value": false,
+            "quote": "ما تكرر التهديد."
+          },
+          {
+            "field": "paid_amount",
+            "status": "reported",
+            "value": "30 دينار",
+            "quote": "دفعت 30 دينار."
+          },
+          {
+            "field": "payment_method",
+            "status": "reported",
+            "value": "محفظة إلكترونية",
+            "quote": "عن طريق محفظة إلكترونية."
+          }
+        ],
+        "expected_fact_matches": {
+          "requested_amount": true,
+          "paid_amount": true
+        },
+        "expected_facts_not_covered_by_model": [],
+        "fallback_success_counted_as_model_success": false
+      }
+    },
+    {
+      "id": "E21",
+      "category": "additional_payment_not_correction",
+      "passed": true,
+      "integrated_passed": true,
+      "model_passed": true,
+      "failures": [],
+      "actual": {
+        "stage": "interview",
+        "pending_slot": "details",
+        "priority_score": null,
+        "priority_rule": null,
+        "facts": {
+          "narrative": {
+            "field": "narrative",
+            "status": "reported",
+            "value": "صاحب إعلان طلب مني 100 دينار على جهاز مستعمل، وبعدها دفعت 100 دينار بالمحفظة.",
+            "quote": "صاحب إعلان طلب مني 100 دينار على جهاز مستعمل، وبعدها دفعت 100 دينار بالمحفظة.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:18:45+00:00",
+            "history": []
+          },
+          "requested_amount": {
+            "field": "requested_amount",
+            "status": "reported",
+            "value": "100 دينار",
+            "quote": "صاحب إعلان طلب مني 100 دينار على جهاز مستعمل، وبعدها دفعت 100 دينار بالمحفظة.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:18:45+00:00",
+            "history": []
+          },
+          "paid_amount": {
+            "field": "paid_amount",
+            "status": "reported",
+            "value": "100 دينار",
+            "quote": "صاحب إعلان طلب مني 100 دينار على جهاز مستعمل، وبعدها دفعت 100 دينار بالمحفظة.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:18:48+00:00",
+            "history": [],
+            "supporting_statements": [
+              {
+                "quote": "بعدين دفعت 20 دينار زيادة رسوم توصيل.",
+                "message_id": "m4",
+                "question_id": "m3",
+                "at": "2026-11-03T19:18:48+00:00"
+              }
+            ]
+          },
+          "payment_method": {
+            "field": "payment_method",
+            "status": "reported",
+            "value": "صاحب إعلان طلب مني 100 دينار على جهاز مستعمل، وبعدها دفعت 100 دينار بالمحفظة.",
+            "quote": "صاحب إعلان طلب مني 100 دينار على جهاز مستعمل، وبعدها دفعت 100 دينار بالمحفظة.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:18:45+00:00",
+            "history": []
+          }
+        },
+        "expected_facts": {
+          "requested_amount": {
+            "field": "requested_amount",
+            "status": "reported",
+            "value": "100 دينار",
+            "quote": "صاحب إعلان طلب مني 100 دينار على جهاز مستعمل، وبعدها دفعت 100 دينار بالمحفظة.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:18:45+00:00",
+            "history": []
+          },
+          "paid_amount": {
+            "field": "paid_amount",
+            "status": "reported",
+            "value": "100 دينار",
+            "quote": "صاحب إعلان طلب مني 100 دينار على جهاز مستعمل، وبعدها دفعت 100 دينار بالمحفظة.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "updated_at": "2026-11-03T19:18:48+00:00",
+            "history": [],
+            "supporting_statements": [
+              {
+                "quote": "بعدين دفعت 20 دينار زيادة رسوم توصيل.",
+                "message_id": "m4",
+                "question_id": "m3",
+                "at": "2026-11-03T19:18:48+00:00"
+              }
+            ]
+          }
+        },
+        "money_events": [
+          {
+            "id": "money-1",
+            "kind": "requested",
+            "amount": "100 دينار",
+            "relation": "initial",
+            "quote": "صاحب إعلان طلب مني 100 دينار على جهاز مستعمل، وبعدها دفعت 100 دينار بالمحفظة.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "created_at": "2026-11-03T19:18:45+00:00"
+          },
+          {
+            "id": "money-2",
+            "kind": "paid",
+            "amount": "100 دينار",
+            "relation": "initial",
+            "quote": "صاحب إعلان طلب مني 100 دينار على جهاز مستعمل، وبعدها دفعت 100 دينار بالمحفظة.",
+            "message_id": "m2",
+            "question_id": "m1",
+            "created_at": "2026-11-03T19:18:45+00:00"
+          },
+          {
+            "id": "money-3",
+            "kind": "paid",
+            "amount": "20 دينار",
+            "relation": "additional",
+            "quote": "بعدين دفعت 20 دينار زيادة رسوم توصيل.",
+            "message_id": "m4",
+            "question_id": "m3",
+            "created_at": "2026-11-03T19:18:48+00:00"
+          }
+        ],
+        "confirmed": false,
+        "confirmation_history_count": 0,
+        "question_messages": [
+          "احكيلي شو صار معك.",
+          "شو قال لك تحديدًا أو شو صار؟"
+        ],
+        "last_assistant_message": "فهمت إنك ذكرت الدفع. شو قال لك تحديدًا أو شو صار؟"
+      },
+      "latency_ms": {
+        "total": 6299.555,
+        "per_step": [
+          3524.766,
+          2767.506
+        ]
+      },
+      "model_evaluation": {
+        "calls": [
+          {
+            "step": 1,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 3514.734,
+            "fact_fields": [
+              "narrative",
+              "requested_amount",
+              "paid_amount",
+              "payment_method"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          },
+          {
+            "step": 2,
+            "result_accepted": true,
+            "fallback_used": false,
+            "failure_code": null,
+            "latency_ms": 2759.569,
+            "fact_fields": [
+              "paid_amount"
+            ],
+            "provider": "openai-compatible",
+            "model": "gpt-6-luna"
+          }
+        ],
+        "calls_attempted": 2,
+        "results_accepted": 2,
+        "results_rejected": 0,
+        "fallback_count": 0,
+        "candidate_fact_count": 5,
+        "candidate_facts": [
+          {
+            "field": "narrative",
+            "status": "reported",
+            "value": "صاحب إعلان طلب مني 100 دينار على جهاز مستعمل، وبعدها دفعت 100 دينار بالمحفظة.",
+            "quote": "صاحب إعلان طلب مني 100 دينار على جهاز مستعمل، وبعدها دفعت 100 دينار بالمحفظة."
+          },
+          {
+            "field": "requested_amount",
+            "status": "reported",
+            "value": "100 دينار",
+            "quote": "طلب مني 100 دينار"
+          },
+          {
+            "field": "paid_amount",
+            "status": "reported",
+            "value": "100 دينار",
+            "quote": "دفعت 100 دينار"
+          },
+          {
+            "field": "payment_method",
+            "status": "reported",
+            "value": "المحفظة",
+            "quote": "بالمحفظة"
+          },
+          {
+            "field": "paid_amount",
+            "status": "reported",
+            "value": "20 دينار",
+            "quote": "دفعت 20 دينار زيادة رسوم توصيل"
+          }
+        ],
+        "expected_fact_matches": {
+          "requested_amount": true,
+          "paid_amount": true
+        },
+        "expected_facts_not_covered_by_model": [],
+        "fallback_success_counted_as_model_success": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,262 @@
+{
+  "artifact_type": "offline_revalidation_of_saved_live_run",
+  "classification": "Derived offline analysis; not a new model run or human review.",
+  "evaluation_definition_version": 5,
+  "source_artifact": "reports/evaluation/model-live-gpt-6-luna-evalv4-partial-filter-2026-11-04.json",
+  "source_sha256": "c490196682fd03a059f3cea5c40b56c46d5e214608c0202b3bab2311aaf95b07",
+  "provider_calls_made": 0,
+  "method": "Revalidated only fact proposals persisted in v4 rejected-call records with the v5 validator, then recomputed eligible expected-fact matches from those facts plus the original accepted candidates. No prompt/model call was replayed.",
+  "limitations": [
+    "Integrated session state is not recomputed; the original v4 run had 21/21 integrated cases with its original whole-call fallback behavior.",
+    "The 3 rejected v4 calls had preserved parseable synthetic proposals; the v2 artifacts did not preserve equivalent rejected bodies/proposals.",
+    "This replay isolates validator salvage on the same stored provider outputs and is not a fresh live v5 score."
+  ],
+  "result": {
+    "source_v4_extraction_cases_passed": 14,
+    "source_case_denominator": 21,
+    "offline_v5_validator_extraction_cases_passed": 15,
+    "offline_case_denominator": 21,
+    "source_expected_fact_matches": 36,
+    "offline_expected_fact_matches": 40,
+    "eligible_expected_fact_denominator": 46,
+    "recovered_valid_fact_proposals": 7,
+    "newly_filtered_proposal_code_counts": {
+      "quote_mismatch": 1,
+      "value_inconsistent": 2
+    },
+    "combined_filtered_proposal_code_counts": {
+      "unsupported_status_evidence": 1,
+      "quote_mismatch": 1,
+      "value_inconsistent": 2
+    },
+    "source_integrated_cases_passed": 21,
+    "source_integrated_case_denominator": 21
+  },
+  "cases": [
+    {
+      "scenario_id": "E01",
+      "source_extraction_passed": false,
+      "offline_v5_extraction_passed": true,
+      "source_matches": 2,
+      "offline_matches": 4,
+      "eligible_expected_count": 4,
+      "recovered_valid_fields": [
+        "details",
+        "narrative",
+        "publication_threat",
+        "requested_amount"
+      ],
+      "newly_filtered_field_codes": {
+        "quote_mismatch": 1
+      }
+    },
+    {
+      "scenario_id": "E02",
+      "source_extraction_passed": true,
+      "offline_v5_extraction_passed": true,
+      "source_matches": 2,
+      "offline_matches": 2,
+      "eligible_expected_count": 2,
+      "recovered_valid_fields": [],
+      "newly_filtered_field_codes": {}
+    },
+    {
+      "scenario_id": "E03",
+      "source_extraction_passed": true,
+      "offline_v5_extraction_passed": true,
+      "source_matches": 2,
+      "offline_matches": 2,
+      "eligible_expected_count": 2,
+      "recovered_valid_fields": [],
+      "newly_filtered_field_codes": {}
+    },
+    {
+      "scenario_id": "E04",
+      "source_extraction_passed": true,
+      "offline_v5_extraction_passed": true,
+      "source_matches": 1,
+      "offline_matches": 1,
+      "eligible_expected_count": 1,
+      "recovered_valid_fields": [],
+      "newly_filtered_field_codes": {}
+    },
+    {
+      "scenario_id": "E05",
+      "source_extraction_passed": false,
+      "offline_v5_extraction_passed": false,
+      "source_matches": 0,
+      "offline_matches": 2,
+      "eligible_expected_count": 3,
+      "recovered_valid_fields": [
+        "narrative",
+        "paid_amount",
+        "payment_method"
+      ],
+      "newly_filtered_field_codes": {
+        "value_inconsistent": 1
+      }
+    },
+    {
+      "scenario_id": "E06",
+      "source_extraction_passed": true,
+      "offline_v5_extraction_passed": true,
+      "source_matches": 4,
+      "offline_matches": 4,
+      "eligible_expected_count": 4,
+      "recovered_valid_fields": [],
+      "newly_filtered_field_codes": {}
+    },
+    {
+      "scenario_id": "E07",
+      "source_extraction_passed": true,
+      "offline_v5_extraction_passed": true,
+      "source_matches": 1,
+      "offline_matches": 1,
+      "eligible_expected_count": 1,
+      "recovered_valid_fields": [],
+      "newly_filtered_field_codes": {}
+    },
+    {
+      "scenario_id": "E08",
+      "source_extraction_passed": true,
+      "offline_v5_extraction_passed": true,
+      "source_matches": 1,
+      "offline_matches": 1,
+      "eligible_expected_count": 1,
+      "recovered_valid_fields": [],
+      "newly_filtered_field_codes": {}
+    },
+    {
+      "scenario_id": "E09",
+      "source_extraction_passed": true,
+      "offline_v5_extraction_passed": true,
+      "source_matches": 2,
+      "offline_matches": 2,
+      "eligible_expected_count": 2,
+      "recovered_valid_fields": [],
+      "newly_filtered_field_codes": {}
+    },
+    {
+      "scenario_id": "E10",
+      "source_extraction_passed": true,
+      "offline_v5_extraction_passed": true,
+      "source_matches": 2,
+      "offline_matches": 2,
+      "eligible_expected_count": 2,
+      "recovered_valid_fields": [],
+      "newly_filtered_field_codes": {}
+    },
+    {
+      "scenario_id": "E11",
+      "source_extraction_passed": false,
+      "offline_v5_extraction_passed": false,
+      "source_matches": 1,
+      "offline_matches": 1,
+      "eligible_expected_count": 2,
+      "recovered_valid_fields": [],
+      "newly_filtered_field_codes": {}
+    },
+    {
+      "scenario_id": "E12",
+      "source_extraction_passed": true,
+      "offline_v5_extraction_passed": true,
+      "source_matches": 1,
+      "offline_matches": 1,
+      "eligible_expected_count": 1,
+      "recovered_valid_fields": [],
+      "newly_filtered_field_codes": {}
+    },
+    {
+      "scenario_id": "E13",
+      "source_extraction_passed": true,
+      "offline_v5_extraction_passed": true,
+      "source_matches": 2,
+      "offline_matches": 2,
+      "eligible_expected_count": 2,
+      "recovered_valid_fields": [],
+      "newly_filtered_field_codes": {}
+    },
+    {
+      "scenario_id": "E14",
+      "source_extraction_passed": true,
+      "offline_v5_extraction_passed": true,
+      "source_matches": 7,
+      "offline_matches": 7,
+      "eligible_expected_count": 7,
+      "recovered_valid_fields": [],
+      "newly_filtered_field_codes": {}
+    },
+    {
+      "scenario_id": "E15",
+      "source_extraction_passed": false,
+      "offline_v5_extraction_passed": false,
+      "source_matches": 0,
+      "offline_matches": 0,
+      "eligible_expected_count": 1,
+      "recovered_valid_fields": [],
+      "newly_filtered_field_codes": {}
+    },
+    {
+      "scenario_id": "E16",
+      "source_extraction_passed": false,
+      "offline_v5_extraction_passed": false,
+      "source_matches": 1,
+      "offline_matches": 1,
+      "eligible_expected_count": 2,
+      "recovered_valid_fields": [],
+      "newly_filtered_field_codes": {}
+    },
+    {
+      "scenario_id": "E17",
+      "source_extraction_passed": true,
+      "offline_v5_extraction_passed": true,
+      "source_matches": 1,
+      "offline_matches": 1,
+      "eligible_expected_count": 1,
+      "recovered_valid_fields": [],
+      "newly_filtered_field_codes": {}
+    },
+    {
+      "scenario_id": "E18",
+      "source_extraction_passed": false,
+      "offline_v5_extraction_passed": false,
+      "source_matches": 1,
+      "offline_matches": 1,
+      "eligible_expected_count": 2,
+      "recovered_valid_fields": [],
+      "newly_filtered_field_codes": {}
+    },
+    {
+      "scenario_id": "E19",
+      "source_extraction_passed": false,
+      "offline_v5_extraction_passed": false,
+      "source_matches": 1,
+      "offline_matches": 1,
+      "eligible_expected_count": 2,
+      "recovered_valid_fields": [],
+      "newly_filtered_field_codes": {
+        "value_inconsistent": 1
+      }
+    },
+    {
+      "scenario_id": "E20",
+      "source_extraction_passed": true,
+      "offline_v5_extraction_passed": true,
+      "source_matches": 2,
+      "offline_matches": 2,
+      "eligible_expected_count": 2,
+      "recovered_valid_fields": [],
+      "newly_filtered_field_codes": {}
+    },
+    {
+      "scenario_id": "E21",
+      "source_extraction_passed": true,
+      "offline_v5_extraction_passed": true,
+      "source_matches": 2,
+      "offline_matches": 2,
+      "eligible_expected_count": 2,
+      "recovered_valid_fields": [],
+      "newly_filtered_field_codes": {}
+    }
+  ]
+}

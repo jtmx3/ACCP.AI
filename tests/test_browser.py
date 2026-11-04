@@ -259,6 +259,61 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(exported["correction_notes"][0]["previous_value"], "100 دينار")
         self.assertTrue(exported["facts"]["contact"]["source_message_at"])
 
+    async def test_impersonation_sequence_ui_and_exports_keep_scoped_facts(self):
+        await self.page.goto(self.base_url)
+        await self.page.locator("#start-case").click()
+        turns = [
+            "اليوم اكتشفت حساب على إنستغرام مستخدم اسمي وصورتي وبحكي للناس إنه أنا. حسابي الأصلي معي وبقدر أدخل عليه. ما بعرف مين عامل الحساب، وعندي لقطات شاشة للحساب المزيف، وما في تهديد أو طلب مصاري.",
+            "شخص عامل حساب مزيف باسمي وصورتي على إنستغرام، وبتواصل مع الناس وبدّعي إنه أنا. حسابي الأصلي ما زال معي وبقدر أدخل عليه.",
+            "مثل ما ذكرت، عندي لقطات شاشة للحساب المزيف بتوضح استخدام اسمي وصورتي.",
+        ]
+        facts = self.page.locator("#facts-list")
+
+        await self._send(turns[0])
+        await expect(facts).to_contain_text("انتحال شخصية")
+        await expect(facts).to_contain_text("الأدلة المذكورة")
+        await expect(facts).to_contain_text("القدرة على الدخول للحساب الأصلي")
+        await expect(facts).to_contain_text("هوية الشخص")
+        await expect(facts).not_to_contain_text("توضيح واقعة غير مصنفة")
+        await expect(facts).not_to_contain_text("تعارض فعلي يحتاج إلى توضيح")
+
+        await self._send(turns[1])
+        await expect(facts).not_to_contain_text("تعارض فعلي يحتاج إلى توضيح")
+        await expect(self.page.locator("#stage-badge")).to_have_text("مراجعة")
+        await expect(self.page.locator("#chat")).not_to_contain_text("ما قدرت أحدد نوع الواقعة")
+
+        await self._send(turns[2])
+        await expect(facts).not_to_contain_text("تعارض فعلي يحتاج إلى توضيح")
+        await expect(self.page.locator("#stage-badge")).to_have_text("مراجعة")
+
+        async with self.page.expect_download() as json_event:
+            await self.page.locator("#download-json").click()
+        json_download = await json_event.value
+        json_path = Path(self.tmp.name) / json_download.suggested_filename
+        await json_download.save_as(json_path)
+        exported = json.loads(json_path.read_text(encoding="utf-8"))
+        self.assertEqual(exported["facts"]["impersonation"]["status"], "reported")
+        self.assertIs(exported["facts"]["impersonation"]["value"], True)
+        self.assertEqual(exported["facts"]["evidence"]["status"], "reported")
+        self.assertIn(turns[2], [item["quote"] for item in exported["facts"]["evidence"]["supporting_statements"]])
+        self.assertEqual(exported["facts"]["identity"]["status"], "unknown")
+        self.assertIs(exported["facts"]["original_account_access_available"]["value"], True)
+        self.assertNotIn("account_access", exported["facts"])
+        self.assertEqual(exported["facts"]["threat"]["status"], "denied")
+        self.assertNotIn("requested_amount", exported["facts"])
+        self.assertNotIn("paid_amount", exported["facts"])
+        self.assertNotIn("unclassified_details", exported["facts"])
+
+        async with self.page.expect_download() as markdown_event:
+            await self.page.locator("#download-report").click()
+        markdown_download = await markdown_event.value
+        markdown_path = Path(self.tmp.name) / markdown_download.suggested_filename
+        await markdown_download.save_as(markdown_path)
+        markdown = markdown_path.read_text(encoding="utf-8")
+        self.assertIn(turns[0], markdown)
+        self.assertIn(turns[2], markdown)
+        self.assertIn("القدرة على الدخول للحساب الأصلي", markdown)
+
     async def test_chat_pause_resume_correction_confirmation_and_download(self):
         await self.page.add_init_script("window.__accpPrintCalled=false;window.print=()=>{window.__accpPrintCalled=true;};")
         await self.page.goto(self.base_url)

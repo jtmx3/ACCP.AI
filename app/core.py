@@ -31,7 +31,7 @@ QUESTIONS: dict[str, str] = {
 LABELS = {
     "narrative": "وصف الواقعة", "unclassified_details": "توضيح واقعة غير مصنفة", "incident_type_review": "تصنيف نوع الواقعة (يحتاج مراجعة)",
     "threat": "وجود تهديد", "impersonation": "انتحال شخصية", "platform": "المنصة",
-    "account_access": "دخول غير مصرح به للحساب الأصلي", "harassment": "مضايقة مذكورة",
+    "account_access": "دخول غير مصرح به للحساب الأصلي", "original_account_access_available": "القدرة على الدخول للحساب الأصلي", "harassment": "مضايقة مذكورة",
     "contact_repeated": "تكرار التواصل دون استنتاج تهديد", "publication_threat": "تهديد بالنشر",
     "direct_danger": "الخطر المباشر الحالي", "active_unauthorized_funds": "أموال معرضة حاليًا لتصرف غير مأذون",
     "fraud_description": "وصف خداع مالي", "details": "تفاصيل الواقعة",
@@ -230,23 +230,112 @@ def _threat_polarity(text: str, already_reported: bool) -> bool | None:
     return result
 
 
-def _evidence_polarity(text: str) -> tuple[bool, bool, list[str]]:
+def _evidence_polarity(text: str, allow_bare: bool = False) -> tuple[bool, bool, list[str], bool]:
     positive: list[str] = []
     categories = {
-        "صور أو لقطات شاشة": ("صور", "صوري", "لقطات", "سكرين"),
+        "صور أو لقطات شاشة": ("صور", "صوري", "صورتي", "لقطات", "سكرين"),
         "رسائل أو محادثات": ("رسائل", "رسالة", "محادث", "مسجات"),
         "إيصال أو سجل دفع": ("ايصال", "إيصال", "حوالة", "تحويل"),
     }
     negative_mentions = False
-    for clause in _clauses(text):
+    unknown_mentions = False
+    possession_markers = ("عندي", "معي", "احتفظت", "حفظت", "لدي", "صورت الشاشة", "اخذت لقطة", "أخذت لقطة")
+    for clause in _clauses(_strip_quoted_spans(text)):
+        normalized_clause = normalize(clause)
+        matched_labels = []
         for label, terms in categories.items():
-            if not any(term in normalize(clause) for term in terms):
-                continue
-            if re.search(r"(?:ما\s+عندي|ليس\s+لدي|مش\s+عندي|ما\s+في|لا\s+يوجد|ولا\s+عندي)\s+[^،؛.]*", normalize(clause)):
-                negative_mentions = True
-            elif any(term in normalize(clause) for term in terms):
-                positive.append(label)
-    return bool(positive), negative_mentions, list(dict.fromkeys(positive))
+            # Possessives such as "صورتي" refer to the impersonated profile
+            # image, not automatically to evidence held by the user.
+            explicit_term = any(term in normalized_clause for term in terms)
+            if label == "صور أو لقطات شاشة" and explicit_term and not any(
+                marker in normalized_clause for marker in ("لقطات", "سكرين", "صور شاشة", "صورة شاشة")
+            ):
+                explicit_term = bool(re.search(r"(?<!\w)(?:صور|صورة|صوري|صورتي)(?!\w)", normalized_clause))
+            if explicit_term:
+                matched_labels.append(label)
+        if not matched_labels:
+            continue
+        if _is_unknown(clause):
+            unknown_mentions = True
+            continue
+        if re.search(r"(?:ما\s+عندي|ليس\s+لدي|مش\s+عندي|ما\s+في|لا\s+يوجد|ولا\s+عندي)\s+[^،؛.]*", normalized_clause):
+            negative_mentions = True
+            continue
+        has_possession = any(marker in normalized_clause for marker in possession_markers)
+        if has_possession or allow_bare:
+            positive.extend(matched_labels)
+    return bool(positive), negative_mentions, list(dict.fromkeys(positive)), unknown_mentions
+
+
+def _impersonation_polarity(text: str) -> bool | None:
+    """Classify explicit identity claims, not mere name/photo resemblance."""
+    normalized = normalize(_strip_quoted_spans(text))
+    clauses = _clauses(_strip_quoted_spans(text))
+    account_context = any(term in normalized for term in ("حساب", "بروفايل", "صفحه", "صفحة", "profile"))
+    if not account_context:
+        return None
+
+    denied = bool(re.search(
+        r"(?:ما\s+في|مش|مو|لا\s+يوجد)\s+(?:اي\s+)?(?:حساب\s+)?(?:مزيف|وهمي|منتحل)|"
+        r"(?:ما\s+في|لا\s+يوجد)\s+حساب\s+منتحل|"
+        r"(?:ما|مش|مو|لا)\s+(?:بحكي|بيحكي|يحكي|بقول|بيقول|يقول|بدعي|يدعي)\s+(?:للناس\s+)?(?:انه\s+)?انا",
+        normalized,
+    ))
+    explicit_claim_markers = (
+        "انتحال", "منتحل", "ينتحل", "انتحل", "ينتحل شخصيتي", "انتحال شخصيتي", "انتحال هويتي",
+        "بصفته انا", "بصفتي انا",
+    )
+    claim_pattern = re.compile(
+        r"(?:بحكي|بيحكي|يحكي|بقول|بيقول|يقول|بدعي|يدعي|يتظاهر|يزعم)\s+"
+        r"[^،؛.]{0,45}\b(?:انه|اني)\s+انا"
+    )
+    explicit_claim = any(
+        (any(marker in normalize(clause) for marker in explicit_claim_markers) or claim_pattern.search(normalize(clause)))
+        and not _is_unknown(clause)
+        and not re.search(r"(?:ما|مش|مو|لا)\s+(?:بحكي|بيحكي|يحكي|بقول|بيقول|يقول|بدعي|يدعي|ينتحل)", normalize(clause))
+        for clause in clauses
+    )
+
+    fan_or_lookalike = any(term in normalized for term in ("معجبين", "حساب معجب", "fan account", "مشابه", "شبيه"))
+    uncertain_claim = any(_is_unknown(clause) and re.search(r"(?:يدعي|بدعي|يحكي|بقول|انه\s+انا)", normalize(clause)) for clause in clauses)
+    fake_profile = bool(re.search(r"(?:حساب(?:ا)?|بروفايل|صفحه)\s+(?:ا)?(?:مزيف|وهمي)", normalized))
+    identity_reference = any(term in normalized for term in ("باسمي", "اسمي", "صورتي", "صوري", "شخصيتي", "هويتي"))
+    if denied:
+        return False
+    if explicit_claim:
+        return True
+    if fake_profile and identity_reference and not fan_or_lookalike and not uncertain_claim:
+        return True
+    return None
+
+
+def _impersonation_behavior_described(text: str) -> bool:
+    normalized = normalize(_strip_quoted_spans(text))
+    if re.search(
+        r"(?:بحكي|بيحكي|يحكي|بقول|بيقول|يقول|بدعي|يدعي|يتظاهر|يزعم)\s+"
+        r"[^،؛.]{0,45}\b(?:انه|اني)\s+انا",
+        normalized,
+    ):
+        return True
+    return any(term in normalized for term in (
+        "ينتحل شخصيتي", "انتحال شخصيتي", "ينتحل هويتي", "انتحال هويتي", "بصفته انا", "بصفتي انا",
+    ))
+
+
+def _identity_actor_unknown(text: str) -> bool:
+    identity_subject = re.compile(r"(?:مين|من)\s+(?:عامل|عمل|انشا|انشأ|مسوي|وراء|صاحب|يدير)|هوية\s+(?:الشخص|الفاعل)")
+    return any(identity_subject.search(normalize(clause)) and _is_unknown(clause)
+               for clause in _clauses(_strip_quoted_spans(text)))
+
+
+def _original_account_access_available(text: str) -> bool:
+    for clause in _clauses(_strip_quoted_spans(text)):
+        normalized_clause = normalize(clause)
+        if not re.search(r"(?:حسابي|الحساب)\s+(?:ال)?اصلي", normalized_clause):
+            continue
+        if any(marker in normalized_clause for marker in ("بقدر ادخل", "اقدر ادخل", "استطيع الدخول", "بقدر افوت", "ما زال معي", "ما زلت ادخل")):
+            return True
+    return False
 
 
 _NARRATIVE_STOPWORDS = {"في", "من", "على", "عن", "الى", "انا", "هو", "هي", "كان", "كانت", "هذا", "هذه", "مع", "بس", "لكن", "عندي", "علي", "ما", "لا", "لم", "مش", "مو"}
@@ -345,13 +434,12 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
         if threat_polarity and (pending == "narrative" or not state["facts"].get("narrative")) and _narrative_has_description(text):
             _set_answer(state, "narrative", text, "reported", text, mid, question_id, changed)
         _set_answer(state, "threat", threat_polarity, "reported" if threat_polarity else "denied", text, mid, question_id, changed)
-    impersonation_denied = any(term in t for term in ("ما في حساب منتحل", "مش حساب منتحل", "لا يوجد حساب منتحل", "ما في حد منتحل"))
-    fake_profile = bool(re.search(r"حساب(?:ا)?\s+(?:مزيف(?:ا|ة)?|وهمي)", t))
-    impersonation_context = (any(term in t for term in ("انتحال", "منتحل", "ينتحل", "ينتحلني", "عامل حساب")) or fake_profile) and any(term in t for term in ("باسمي", "اسمي", "صورتي", "ينتحل", "اصحابي", "اصدقائي", "زملائي"))
-    if impersonation_denied:
-        _set_answer(state, "impersonation", False, "denied", text, mid, question_id, changed)
-    elif impersonation_context:
-        _set_answer(state, "impersonation", True, "reported", text, mid, question_id, changed)
+    impersonation_polarity = _impersonation_polarity(text)
+    if impersonation_polarity is not None:
+        _set_answer(state, "impersonation", impersonation_polarity,
+                    "reported" if impersonation_polarity else "denied", text, mid, question_id, changed)
+        if impersonation_polarity and _impersonation_behavior_described(text) and _narrative_has_description(text):
+            _set_answer(state, "details", text, "reported", text, mid, question_id, changed)
     platform_names = (("واتساب", "واتساب"), ("whatsapp", "واتساب"), ("انستغرام", "إنستغرام"), ("انستجرام", "إنستغرام"), ("instagram", "إنستغرام"), ("فيسبوك", "فيسبوك"), ("facebook", "فيسبوك"), ("سناب", "سناب شات"), ("snapchat", "سناب شات"), ("تيك توك", "تيك توك"), ("tiktok", "تيك توك"))
     platform = next((name for token, name in platform_names if token in t), None)
     if platform:
@@ -374,6 +462,8 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
     account_access_denial = any(normalize(marker) in t for marker in ("ما انسرق", "لم يسرق", "ما اخترق", "لم يخترق", "مش مخترق", "ما حدا دخل على حساب", "ما حدا دخل حساب", "ما دخل على حساب", "لم يدخل على حساب", "ما دخل حساب"))
     if account_access_signal and not account_access_denial:
         _set_answer(state, "account_access", True, "reported", text, mid, question_id, changed)
+    if _original_account_access_available(text):
+        _set_answer(state, "original_account_access_available", True, "reported", text, mid, question_id, changed)
     if any(k in t for k in ("عم يسحب", "تنسحب اموال", "تحويل بدون اذني", "تحويل دون اذني", "خصم بدون اذني", "سحب غير ماذون")):
         _set_answer(state, "active_unauthorized_funds", True, "reported", text, mid, question_id, changed)
     if any(normalize(k) in t for k in ("نصب علي", "اننصب علي", "خدعني حتى أدفع", "خداع مالي واضح", "احتيال مالي واضح")):
@@ -381,7 +471,7 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
 
     if pending == "narrative" and not state["facts"].get("narrative") and _narrative_has_description(text):
         _set_answer(state, "narrative", text, "reported", text, mid, question_id, changed)
-    if pending == "unclassified_details" and _narrative_has_description(text):
+    if pending == "unclassified_details" and _narrative_has_description(text) and impersonation_polarity is not True:
         _set_answer(state, "unclassified_details", text, "reported", text, mid, question_id, changed)
 
     # Independently extract facts volunteered before their question.
@@ -549,7 +639,10 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
         if _declined_contact_identifier(text):
             _set_answer(state, "contact_identifier_disclosure", None, "declined", text, mid, question_id, changed)
 
-    if pending == "identity":
+    identity_unknown = _identity_actor_unknown(text) or (pending == "identity" and unknown_status is not None)
+    if identity_unknown:
+        _set_answer(state, "identity", None, "unknown", text, mid, question_id, changed)
+    elif pending == "identity":
         if unknown_status:
             _set_answer(state, "identity", None, unknown_status, text, mid, question_id, changed)
         elif any(k in t for k in ("رقم", "حساب", "اسم مستخدم", "username")):
@@ -567,12 +660,10 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
     elif (identifier := _specific_contact_identifier(text)):
         _set_answer(state, "contact", identifier, "reported", text, mid, question_id, changed)
 
-    evidence_positive, evidence_denied, evidence_types = _evidence_polarity(text)
-    evidence_possession = pending == "evidence" or any(term in t for term in ("عندي", "معي", "احتفظت", "حفظت الرسالة", "صورت الشاشة", "اخذت لقطة", "أخذت لقطة", "مسجل عندي", "لدي لقطات"))
-    evidence_positive = evidence_positive and evidence_possession
+    evidence_positive, evidence_denied, evidence_types, evidence_unknown = _evidence_polarity(text, allow_bare=pending == "evidence")
     if pending == "evidence" or evidence_positive or evidence_denied:
-        if unknown_status:
-            _set_answer(state, "evidence", None, unknown_status, text, mid, question_id, changed)
+        if evidence_unknown or (pending == "evidence" and unknown_status):
+            _set_answer(state, "evidence", None, "unknown", text, mid, question_id, changed)
         elif evidence_positive:
             _set_answer(state, "evidence", "; ".join(evidence_types), "reported", text, mid, question_id, changed)
         elif evidence_denied:
@@ -1280,7 +1371,7 @@ def render_report(state: dict[str, Any]) -> str:
     lines += ["", "## وصف الواقعة", "", display_value(facts.get("narrative")), "", "## التسلسل الزمني", "",
              f"- بداية الواقعة: {display_value(facts.get('initial_time'))}",
              f"- أحدث تواصل: {display_value(facts.get('latest_time'))}", "", "## الوقائع ومصادرها", ""]
-    ordered = ["threat", "impersonation", "platform", "details", "unclassified_details", "additional_details", "publication_threat", "initial_time", "latest_time", "repeated", "requested_amount", "paid_amount", "payment_method", "deadline", "published", "identity", "contact", "evidence", "account_access", "fraud_description", "active_unauthorized_funds", "direct_danger"]
+    ordered = ["threat", "impersonation", "platform", "details", "unclassified_details", "additional_details", "publication_threat", "initial_time", "latest_time", "repeated", "requested_amount", "paid_amount", "payment_method", "deadline", "published", "identity", "contact", "evidence", "original_account_access_available", "account_access", "fraud_description", "active_unauthorized_funds", "direct_danger"]
     for key in ordered:
         fact = facts.get(key)
         if not fact:

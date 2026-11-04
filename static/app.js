@@ -11,6 +11,7 @@
     payment_method: 'وسيلة الدفع', deadline: 'مهلة الدفع', published: 'حدوث النشر', identity: 'هوية الشخص',
     contact: 'معرّف التواصل', contact_identifier_disclosure: 'الإفصاح عن معرّف التواصل',
     evidence: 'الأدلة المذكورة', account_access: 'دخول غير مصرح به',
+    original_account_access_available: 'القدرة على الدخول للحساب الأصلي',
     requested_amount_relation: 'علاقة المبلغ المطلوب الجديد بالسابق', paid_amount_relation: 'علاقة مبلغ الدفع الجديد بالسابق'
   };
   const factStatusLabels = {
@@ -195,7 +196,7 @@
     factsList.replaceChildren();
     const facts = state.facts || {};
     const messagesById = new Map((state.messages || []).map(message => [message.id, message]));
-    const order = ['narrative', 'threat', 'impersonation', 'platform', 'details', 'additional_details', 'publication_threat', 'direct_danger', 'active_unauthorized_funds', 'fraud_description', 'harassment', 'contact_repeated', 'initial_time', 'latest_time', 'repeated', 'requested_amount', 'paid_amount', 'payment_method', 'deadline', 'published', 'identity', 'contact', 'contact_identifier_disclosure', 'evidence', 'account_access'];
+    const order = ['narrative', 'threat', 'impersonation', 'platform', 'details', 'additional_details', 'publication_threat', 'direct_danger', 'active_unauthorized_funds', 'fraud_description', 'harassment', 'contact_repeated', 'initial_time', 'latest_time', 'repeated', 'requested_amount', 'paid_amount', 'payment_method', 'deadline', 'published', 'identity', 'contact', 'contact_identifier_disclosure', 'evidence', 'original_account_access_available', 'account_access'];
     for (const key of order) {
       const fact = facts[key];
       if (!fact) continue;

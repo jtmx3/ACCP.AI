@@ -212,6 +212,7 @@ class InterviewWorkflowTests(unittest.TestCase):
         state = new_state("impersonation-case")
         handle_turn(state, "في حساب منتحل يستخدم اسمي")
         self.assertEqual(state["pending_slot"], "details")
+        self.assertNotIn("details", state["facts"])
         self.assertNotIn("account_access", state["facts"])
         handle_turn(state, "ينشر منشورات باسمي ويتواصل مع أصحابي")
         self.assertEqual(_assessment(state)["priority_score"], 85)

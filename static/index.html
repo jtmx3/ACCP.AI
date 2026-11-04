@@ -41,8 +41,8 @@
       </section>
       <section class="privacy-card">
         <h3>الخصوصية والحدود</h3>
-        <p>الافتراضي استخراج محلي بقواعد محدودة. إذا ضبط المشغّل مزودًا خارجيًا، فموافقة مستقلة لكل إرسال: في وضع السؤال يُرسل نص السؤال الحالي والمقتطفات المختارة؛ وفي وضع المقابلة يُرسل نص رسالتك الحالية فقط لاستخراج حقائق منظمة مع اقتباساتها.</p>
-        <p>لا يُرسل سجل المحادثة أو الحقائق السابقة أو رمز الجلسة تلقائيًا. أي تفاصيل شخصية تكتبها داخل الرسالة الحالية ستُرسل للمزود عند الموافقة. لا تُرسل كلمة مرور أو رمز تحقق أو معلومات لا تحتاجها.</p>
+        <p>الافتراضي استخراج محلي بقواعد محدودة. عند تفعيل النموذج، تُطلب موافقة مستقلة لكل إرسال. في وضع السؤال يُرسل نص السؤال الحالي والمقتطفات المختارة فقط. وفي استخراج المقابلة قد يُرسل نص الرسالة الحالية مع سياق محدود من السؤال المعلّق، وما يصل إلى أربع رسائل ذات صلة، والحقائق أو أحداث المبالغ المرتبطة؛ يظل الاقتباس المقبول من الرسالة الحالية وحدها.</p>
+        <p>لا يُرسل سجل المحادثة كاملًا أو رمز الجلسة أو التقييم أو إعدادات التشغيل. لا يُرسل السياق السابق إلا بعد موافقة منفصلة، ويقتصر على 4500 حرف كحد أقصى. قد تتضمن الرسالة الحالية أو الوقائع المرتبطة بيانات شخصية؛ لا تُرسل كلمة مرور أو رمز تحقق أو معلومات لا تحتاجها.</p>
         <p>لا تكتب كلمات مرور أو رموز تحقق أو معلومات لا تحتاجها المقابلة. لا ترفع أدلة؛ النظام لا يستلمها ولا يفحصها.</p>
         <p>التأكيد يخص الملخص المعروض فقط، وليس بلاغًا رسميًا أو تحققًا مستقلًا.</p>
       </section>
@@ -65,7 +65,8 @@
           <div id="chat" class="chat" aria-live="polite" aria-label="رسائل المقابلة"></div>
           <form id="chat-form" class="composer">
             <div class="composer-tools"><span id="mode-label">وضع المقابلة</span><button id="toggle-mode" class="text-button" type="button">عندي سؤال للبوت</button></div>
-            <label id="model-consent-row" class="model-consent hidden"><input id="model-consent" type="checkbox"> <span id="model-consent-copy">أوافق على إرسال البيانات المذكورة لهذا الطلب فقط إلى مزود خارجي.</span></label>
+            <label id="model-consent-row" class="model-consent hidden"><input id="model-consent" type="checkbox"> <span id="model-consent-copy">أوافق على إرسال نص الرسالة الحالية لاستخراج الوقائع لهذا الطلب.</span></label>
+            <label id="context-consent-row" class="model-consent hidden"><input id="context-consent" type="checkbox"> <span id="context-consent-copy">أوافق بشكل منفصل على إرسال سياق محدود ذي صلة لهذا الطلب.</span></label>
             <label for="message" class="sr-only">اكتب رسالتك</label>
             <textarea id="message" rows="2" maxlength="5000" placeholder="اكتب إجابتك هنا…" required></textarea>
             <div class="composer-bottom"><span class="muted small">لا تشارك كلمات مرور أو رموز تحقق.</span><button id="send" class="button button-primary" type="submit">إرسال</button></div>

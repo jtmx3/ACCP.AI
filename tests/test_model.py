@@ -303,6 +303,25 @@ class OptionalModelTests(unittest.TestCase):
         self.assertNotIn("session_id", str(sent))
         self.assertNotIn("transcript", str(sent))
 
+    def test_extraction_request_includes_only_explicit_bounded_context(self):
+        text = "نفس المبلغ الأول"
+        context = {"context_version": "synthetic-v1", "pending_question": {"slot": "requested_amount_relation"},
+                   "related_facts": [], "related_money_events": [], "untrusted_user_data": True}
+        interpretation = {"goals": ["answer_pending_question"], "pending_slot": "requested_amount_relation",
+                          "interpretation_only": True}
+        candidate = {"facts": []}
+        with patch("app.model._chat", return_value=json.dumps(candidate, ensure_ascii=False)) as chat:
+            result = generate_interview_extraction(text, "requested_amount_relation", context, interpretation)
+        self.assertEqual(result, [])
+        sent = json.loads(chat.call_args.args[0][1]["content"])
+        self.assertEqual(sent["bounded_untrusted_context"], context)
+        self.assertEqual(sent["local_message_goal_hints"], interpretation)
+        self.assertEqual(sent["current_user_message"], text)
+        self.assertNotIn("session_id", json.dumps(sent, ensure_ascii=False))
+        self.assertNotIn("case_token", json.dumps(sent, ensure_ascii=False))
+        system = chat.call_args.args[0][0]["content"]
+        self.assertIn("تلميحات الأهداف اقتراحات أولية فقط", system)
+
     def test_malformed_extraction_falls_back_but_semantic_fact_is_filtered(self):
         text = "طلب مني 100 دينار"
         with patch("app.model._chat", return_value='{"facts":[{"field":"requested_amount","status":"reported","value":"200 دينار","quote":"طلب مني 100 دينار"}]}'):

@@ -1,0 +1,1786 @@
+{
+  "evaluation_version": "conversation-v2-2",
+  "recorded_at": "2026-11-04T20:10:24Z",
+  "base_commit": "4466c51ebcc2ea51c67291a47f22e263ccbdcfdb",
+  "worktree_dirty": true,
+  "mode": "rules",
+  "provider_probe": null,
+  "results": [
+    {
+      "suite_id": "ACCP-CONVERSATION-V2-ACCEPTANCE-01",
+      "suite_path": "tests/conversation_v2_acceptance.json",
+      "mode": "rules",
+      "synthetic_internal_cases": true,
+      "provider": "rules",
+      "model": null,
+      "configured": false,
+      "conversation_integration_cases_passed": 9,
+      "case_denominator": 9,
+      "fact_checks_passed": 20,
+      "fact_checks_total": 20,
+      "prohibited_inference_checks_passed": 8,
+      "prohibited_inference_checks_total": 8,
+      "dialogue_checks_passed": 14,
+      "dialogue_checks_total": 14,
+      "provider_calls_attempted": 0,
+      "model_extractions_with_at_least_one_valid_fact": 0,
+      "model_extraction_eligible_turns": 0,
+      "model_valid_empty_responses": 0,
+      "model_responses_with_all_facts_filtered": 0,
+      "model_rejected_or_failed_responses": 0,
+      "model_expected_fact_matches": 0,
+      "model_expected_fact_checks": 0,
+      "model_expected_fact_omissions": 0,
+      "model_expected_fact_match_rate": null,
+      "model_valid_fact_proposals": 0,
+      "model_forbidden_addition_checks": 0,
+      "model_forbidden_additions": 0,
+      "integrated_model_proposals_applied": 0,
+      "integrated_model_proposals_applied_as_conflicts": 0,
+      "integrated_model_proposals_agreeing_with_rule_facts": 0,
+      "integrated_model_proposals_routed_to_rule_merger": 0,
+      "integrated_model_proposals_ignored": 0,
+      "integrated_model_proposals_superseded_by_rules": 0,
+      "integrated_api_fallbacks_not_counted_as_model_success": 0,
+      "provider_latency": {
+        "count": 0,
+        "median_ms": null,
+        "p95_ms": null
+      },
+      "end_to_end_request_latency": {
+        "count": 9,
+        "median_ms": 11.213,
+        "p95_ms": 22.529
+      },
+      "first_provider_call_latency_ms": null,
+      "subsequent_provider_calls_latency": {
+        "count": 0,
+        "median_ms": null,
+        "p95_ms": null
+      },
+      "case_results": [
+        {
+          "case_id": "A01-indirect-payment-does-not-answer-deadline",
+          "passed": true,
+          "steps": [
+            {
+              "turn": 1,
+              "text": "بس أنا دفعت",
+              "http_status": 200,
+              "pending_slot": "deadline",
+              "stage": "interview",
+              "facts": {
+                "narrative": {
+                  "status": "reported",
+                  "value": "في شخص هددني على واتساب",
+                  "quote": "في شخص هددني على واتساب",
+                  "message_id": "m2",
+                  "question_id": "m1",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "threat": {
+                  "status": "reported",
+                  "value": true,
+                  "quote": "في شخص هددني",
+                  "message_id": "m2",
+                  "question_id": "m1",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "details": {
+                  "status": "reported",
+                  "value": "هددني إذا ما دفعت 100 دينار",
+                  "quote": "هددني إذا ما دفعت 100 دينار",
+                  "message_id": "m2",
+                  "question_id": "m1",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "direct_danger": {
+                  "status": "denied",
+                  "value": false,
+                  "quote": "ما في خطر مباشر",
+                  "message_id": "m2",
+                  "question_id": "m1",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "initial_time": {
+                  "status": "unknown",
+                  "value": null,
+                  "quote": "ما بعرف متى بدأ",
+                  "message_id": "m2",
+                  "question_id": "m1",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "repeated": {
+                  "status": "unknown",
+                  "value": null,
+                  "quote": "ما بعرف إذا تكرر",
+                  "message_id": "m2",
+                  "question_id": "m1",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "requested_amount": {
+                  "status": "reported",
+                  "value": "100 دينار",
+                  "quote": "طلب مني 100 دينار",
+                  "message_id": "m2",
+                  "question_id": "m1",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "paid_amount": {
+                  "status": "reported",
+                  "value": "دفع بحسب الإفادة؛ المبلغ غير محدد",
+                  "quote": "بس أنا دفعت",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": [
+                    {
+                      "status": "unknown",
+                      "value": null,
+                      "quote": "ما بعرف إذا دفعت",
+                      "message_id": "m2",
+                      "at": "2026-11-04T20:10:25+00:00",
+                      "reason": "later_supported_information"
+                    }
+                  ]
+                }
+              },
+              "money_events": [
+                {
+                  "id": "money-1",
+                  "kind": "paid",
+                  "amount": null,
+                  "relation": "initial",
+                  "quote": "بس أنا دفعت",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "created_at": "2026-11-04T20:10:25+00:00",
+                  "amount_status": "not_stated"
+                }
+              ],
+              "checks": [
+                {
+                  "type": "fact",
+                  "field": "paid_amount",
+                  "passed": true,
+                  "detail": "matched"
+                },
+                {
+                  "type": "forbidden_fact",
+                  "field": "deadline",
+                  "passed": true,
+                  "detail": "absent"
+                },
+                {
+                  "type": "pending_slot",
+                  "passed": true,
+                  "detail": "expected 'deadline', got 'deadline'"
+                },
+                {
+                  "type": "single_question",
+                  "passed": true,
+                  "detail": {
+                    "count": 1,
+                    "text": "سجلت المعلومة التي أضفتها. بقي عندي هذا السؤال للتوضيح: هل حدد الشخص مهلة أو موعدًا للدفع؟"
+                  }
+                }
+              ],
+              "passed": true,
+              "request_latency_ms": 22.529,
+              "provider_call": {},
+              "model_extraction": null,
+              "fallback_used": false
+            }
+          ]
+        },
+        {
+          "case_id": "A02-prior-payment-and-new-request-without-amounts",
+          "passed": true,
+          "steps": [
+            {
+              "turn": 1,
+              "text": "دفعتله مبارح، واليوم طلب كمان",
+              "http_status": 200,
+              "pending_slot": "requested_amount",
+              "stage": "interview",
+              "facts": {
+                "narrative": {
+                  "field": "narrative",
+                  "status": "reported",
+                  "value": "دفعتله مبارح، واليوم طلب كمان",
+                  "quote": "دفعتله مبارح، واليوم طلب كمان",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "paid_amount": {
+                  "field": "paid_amount",
+                  "status": "reported",
+                  "value": "دفع بحسب الإفادة؛ المبلغ غير محدد",
+                  "quote": "دفعتله مبارح، واليوم طلب كمان",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                }
+              },
+              "money_events": [
+                {
+                  "id": "money-1",
+                  "kind": "paid",
+                  "amount": null,
+                  "relation": "initial",
+                  "quote": "دفعتله مبارح، واليوم طلب كمان",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "created_at": "2026-11-04T20:10:25+00:00",
+                  "amount_status": "not_stated"
+                }
+              ],
+              "checks": [
+                {
+                  "type": "fact",
+                  "field": "paid_amount",
+                  "passed": true,
+                  "detail": "matched"
+                },
+                {
+                  "type": "forbidden_fact",
+                  "field": "requested_amount",
+                  "passed": true,
+                  "detail": "absent"
+                },
+                {
+                  "type": "no_invented_amounts",
+                  "passed": true,
+                  "detail": [
+                    "",
+                    "دفع بحسب الإفادة؛ المبلغ غير محدد"
+                  ]
+                },
+                {
+                  "type": "pending_slot",
+                  "passed": true,
+                  "detail": "expected 'requested_amount', got 'requested_amount'"
+                },
+                {
+                  "type": "single_question",
+                  "passed": true,
+                  "detail": {
+                    "count": 1,
+                    "text": "هل طُلب منك مبلغ؟ إذا نعم، كم كان المبلغ المطلوب؟"
+                  }
+                }
+              ],
+              "passed": true,
+              "request_latency_ms": 13.898,
+              "provider_call": {},
+              "model_extraction": null,
+              "fallback_used": false
+            }
+          ]
+        },
+        {
+          "case_id": "A03-correct-requested-amount-preserve-paid",
+          "passed": true,
+          "steps": [
+            {
+              "turn": 1,
+              "text": "قصدي المطلوب 120، اللي حولته ما تغير",
+              "http_status": 200,
+              "pending_slot": null,
+              "stage": "review",
+              "facts": {
+                "narrative": {
+                  "status": "reported",
+                  "value": "طلب مبلغًا ودفع المستخدم مبلغًا",
+                  "quote": "طلب مبلغًا ودفع المستخدم مبلغًا",
+                  "message_id": "m2",
+                  "question_id": "m1",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "details": {
+                  "status": "reported",
+                  "value": "طلب 100 دينار ودفع 130 دينار",
+                  "quote": "طلب مني 100 دينار ودفعت 130 دينار",
+                  "message_id": "m2",
+                  "question_id": "m1",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "initial_time": {
+                  "status": "unknown",
+                  "value": null,
+                  "quote": "ما بعرف متى بدأ",
+                  "message_id": "m2",
+                  "question_id": "m1",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "requested_amount": {
+                  "field": "requested_amount",
+                  "status": "reported",
+                  "value": "120",
+                  "quote": "قصدي المطلوب 120، اللي حولته ما تغير",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": [
+                    {
+                      "status": "reported",
+                      "value": "100 دينار",
+                      "quote": "طلب مني 100 دينار",
+                      "message_id": "m2",
+                      "at": "2026-11-04T20:10:25+00:00",
+                      "reason": "explicit_correction"
+                    }
+                  ]
+                },
+                "paid_amount": {
+                  "status": "reported",
+                  "value": "130 دينار",
+                  "quote": "دفعت 130 دينار",
+                  "message_id": "m2",
+                  "question_id": "m1",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "payment_method": {
+                  "status": "unknown",
+                  "value": null,
+                  "quote": "ما بعرف وسيلة الدفع",
+                  "message_id": "m2",
+                  "question_id": "m1",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "deadline": {
+                  "status": "unknown",
+                  "value": null,
+                  "quote": "ما بعرف إذا حدد مهلة",
+                  "message_id": "m2",
+                  "question_id": "m1",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "evidence": {
+                  "status": "unknown",
+                  "value": null,
+                  "quote": "ما بعرف إذا في دليل",
+                  "message_id": "m2",
+                  "question_id": "m1",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                }
+              },
+              "money_events": [
+                {
+                  "id": "money-seed-requested",
+                  "kind": "requested",
+                  "amount": "100 دينار",
+                  "relation": "initial",
+                  "quote": "طلب مني 100 دينار",
+                  "message_id": "m2"
+                },
+                {
+                  "id": "money-seed-paid",
+                  "kind": "paid",
+                  "amount": "130 دينار",
+                  "relation": "initial",
+                  "quote": "دفعت 130 دينار",
+                  "message_id": "m2"
+                },
+                {
+                  "id": "money-3",
+                  "kind": "requested",
+                  "amount": "120",
+                  "relation": "correction",
+                  "quote": "قصدي المطلوب 120، اللي حولته ما تغير",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "created_at": "2026-11-04T20:10:25+00:00"
+                }
+              ],
+              "checks": [
+                {
+                  "type": "fact",
+                  "field": "requested_amount",
+                  "passed": true,
+                  "detail": "matched"
+                },
+                {
+                  "type": "fact",
+                  "field": "paid_amount",
+                  "passed": true,
+                  "detail": "matched"
+                },
+                {
+                  "type": "history",
+                  "field": "requested_amount",
+                  "passed": true,
+                  "detail": "historical entry {'value': '100 دينار'}"
+                },
+                {
+                  "type": "single_question",
+                  "passed": true,
+                  "detail": {
+                    "count": 0,
+                    "text": null
+                  }
+                },
+                {
+                  "type": "money_event_relation",
+                  "passed": true,
+                  "detail": {
+                    "kind": "requested",
+                    "relation": "correction",
+                    "amount_contains": "120"
+                  }
+                }
+              ],
+              "passed": true,
+              "request_latency_ms": 16.056,
+              "provider_call": {},
+              "model_extraction": null,
+              "fallback_used": false
+            }
+          ]
+        },
+        {
+          "case_id": "A04-multi-fact-impersonation-evidence-time",
+          "passed": true,
+          "steps": [
+            {
+              "turn": 1,
+              "text": "اليوم اكتشفت حساب على إنستغرام مستخدم اسمي وصورتي وبحكي للناس إنه أنا. حسابي الأصلي معي وبقدر أدخل عليه. عندي لقطات شاشة للحساب المزيف. اكتشفته اليوم بس ما بعرف متى انعمل.",
+              "http_status": 200,
+              "pending_slot": "identity",
+              "stage": "interview",
+              "facts": {
+                "discovery_time": {
+                  "field": "discovery_time",
+                  "status": "reported",
+                  "value": "اليوم",
+                  "quote": "اليوم اكتشفت حساب على إنستغرام مستخدم اسمي وصورتي وبحكي للناس إنه أنا",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "account_creation_time": {
+                  "field": "account_creation_time",
+                  "status": "unknown",
+                  "value": null,
+                  "quote": "ما بعرف متى انعمل",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "impersonation": {
+                  "field": "impersonation",
+                  "status": "reported",
+                  "value": true,
+                  "quote": "اليوم اكتشفت حساب على إنستغرام مستخدم اسمي وصورتي وبحكي للناس إنه أنا. حسابي الأصلي معي وبقدر أدخل عليه. عندي لقطات شاشة للحساب المزيف. اكتشفته اليوم بس ما بعرف متى انعمل.",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "details": {
+                  "field": "details",
+                  "status": "reported",
+                  "value": "اليوم اكتشفت حساب على إنستغرام مستخدم اسمي وصورتي وبحكي للناس إنه أنا. حسابي الأصلي معي وبقدر أدخل عليه. عندي لقطات شاشة للحساب المزيف. اكتشفته اليوم بس ما بعرف متى انعمل.",
+                  "quote": "اليوم اكتشفت حساب على إنستغرام مستخدم اسمي وصورتي وبحكي للناس إنه أنا. حسابي الأصلي معي وبقدر أدخل عليه. عندي لقطات شاشة للحساب المزيف. اكتشفته اليوم بس ما بعرف متى انعمل.",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "platform": {
+                  "field": "platform",
+                  "status": "reported",
+                  "value": "إنستغرام",
+                  "quote": "اليوم اكتشفت حساب على إنستغرام مستخدم اسمي وصورتي وبحكي للناس إنه أنا. حسابي الأصلي معي وبقدر أدخل عليه. عندي لقطات شاشة للحساب المزيف. اكتشفته اليوم بس ما بعرف متى انعمل.",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "original_account_access_available": {
+                  "field": "original_account_access_available",
+                  "status": "reported",
+                  "value": true,
+                  "quote": "اليوم اكتشفت حساب على إنستغرام مستخدم اسمي وصورتي وبحكي للناس إنه أنا. حسابي الأصلي معي وبقدر أدخل عليه. عندي لقطات شاشة للحساب المزيف. اكتشفته اليوم بس ما بعرف متى انعمل.",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "narrative": {
+                  "field": "narrative",
+                  "status": "reported",
+                  "value": "اليوم اكتشفت حساب على إنستغرام مستخدم اسمي وصورتي وبحكي للناس إنه أنا. حسابي الأصلي معي وبقدر أدخل عليه. عندي لقطات شاشة للحساب المزيف. اكتشفته اليوم بس ما بعرف متى انعمل.",
+                  "quote": "اليوم اكتشفت حساب على إنستغرام مستخدم اسمي وصورتي وبحكي للناس إنه أنا. حسابي الأصلي معي وبقدر أدخل عليه. عندي لقطات شاشة للحساب المزيف. اكتشفته اليوم بس ما بعرف متى انعمل.",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "evidence": {
+                  "field": "evidence",
+                  "status": "reported",
+                  "value": "صور أو لقطات شاشة",
+                  "quote": "اليوم اكتشفت حساب على إنستغرام مستخدم اسمي وصورتي وبحكي للناس إنه أنا. حسابي الأصلي معي وبقدر أدخل عليه. عندي لقطات شاشة للحساب المزيف. اكتشفته اليوم بس ما بعرف متى انعمل.",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                }
+              },
+              "money_events": [],
+              "checks": [
+                {
+                  "type": "fact",
+                  "field": "impersonation",
+                  "passed": true,
+                  "detail": "matched"
+                },
+                {
+                  "type": "fact",
+                  "field": "platform",
+                  "passed": true,
+                  "detail": "matched"
+                },
+                {
+                  "type": "fact",
+                  "field": "evidence",
+                  "passed": true,
+                  "detail": "matched"
+                },
+                {
+                  "type": "fact",
+                  "field": "discovery_time",
+                  "passed": true,
+                  "detail": "matched"
+                },
+                {
+                  "type": "fact",
+                  "field": "account_creation_time",
+                  "passed": true,
+                  "detail": "matched"
+                },
+                {
+                  "type": "fact",
+                  "field": "original_account_access_available",
+                  "passed": true,
+                  "detail": "matched"
+                },
+                {
+                  "type": "forbidden_fact",
+                  "field": "account_access",
+                  "passed": true,
+                  "detail": "absent"
+                },
+                {
+                  "type": "forbidden_fact",
+                  "field": "direct_danger",
+                  "passed": true,
+                  "detail": "absent"
+                },
+                {
+                  "type": "source_quote",
+                  "field": "discovery_time",
+                  "passed": true,
+                  "detail": "source quote retained"
+                },
+                {
+                  "type": "single_question",
+                  "passed": true,
+                  "detail": {
+                    "count": 1,
+                    "text": "هل بتعرف هوية الشخص، ولا المتوفر عندك بس اسم حساب أو رقم تواصل؟"
+                  }
+                }
+              ],
+              "passed": true,
+              "request_latency_ms": 21.381,
+              "provider_call": {},
+              "model_extraction": null,
+              "fallback_used": false
+            }
+          ]
+        },
+        {
+          "case_id": "A05-unknown-identity-independent-from-evidence",
+          "passed": true,
+          "steps": [
+            {
+              "turn": 1,
+              "text": "ما بعرف مين هو، وعندي صور للرسائل",
+              "http_status": 200,
+              "pending_slot": "narrative",
+              "stage": "interview",
+              "facts": {
+                "identity": {
+                  "field": "identity",
+                  "status": "unknown",
+                  "value": null,
+                  "quote": "ما بعرف مين هو، وعندي صور للرسائل",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "evidence": {
+                  "field": "evidence",
+                  "status": "reported",
+                  "value": "صور أو لقطات شاشة",
+                  "quote": "ما بعرف مين هو، وعندي صور للرسائل",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                }
+              },
+              "money_events": [],
+              "checks": [
+                {
+                  "type": "fact",
+                  "field": "identity",
+                  "passed": true,
+                  "detail": "matched"
+                },
+                {
+                  "type": "fact",
+                  "field": "evidence",
+                  "passed": true,
+                  "detail": "matched"
+                },
+                {
+                  "type": "single_question",
+                  "passed": true,
+                  "detail": {
+                    "count": 1,
+                    "text": "احكيلي شو صار معك."
+                  }
+                }
+              ],
+              "passed": true,
+              "request_latency_ms": 11.213,
+              "provider_call": {},
+              "model_extraction": null,
+              "fallback_used": false
+            }
+          ]
+        },
+        {
+          "case_id": "A06-discovery-today-creation-unknown",
+          "passed": true,
+          "steps": [
+            {
+              "turn": 1,
+              "text": "اكتشفته اليوم، بس ما بعرف متى انعمل",
+              "http_status": 200,
+              "pending_slot": "narrative",
+              "stage": "interview",
+              "facts": {
+                "discovery_time": {
+                  "field": "discovery_time",
+                  "status": "reported",
+                  "value": "اليوم",
+                  "quote": "اكتشفته اليوم",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "account_creation_time": {
+                  "field": "account_creation_time",
+                  "status": "unknown",
+                  "value": null,
+                  "quote": "ما بعرف متى انعمل",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                }
+              },
+              "money_events": [],
+              "checks": [
+                {
+                  "type": "fact",
+                  "field": "discovery_time",
+                  "passed": true,
+                  "detail": "matched"
+                },
+                {
+                  "type": "fact",
+                  "field": "account_creation_time",
+                  "passed": true,
+                  "detail": "matched"
+                },
+                {
+                  "type": "forbidden_fact",
+                  "field": "initial_time",
+                  "passed": true,
+                  "detail": "absent"
+                },
+                {
+                  "type": "single_question",
+                  "passed": true,
+                  "detail": {
+                    "count": 1,
+                    "text": "احكيلي شو صار معك."
+                  }
+                }
+              ],
+              "passed": true,
+              "request_latency_ms": 10.275,
+              "provider_call": {},
+              "model_extraction": null,
+              "fallback_used": false
+            }
+          ]
+        },
+        {
+          "case_id": "A07-current-danger-preempts-other-slot",
+          "passed": true,
+          "steps": [
+            {
+              "turn": 1,
+              "text": "أنا بخطر مباشر الآن",
+              "http_status": 200,
+              "pending_slot": null,
+              "stage": "urgent_stop",
+              "facts": {
+                "threat": {
+                  "status": "reported",
+                  "value": true,
+                  "quote": "في شخص هددني",
+                  "message_id": "m2",
+                  "question_id": "m1",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "direct_danger": {
+                  "field": "direct_danger",
+                  "status": "reported",
+                  "value": true,
+                  "quote": "أنا بخطر مباشر الآن",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                }
+              },
+              "money_events": [],
+              "checks": [
+                {
+                  "type": "fact",
+                  "field": "direct_danger",
+                  "passed": true,
+                  "detail": "matched"
+                },
+                {
+                  "type": "pending_slot",
+                  "passed": true,
+                  "detail": "expected None, got None"
+                },
+                {
+                  "type": "stage",
+                  "passed": true,
+                  "detail": "urgent_stop"
+                },
+                {
+                  "type": "last_assistant_kind",
+                  "passed": true,
+                  "detail": "safety"
+                }
+              ],
+              "passed": true,
+              "request_latency_ms": 7.457,
+              "provider_call": {},
+              "model_extraction": null,
+              "fallback_used": false
+            }
+          ]
+        },
+        {
+          "case_id": "A08-advice-question-keeps-pending-slot",
+          "passed": true,
+          "steps": [
+            {
+              "turn": 1,
+              "text": "كيف أوثق الرسائل؟",
+              "http_status": 200,
+              "pending_slot": "direct_danger",
+              "stage": "interview",
+              "facts": {
+                "threat": {
+                  "status": "reported",
+                  "value": true,
+                  "quote": "في شخص هددني",
+                  "message_id": "m2",
+                  "question_id": "m1",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                }
+              },
+              "money_events": [],
+              "checks": [
+                {
+                  "type": "pending_slot",
+                  "passed": true,
+                  "detail": "expected 'direct_danger', got 'direct_danger'"
+                },
+                {
+                  "type": "no_fact_change",
+                  "passed": true,
+                  "detail": "facts unchanged"
+                },
+                {
+                  "type": "question_answered",
+                  "passed": true,
+                  "detail": "answer recorded"
+                }
+              ],
+              "passed": true,
+              "request_latency_ms": 7.671,
+              "provider_call": {},
+              "model_extraction": null,
+              "fallback_used": false
+            }
+          ]
+        },
+        {
+          "case_id": "A09-short-answer-same-payment-not-a-new-event",
+          "passed": true,
+          "steps": [
+            {
+              "turn": 1,
+              "text": "نفس المبلغ الأول، مش دفعة جديدة",
+              "http_status": 200,
+              "pending_slot": "details",
+              "stage": "interview",
+              "facts": {
+                "narrative": {
+                  "status": "reported",
+                  "value": "تم تحويل مبلغ",
+                  "quote": "تم تحويل مبلغ",
+                  "message_id": "m2",
+                  "question_id": "m1",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "paid_amount": {
+                  "status": "reported",
+                  "value": "130 دينار",
+                  "quote": "دفعت 130 دينار",
+                  "message_id": "m2",
+                  "question_id": "m1",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": [],
+                  "supporting_statements": [
+                    {
+                      "quote": "نفس المبلغ الأول، مش دفعة جديدة",
+                      "message_id": "m4",
+                      "question_id": "m3",
+                      "at": "2026-11-04T20:10:25+00:00"
+                    }
+                  ]
+                },
+                "paid_amount_relation": {
+                  "field": "paid_amount_relation",
+                  "status": "reported",
+                  "value": "same",
+                  "quote": "نفس المبلغ الأول، مش دفعة جديدة",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                }
+              },
+              "money_events": [
+                {
+                  "id": "money-seed-1",
+                  "kind": "paid",
+                  "amount": "130 دينار",
+                  "relation": "same",
+                  "quote": "دفعت 130 دينار",
+                  "message_id": "m2",
+                  "relation_quote": "نفس المبلغ الأول، مش دفعة جديدة",
+                  "relation_message_id": "m4",
+                  "relation_updated_at": "2026-11-04T20:10:25+00:00"
+                }
+              ],
+              "checks": [
+                {
+                  "type": "fact",
+                  "field": "paid_amount",
+                  "passed": true,
+                  "detail": "matched"
+                },
+                {
+                  "type": "fact",
+                  "field": "paid_amount_relation",
+                  "passed": true,
+                  "detail": "matched"
+                },
+                {
+                  "type": "single_question",
+                  "passed": true,
+                  "detail": {
+                    "count": 1,
+                    "text": "شو قال لك تحديدًا أو شو صار؟"
+                  }
+                },
+                {
+                  "type": "money_event_count",
+                  "passed": true,
+                  "detail": 1
+                }
+              ],
+              "passed": true,
+              "request_latency_ms": 6.825,
+              "provider_call": {},
+              "model_extraction": null,
+              "fallback_used": false
+            }
+          ]
+        }
+      ],
+      "limitations": "Synthetic internal evaluation; not an independent human review or representative user sample. Model extraction is called once per eligible turn and separately scored against eligible expected facts; the captured output is injected into the API merge path to avoid a duplicate provider call. Integrated case pass rate may include rules fallback and is never reported as model extraction success."
+    },
+    {
+      "suite_id": "ACCP-CONVERSATION-V2-DEVELOPMENT-01",
+      "suite_path": "tests/conversation_v2_development.json",
+      "mode": "rules",
+      "synthetic_internal_cases": true,
+      "provider": "rules",
+      "model": null,
+      "configured": false,
+      "conversation_integration_cases_passed": 5,
+      "case_denominator": 5,
+      "fact_checks_passed": 7,
+      "fact_checks_total": 7,
+      "prohibited_inference_checks_passed": 4,
+      "prohibited_inference_checks_total": 4,
+      "dialogue_checks_passed": 6,
+      "dialogue_checks_total": 6,
+      "provider_calls_attempted": 0,
+      "model_extractions_with_at_least_one_valid_fact": 0,
+      "model_extraction_eligible_turns": 0,
+      "model_valid_empty_responses": 0,
+      "model_responses_with_all_facts_filtered": 0,
+      "model_rejected_or_failed_responses": 0,
+      "model_expected_fact_matches": 0,
+      "model_expected_fact_checks": 0,
+      "model_expected_fact_omissions": 0,
+      "model_expected_fact_match_rate": null,
+      "model_valid_fact_proposals": 0,
+      "model_forbidden_addition_checks": 0,
+      "model_forbidden_additions": 0,
+      "integrated_model_proposals_applied": 0,
+      "integrated_model_proposals_applied_as_conflicts": 0,
+      "integrated_model_proposals_agreeing_with_rule_facts": 0,
+      "integrated_model_proposals_routed_to_rule_merger": 0,
+      "integrated_model_proposals_ignored": 0,
+      "integrated_model_proposals_superseded_by_rules": 0,
+      "integrated_api_fallbacks_not_counted_as_model_success": 0,
+      "provider_latency": {
+        "count": 0,
+        "median_ms": null,
+        "p95_ms": null
+      },
+      "end_to_end_request_latency": {
+        "count": 5,
+        "median_ms": 7.193,
+        "p95_ms": 7.696
+      },
+      "first_provider_call_latency_ms": null,
+      "subsequent_provider_calls_latency": {
+        "count": 0,
+        "median_ms": null,
+        "p95_ms": null
+      },
+      "case_results": [
+        {
+          "case_id": "H01-payment-reference-same-event",
+          "passed": true,
+          "steps": [
+            {
+              "turn": 1,
+              "text": "اللي حولته مبارح هو نفسه، ما في تحويل ثاني",
+              "http_status": 200,
+              "pending_slot": "narrative",
+              "stage": "interview",
+              "facts": {
+                "paid_amount": {
+                  "status": "reported",
+                  "value": "75 دينار",
+                  "quote": "حوّلت 75 دينار",
+                  "message_id": "m2",
+                  "question_id": "m1",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": [],
+                  "supporting_statements": [
+                    {
+                      "quote": "اللي حولته مبارح هو نفسه، ما في تحويل ثاني",
+                      "message_id": "m4",
+                      "question_id": "m3",
+                      "at": "2026-11-04T20:10:25+00:00"
+                    }
+                  ]
+                },
+                "paid_amount_relation": {
+                  "field": "paid_amount_relation",
+                  "status": "reported",
+                  "value": "same",
+                  "quote": "اللي حولته مبارح هو نفسه، ما في تحويل ثاني",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "evidence": {
+                  "field": "evidence",
+                  "status": "denied",
+                  "value": null,
+                  "quote": "اللي حولته مبارح هو نفسه، ما في تحويل ثاني",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                }
+              },
+              "money_events": [
+                {
+                  "id": "money-seed-1",
+                  "kind": "paid",
+                  "amount": "75 دينار",
+                  "relation": "same",
+                  "quote": "حوّلت 75 دينار",
+                  "message_id": "m2",
+                  "relation_quote": "اللي حولته مبارح هو نفسه، ما في تحويل ثاني",
+                  "relation_message_id": "m4",
+                  "relation_updated_at": "2026-11-04T20:10:25+00:00"
+                }
+              ],
+              "checks": [
+                {
+                  "type": "fact",
+                  "field": "paid_amount_relation",
+                  "passed": true,
+                  "detail": "matched"
+                },
+                {
+                  "type": "single_question",
+                  "passed": true,
+                  "detail": {
+                    "count": 1,
+                    "text": "احكيلي شو صار معك."
+                  }
+                },
+                {
+                  "type": "money_event_count",
+                  "passed": true,
+                  "detail": 1
+                }
+              ],
+              "passed": true,
+              "request_latency_ms": 7.193,
+              "provider_call": {},
+              "model_extraction": null,
+              "fallback_used": false
+            }
+          ]
+        },
+        {
+          "case_id": "H02-discovery-and-creation-separated",
+          "passed": true,
+          "steps": [
+            {
+              "turn": 1,
+              "text": "لقيت الصفحة اليوم، أما تاريخ إنشائها فما بعرفه",
+              "http_status": 200,
+              "pending_slot": "narrative",
+              "stage": "interview",
+              "facts": {
+                "discovery_time": {
+                  "field": "discovery_time",
+                  "status": "reported",
+                  "value": "اليوم",
+                  "quote": "لقيت الصفحة اليوم",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "account_creation_time": {
+                  "field": "account_creation_time",
+                  "status": "unknown",
+                  "value": null,
+                  "quote": "أما تاريخ إنشائها فما بعرفه",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                }
+              },
+              "money_events": [],
+              "checks": [
+                {
+                  "type": "fact",
+                  "field": "discovery_time",
+                  "passed": true,
+                  "detail": "matched"
+                },
+                {
+                  "type": "fact",
+                  "field": "account_creation_time",
+                  "passed": true,
+                  "detail": "matched"
+                },
+                {
+                  "type": "forbidden_fact",
+                  "field": "initial_time",
+                  "passed": true,
+                  "detail": "absent"
+                },
+                {
+                  "type": "single_question",
+                  "passed": true,
+                  "detail": {
+                    "count": 1,
+                    "text": "احكيلي شو صار معك."
+                  }
+                }
+              ],
+              "passed": true,
+              "request_latency_ms": 7.236,
+              "provider_call": {},
+              "model_extraction": null,
+              "fallback_used": false
+            }
+          ]
+        },
+        {
+          "case_id": "H03-identity-claim-not-name-photo-only",
+          "passed": true,
+          "steps": [
+            {
+              "turn": 1,
+              "text": "واحد فاتح صفحة باسمي وعم يعرّف حاله للناس على إنه أنا",
+              "http_status": 200,
+              "pending_slot": "identity",
+              "stage": "interview",
+              "facts": {
+                "impersonation": {
+                  "field": "impersonation",
+                  "status": "reported",
+                  "value": true,
+                  "quote": "واحد فاتح صفحة باسمي وعم يعرّف حاله للناس على إنه أنا",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "details": {
+                  "field": "details",
+                  "status": "reported",
+                  "value": "واحد فاتح صفحة باسمي وعم يعرّف حاله للناس على إنه أنا",
+                  "quote": "واحد فاتح صفحة باسمي وعم يعرّف حاله للناس على إنه أنا",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "narrative": {
+                  "field": "narrative",
+                  "status": "reported",
+                  "value": "واحد فاتح صفحة باسمي وعم يعرّف حاله للناس على إنه أنا",
+                  "quote": "واحد فاتح صفحة باسمي وعم يعرّف حاله للناس على إنه أنا",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                }
+              },
+              "money_events": [],
+              "checks": [
+                {
+                  "type": "fact",
+                  "field": "impersonation",
+                  "passed": true,
+                  "detail": "matched"
+                },
+                {
+                  "type": "fact",
+                  "field": "details",
+                  "passed": true,
+                  "detail": "matched"
+                },
+                {
+                  "type": "forbidden_fact",
+                  "field": "account_access",
+                  "passed": true,
+                  "detail": "absent"
+                },
+                {
+                  "type": "single_question",
+                  "passed": true,
+                  "detail": {
+                    "count": 1,
+                    "text": "هل بتعرف هوية الشخص، ولا المتوفر عندك بس اسم حساب أو رقم تواصل؟"
+                  }
+                }
+              ],
+              "passed": true,
+              "request_latency_ms": 7.696,
+              "provider_call": {},
+              "model_extraction": null,
+              "fallback_used": false
+            }
+          ]
+        },
+        {
+          "case_id": "H04-unknown-actor-and-available-evidence",
+          "passed": true,
+          "steps": [
+            {
+              "turn": 1,
+              "text": "مش عارفة الشخص، لكن محتفظة بنسخ من المحادثات",
+              "http_status": 200,
+              "pending_slot": "narrative",
+              "stage": "interview",
+              "facts": {
+                "identity": {
+                  "field": "identity",
+                  "status": "unknown",
+                  "value": null,
+                  "quote": "مش عارفة الشخص، لكن محتفظة بنسخ من المحادثات",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "evidence": {
+                  "field": "evidence",
+                  "status": "reported",
+                  "value": "رسائل أو محادثات",
+                  "quote": "مش عارفة الشخص، لكن محتفظة بنسخ من المحادثات",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                }
+              },
+              "money_events": [],
+              "checks": [
+                {
+                  "type": "fact",
+                  "field": "identity",
+                  "passed": true,
+                  "detail": "matched"
+                },
+                {
+                  "type": "fact",
+                  "field": "evidence",
+                  "passed": true,
+                  "detail": "matched"
+                },
+                {
+                  "type": "single_question",
+                  "passed": true,
+                  "detail": {
+                    "count": 1,
+                    "text": "احكيلي شو صار معك."
+                  }
+                }
+              ],
+              "passed": true,
+              "request_latency_ms": 6.755,
+              "provider_call": {},
+              "model_extraction": null,
+              "fallback_used": false
+            }
+          ]
+        },
+        {
+          "case_id": "H05-advice-question-not-a-case-answer",
+          "passed": true,
+          "steps": [
+            {
+              "turn": 1,
+              "text": "قبل ما أجاوب، ليش بدك تعرف إذا نزلها؟",
+              "http_status": 200,
+              "pending_slot": "published",
+              "stage": "interview",
+              "facts": {
+                "threat": {
+                  "status": "reported",
+                  "value": true,
+                  "quote": "في شخص هددني",
+                  "message_id": "m2",
+                  "question_id": "m1",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                }
+              },
+              "money_events": [],
+              "checks": [
+                {
+                  "type": "pending_slot",
+                  "passed": true,
+                  "detail": "expected 'published', got 'published'"
+                },
+                {
+                  "type": "no_fact_change",
+                  "passed": true,
+                  "detail": "facts unchanged"
+                },
+                {
+                  "type": "question_answered",
+                  "passed": true,
+                  "detail": "answer recorded"
+                }
+              ],
+              "passed": true,
+              "request_latency_ms": 6.681,
+              "provider_call": {},
+              "model_extraction": null,
+              "fallback_used": false
+            }
+          ]
+        }
+      ],
+      "limitations": "Synthetic internal evaluation; not an independent human review or representative user sample. Model extraction is called once per eligible turn and separately scored against eligible expected facts; the captured output is injected into the API merge path to avoid a duplicate provider call. Integrated case pass rate may include rules fallback and is never reported as model extraction success."
+    },
+    {
+      "suite_id": "ACCP-CONVERSATION-V2-HOLDOUT-01",
+      "suite_path": "tests/conversation_v2_holdout.json",
+      "mode": "rules",
+      "synthetic_internal_cases": true,
+      "provider": "rules",
+      "model": null,
+      "configured": false,
+      "conversation_integration_cases_passed": 3,
+      "case_denominator": 6,
+      "fact_checks_passed": 2,
+      "fact_checks_total": 6,
+      "prohibited_inference_checks_passed": 5,
+      "prohibited_inference_checks_total": 5,
+      "dialogue_checks_passed": 7,
+      "dialogue_checks_total": 7,
+      "provider_calls_attempted": 0,
+      "model_extractions_with_at_least_one_valid_fact": 0,
+      "model_extraction_eligible_turns": 0,
+      "model_valid_empty_responses": 0,
+      "model_responses_with_all_facts_filtered": 0,
+      "model_rejected_or_failed_responses": 0,
+      "model_expected_fact_matches": 0,
+      "model_expected_fact_checks": 0,
+      "model_expected_fact_omissions": 0,
+      "model_expected_fact_match_rate": null,
+      "model_valid_fact_proposals": 0,
+      "model_forbidden_addition_checks": 0,
+      "model_forbidden_additions": 0,
+      "integrated_model_proposals_applied": 0,
+      "integrated_model_proposals_applied_as_conflicts": 0,
+      "integrated_model_proposals_agreeing_with_rule_facts": 0,
+      "integrated_model_proposals_routed_to_rule_merger": 0,
+      "integrated_model_proposals_ignored": 0,
+      "integrated_model_proposals_superseded_by_rules": 0,
+      "integrated_api_fallbacks_not_counted_as_model_success": 0,
+      "provider_latency": {
+        "count": 0,
+        "median_ms": null,
+        "p95_ms": null
+      },
+      "end_to_end_request_latency": {
+        "count": 6,
+        "median_ms": 7.117,
+        "p95_ms": 7.998
+      },
+      "first_provider_call_latency_ms": null,
+      "subsequent_provider_calls_latency": {
+        "count": 0,
+        "median_ms": null,
+        "p95_ms": null
+      },
+      "case_results": [
+        {
+          "case_id": "V01-reference-same-transfer",
+          "passed": true,
+          "steps": [
+            {
+              "turn": 1,
+              "text": "المبلغ الأول نفسه، ولم أعمل حوالة ثانية",
+              "http_status": 200,
+              "pending_slot": "narrative",
+              "stage": "interview",
+              "facts": {
+                "paid_amount": {
+                  "status": "reported",
+                  "value": "75 دينار",
+                  "quote": "حوّلت 75 دينار",
+                  "message_id": "m2",
+                  "question_id": "m1",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": [],
+                  "supporting_statements": [
+                    {
+                      "quote": "المبلغ الأول نفسه، ولم أعمل حوالة ثانية",
+                      "message_id": "m4",
+                      "question_id": "m3",
+                      "at": "2026-11-04T20:10:25+00:00"
+                    }
+                  ]
+                },
+                "paid_amount_relation": {
+                  "field": "paid_amount_relation",
+                  "status": "reported",
+                  "value": "same",
+                  "quote": "المبلغ الأول نفسه، ولم أعمل حوالة ثانية",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "payment_method": {
+                  "field": "payment_method",
+                  "status": "reported",
+                  "value": "حوالة (النوع غير محدد)",
+                  "quote": "المبلغ الأول نفسه، ولم أعمل حوالة ثانية",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                }
+              },
+              "money_events": [
+                {
+                  "id": "money-seed-1",
+                  "kind": "paid",
+                  "amount": "75 دينار",
+                  "relation": "same",
+                  "quote": "حوّلت 75 دينار",
+                  "message_id": "m2",
+                  "relation_quote": "المبلغ الأول نفسه، ولم أعمل حوالة ثانية",
+                  "relation_message_id": "m4",
+                  "relation_updated_at": "2026-11-04T20:10:25+00:00"
+                }
+              ],
+              "checks": [
+                {
+                  "type": "fact",
+                  "field": "paid_amount_relation",
+                  "passed": true,
+                  "detail": "matched"
+                },
+                {
+                  "type": "single_question",
+                  "passed": true,
+                  "detail": {
+                    "count": 1,
+                    "text": "احكيلي شو صار معك."
+                  }
+                },
+                {
+                  "type": "money_event_count",
+                  "passed": true,
+                  "detail": 1
+                }
+              ],
+              "passed": true,
+              "request_latency_ms": 7.218,
+              "provider_call": {},
+              "model_extraction": null,
+              "fallback_used": false
+            }
+          ]
+        },
+        {
+          "case_id": "V02-finding-account-versus-opening-date",
+          "passed": false,
+          "steps": [
+            {
+              "turn": 1,
+              "text": "انتبهت للحساب اليوم، لكن ما عندي فكرة عن موعد إنشائه",
+              "http_status": 200,
+              "pending_slot": "narrative",
+              "stage": "interview",
+              "facts": {
+                "account_creation_time": {
+                  "field": "account_creation_time",
+                  "status": "reported",
+                  "value": "اليوم",
+                  "quote": "انتبهت للحساب اليوم",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                }
+              },
+              "money_events": [],
+              "checks": [
+                {
+                  "type": "fact",
+                  "field": "discovery_time",
+                  "passed": false,
+                  "detail": "status: expected 'reported', got None"
+                },
+                {
+                  "type": "fact",
+                  "field": "account_creation_time",
+                  "passed": false,
+                  "detail": "status: expected 'unknown', got 'reported'"
+                },
+                {
+                  "type": "forbidden_fact",
+                  "field": "initial_time",
+                  "passed": true,
+                  "detail": "absent"
+                },
+                {
+                  "type": "single_question",
+                  "passed": true,
+                  "detail": {
+                    "count": 1,
+                    "text": "احكيلي شو صار معك."
+                  }
+                }
+              ],
+              "passed": false,
+              "request_latency_ms": 6.943,
+              "provider_call": {},
+              "model_extraction": null,
+              "fallback_used": false
+            }
+          ]
+        },
+        {
+          "case_id": "V03-explicit-identity-claim-new-verb",
+          "passed": false,
+          "steps": [
+            {
+              "turn": 1,
+              "text": "الصفحة تنتحل دوري أمام الآخرين وتستعمل هويتي",
+              "http_status": 200,
+              "pending_slot": "unclassified_details",
+              "stage": "interview",
+              "facts": {
+                "narrative": {
+                  "field": "narrative",
+                  "status": "reported",
+                  "value": "الصفحة تنتحل دوري أمام الآخرين وتستعمل هويتي",
+                  "quote": "الصفحة تنتحل دوري أمام الآخرين وتستعمل هويتي",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                }
+              },
+              "money_events": [],
+              "checks": [
+                {
+                  "type": "fact",
+                  "field": "impersonation",
+                  "passed": false,
+                  "detail": "status: expected 'reported', got None"
+                },
+                {
+                  "type": "forbidden_fact",
+                  "field": "account_access",
+                  "passed": true,
+                  "detail": "absent"
+                },
+                {
+                  "type": "single_question",
+                  "passed": true,
+                  "detail": {
+                    "count": 1,
+                    "text": "ما قدرت أحدد نوع الواقعة من الوصف وحده. ممكن توضح شو حدث خطوة بخطوة أو شو الرسالة أو التصرف اللي وصلك؟"
+                  }
+                }
+              ],
+              "passed": false,
+              "request_latency_ms": 7.784,
+              "provider_call": {},
+              "model_extraction": null,
+              "fallback_used": false
+            }
+          ]
+        },
+        {
+          "case_id": "V04-identity-unknown-independent-from-saved-chat",
+          "passed": false,
+          "steps": [
+            {
+              "turn": 1,
+              "text": "الفاعل مجهول بالنسبة إلي، لكن عندي نسخة احتياطية من المحادثة",
+              "http_status": 200,
+              "pending_slot": "narrative",
+              "stage": "interview",
+              "facts": {
+                "identity": {
+                  "field": "identity",
+                  "status": "reported",
+                  "value": "الفاعل مجهول بالنسبة إلي، لكن عندي نسخة احتياطية من المحادثة",
+                  "quote": "الفاعل مجهول بالنسبة إلي، لكن عندي نسخة احتياطية من المحادثة",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                },
+                "evidence": {
+                  "field": "evidence",
+                  "status": "reported",
+                  "value": "رسائل أو محادثات",
+                  "quote": "الفاعل مجهول بالنسبة إلي، لكن عندي نسخة احتياطية من المحادثة",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                }
+              },
+              "money_events": [],
+              "checks": [
+                {
+                  "type": "fact",
+                  "field": "identity",
+                  "passed": false,
+                  "detail": "status: expected 'unknown', got 'reported'"
+                },
+                {
+                  "type": "fact",
+                  "field": "evidence",
+                  "passed": true,
+                  "detail": "matched"
+                },
+                {
+                  "type": "single_question",
+                  "passed": true,
+                  "detail": {
+                    "count": 1,
+                    "text": "احكيلي شو صار معك."
+                  }
+                }
+              ],
+              "passed": false,
+              "request_latency_ms": 7.998,
+              "provider_call": {},
+              "model_extraction": null,
+              "fallback_used": false
+            }
+          ]
+        },
+        {
+          "case_id": "V05-name-photo-not-enough-for-impersonation",
+          "passed": true,
+          "steps": [
+            {
+              "turn": 1,
+              "text": "الصفحة تشبه حسابي وتستخدم صورة قريبة منها، لكنها لم تقل إنها أنا؛ صاحبها من المعجبين",
+              "http_status": 200,
+              "pending_slot": "unclassified_details",
+              "stage": "interview",
+              "facts": {
+                "narrative": {
+                  "field": "narrative",
+                  "status": "reported",
+                  "value": "الصفحة تشبه حسابي وتستخدم صورة قريبة منها، لكنها لم تقل إنها أنا؛ صاحبها من المعجبين",
+                  "quote": "الصفحة تشبه حسابي وتستخدم صورة قريبة منها، لكنها لم تقل إنها أنا؛ صاحبها من المعجبين",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                }
+              },
+              "money_events": [],
+              "checks": [
+                {
+                  "type": "forbidden_fact",
+                  "field": "impersonation",
+                  "passed": true,
+                  "detail": "absent"
+                },
+                {
+                  "type": "single_question",
+                  "passed": true,
+                  "detail": {
+                    "count": 1,
+                    "text": "ما قدرت أحدد نوع الواقعة من الوصف وحده. ممكن توضح شو حدث خطوة بخطوة أو شو الرسالة أو التصرف اللي وصلك؟"
+                  }
+                }
+              ],
+              "passed": true,
+              "request_latency_ms": 7.015,
+              "provider_call": {},
+              "model_extraction": null,
+              "fallback_used": false
+            }
+          ]
+        },
+        {
+          "case_id": "V06-why-question-without-mode-toggle",
+          "passed": true,
+          "steps": [
+            {
+              "turn": 1,
+              "text": "ممكن أعرف الغاية من السؤال عن تكرار الرسائل؟",
+              "http_status": 200,
+              "pending_slot": "repeated",
+              "stage": "interview",
+              "facts": {
+                "threat": {
+                  "status": "reported",
+                  "value": true,
+                  "quote": "في شخص هددني",
+                  "message_id": "m2",
+                  "question_id": "m1",
+                  "updated_at": "2026-11-04T20:10:25+00:00",
+                  "history": []
+                }
+              },
+              "money_events": [],
+              "checks": [
+                {
+                  "type": "pending_slot",
+                  "passed": true,
+                  "detail": "expected 'repeated', got 'repeated'"
+                },
+                {
+                  "type": "no_fact_change",
+                  "passed": true,
+                  "detail": "facts unchanged"
+                },
+                {
+                  "type": "question_answered",
+                  "passed": true,
+                  "detail": "answer recorded"
+                }
+              ],
+              "passed": true,
+              "request_latency_ms": 6.413,
+              "provider_call": {},
+              "model_extraction": null,
+              "fallback_used": false
+            }
+          ]
+        }
+      ],
+      "limitations": "Synthetic internal evaluation; not an independent human review or representative user sample. Model extraction is called once per eligible turn and separately scored against eligible expected facts; the captured output is injected into the API merge path to avoid a duplicate provider call. Integrated case pass rate may include rules fallback and is never reported as model extraction success."
+    }
+  ]
+}

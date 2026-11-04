@@ -1,0 +1,17 @@
+{
+  "evaluation_version": "conversation-v2-2",
+  "recorded_at": "2026-11-04T20:10:56Z",
+  "base_commit": "4466c51ebcc2ea51c67291a47f22e263ccbdcfdb",
+  "mode": "model",
+  "status": "not_run",
+  "provider": {
+    "provider": "rules",
+    "mode": "rules",
+    "model": null,
+    "configuration_complete": false,
+    "base_url_host": "api.openai.com"
+  },
+  "provider_probe": null,
+  "results": [],
+  "limitations": "Model extraction was not evaluated: provider configuration or service/model preflight failed. No extraction calls were made and no result is attributed to the model."
+}

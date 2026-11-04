@@ -158,6 +158,15 @@
     const text = document.createElement('div');
     text.textContent = String(message.text ?? '');
     bubble.append(text);
+    if (message.role !== 'user' && message.question_plan?.reason) {
+      const plan = document.createElement('div');
+      plan.className = 'question-plan';
+      const field = String(message.question_plan.field_label || 'المعلومة ذات الصلة');
+      const reason = String(message.question_plan.reason || '');
+      const condition = String(message.question_plan.condition || '');
+      plan.textContent = `عن ${field}: ${reason}. يُطرح عند: ${condition}.`;
+      bubble.append(plan);
+    }
     if (message.citations?.length) {
       const links = document.createElement('div');
       links.className = 'citation-list';
@@ -414,13 +423,15 @@
     const textarea = $('message');
     const text = textarea.value;
     if (!text.trim()) { endMutation(ctx, owner); return; }
-    const consent = $('model-consent').checked;
+      const consent = $('model-consent').checked;
+      const contextConsent = $('context-consent').checked;
     const sequence = nextRequest(ctx);
     setStatus('جارٍ الحفظ…', true, ctx);
     try {
       const payload = { expected_revision: ctx.revision, text, kind,
         allow_external: kind === 'question' && consent,
-        allow_external_extraction: kind === 'answer' && consent };
+        allow_external_extraction: kind === 'answer' && consent,
+        allow_context_extraction: kind === 'answer' && consent && contextConsent };
       const result = await api(`/api/sessions/${ctx.id}/messages`, { method: 'POST', body: JSON.stringify(payload) }, ctx);
       const rendered = commitState(ctx, result.session, sequence);
       if (rendered && $('message').value === text) $('message').value = '';
@@ -428,7 +439,10 @@
         if (result.external_data_sent) {
           const provider = providerLabel(result.provider_call?.provider || providerConfig?.provider);
           const purpose = result.external_model_purpose === 'grounded_question'
-            ? 'نص السؤال الحالي ومقتطفات المصادر المختارة' : 'نص الرسالة الحالية فقط';
+            ? 'نص السؤال الحالي ومقتطفات المصادر المختارة'
+            : result.external_context_sent
+              ? 'نص الرسالة الحالية وسياق محدود من السؤال والرسائل والحقائق ذات الصلة'
+              : 'نص الرسالة الحالية فقط';
           const extractionOutcome = result.extraction_outcome || result.provider_call?.extraction_outcome;
           const extractionCall = result.external_model_purpose === 'current_message_extraction';
           const latency = result.provider_call?.latency_ms ?? 'غير متاح';
@@ -671,11 +685,14 @@
   }
   function updateConsentVisibility() {
     $('model-consent-row').classList.toggle('hidden', !externalConfigured);
+    $('context-consent-row').classList.toggle('hidden', kind !== 'answer' || !externalConfigured);
     $('model-consent').checked = false;
+    $('context-consent').checked = false;
     const target = providerConfig?.local ? 'نموذج Ollama المحلي المضبوط' : 'مزود خارجي';
     $('model-consent-copy').textContent = kind === 'question'
       ? `أوافق على إرسال نص هذا السؤال الحالي ومقتطفات المصادر المختارة فقط إلى ${target} لهذا الرد. لن يُرسل سجل المقابلة.`
-      : `أوافق على إرسال نص رسالتي الحالية فقط إلى ${target} لاستخراج حقائق منظمة. قد يتضمن النص بيانات شخصية؛ لن يُرسل سجل المحادثة أو إجابات سابقة.`;
+      : `أوافق على إرسال نص رسالتي الحالية فقط إلى ${target} لاستخراج الوقائع في هذا الطلب. لا يشمل ذلك الرسائل السابقة.`;
+    $('context-consent-copy').textContent = `موافقة منفصلة اختيارية: أسمح بإرسال سياق محدود (السؤال المعلّق وحتى أربع رسائل وحقائق ذات صلة، بحد 4500 حرف) إلى ${target} مع الرسالة الحالية، فقط عند تفعيل موافقة استخراج الرسالة أعلاه.`;
   }
 
   $('start-case').addEventListener('click', createCase);

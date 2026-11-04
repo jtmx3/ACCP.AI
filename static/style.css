@@ -12,3 +12,6 @@
 
 .fact-correction-note{font-size:12px;color:#5f4a13;background:#fff7df;border-right:3px solid #d29b30;border-radius:7px;padding:7px 9px;margin-top:8px;overflow-wrap:anywhere}
 .fact-note{font-size:11px;color:#536d79;background:#f1f7f6;border-right:2px solid #89b6b0;border-radius:6px;padding:5px 8px;margin-top:7px;overflow-wrap:anywhere}
+
+.question-plan{font-size:11px;color:#536d79;background:#f7faf9;border-right:2px solid #89b6b0;border-radius:6px;padding:5px 8px;margin-top:8px;overflow-wrap:anywhere}
+@media print{.question-plan{display:none}}

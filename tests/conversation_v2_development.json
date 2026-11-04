@@ -1,0 +1,40 @@
+{
+  "suite_id": "ACCP-CONVERSATION-V2-DEVELOPMENT-01",
+  "version": 1,
+  "authored_before_logic_changes": true,
+  "synthetic_internal_cases": true,
+  "description": "Synthetic Arabic alternate phrasings used during implementation and debugging. Not an independent human evaluation and not the final held-out set.",
+  "cases": [
+    {
+      "id": "H01-payment-reference-same-event",
+      "seed_facts": {"paid_amount": {"status": "reported", "value": "75 دينار", "quote": "حوّلت 75 دينار"}},
+      "pending_slot": "paid_amount_relation",
+      "money_events": [{"id": "money-seed-1", "kind": "paid", "amount": "75 دينار", "relation": "unresolved", "quote": "حوّلت 75 دينار", "message_id": "m2"}],
+      "turns": [{"text": "اللي حولته مبارح هو نفسه، ما في تحويل ثاني", "expect": {"facts": {"paid_amount_relation": {"status": "reported", "value": "same"}}, "money_event_count": 1, "single_question": true}}]
+    },
+    {
+      "id": "H02-discovery-and-creation-separated",
+      "seed_facts": {},
+      "pending_slot": "account_creation_time",
+      "turns": [{"text": "لقيت الصفحة اليوم، أما تاريخ إنشائها فما بعرفه", "expect": {"facts": {"discovery_time": {"status": "reported"}, "account_creation_time": {"status": "unknown"}}, "absent": ["initial_time"], "single_question": true}}]
+    },
+    {
+      "id": "H03-identity-claim-not-name-photo-only",
+      "seed_facts": {},
+      "pending_slot": "narrative",
+      "turns": [{"text": "واحد فاتح صفحة باسمي وعم يعرّف حاله للناس على إنه أنا", "expect": {"facts": {"impersonation": {"status": "reported", "value": true}, "details": {"status": "reported"}}, "absent": ["account_access"], "single_question": true}}]
+    },
+    {
+      "id": "H04-unknown-actor-and-available-evidence",
+      "seed_facts": {},
+      "pending_slot": "identity",
+      "turns": [{"text": "مش عارفة الشخص، لكن محتفظة بنسخ من المحادثات", "expect": {"facts": {"identity": {"status": "unknown"}, "evidence": {"status": "reported"}}, "single_question": true}}]
+    },
+    {
+      "id": "H05-advice-question-not-a-case-answer",
+      "seed_facts": {"threat": {"status": "reported", "value": true, "quote": "في شخص هددني"}},
+      "pending_slot": "published",
+      "turns": [{"text": "قبل ما أجاوب، ليش بدك تعرف إذا نزلها؟", "kind": "answer", "expect": {"pending_slot": "published", "no_fact_change": true, "question_answered": true}}]
+    }
+  ]
+}

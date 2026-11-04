@@ -399,6 +399,13 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
     async def test_model_consent_is_optional_and_changes_scope_by_mode(self):
         env = {"MODEL_PROVIDER": "openai-compatible", "MODEL_API_KEY": "test-only", "MODEL_BASE_URL": "https://provider.example/v1", "MODEL_NAME": "test"}
         outbound = []
+        message_requests = []
+
+        def capture_message_request(request):
+            if request.method == "POST" and "/messages" in request.url:
+                message_requests.append(request.post_data_json)
+
+        self.page.on("request", capture_message_request)
 
         def fake_chat(messages):
             payload = json.loads(messages[1]["content"])
@@ -418,12 +425,17 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(await self.page.locator("#model-consent").is_checked())
 
             await self._send("في شخص يهددني على واتساب")
+            await expect(self.page.locator("#status-message")).to_contain_text("تم حفظ الرسالة وتحديث الحالة بالقواعد المحلية.")
             extract.assert_not_called()
+            self.assertFalse(await self.page.locator("#model-consent").is_checked())
+            self.assertFalse(message_requests[-1]["allow_external_extraction"])
             await self.page.locator("#model-consent").check()
             await self._send("لا")
             extract.assert_called_once_with("لا", "direct_danger")
             await expect(self.page.locator("#status-message")).to_contain_text("نص الرسالة الحالية فقط")
             self.assertFalse(await self.page.locator("#model-consent").is_checked())
+            self.assertTrue(message_requests[-1]["allow_external_extraction"])
+            self.assertFalse(message_requests[-1]["allow_external"])
 
             await self.page.locator("#jurisdiction").select_option("AU")
             await expect(self.page.locator("#status-message")).to_contain_text("تم تحديث الاختصاص")
@@ -434,11 +446,15 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
             answer.assert_not_called()
             provider.assert_not_called()
             self.assertFalse(await self.page.locator("#model-consent").is_checked())
+            self.assertFalse(message_requests[-1]["allow_external"])
+            self.assertFalse(message_requests[-1]["allow_external_extraction"])
 
             await self.page.locator("#model-consent").check()
             await self._send("كيف أحفظ الأدلة واللقطات؟")
             await expect(self.page.locator("#status-message")).to_contain_text("نص السؤال الحالي")
             await expect(self.page.locator("#model-consent")).not_to_be_checked()
+            self.assertTrue(message_requests[-1]["allow_external"])
+            self.assertFalse(message_requests[-1]["allow_external_extraction"])
             answer.assert_called_once()
             provider.assert_called_once()
             question, sources = answer.call_args.args

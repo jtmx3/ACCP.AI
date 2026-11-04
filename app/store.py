@@ -5,8 +5,9 @@ import json
 import os
 import secrets
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Iterator
 
 from app.core import new_state, now_iso
 
@@ -38,13 +39,32 @@ class Store:
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path, timeout=10, isolation_level=None)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys=ON")
-        conn.execute("PRAGMA busy_timeout=10000")
-        return conn
+        try:
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA foreign_keys=ON")
+            conn.execute("PRAGMA busy_timeout=10000")
+            return conn
+        except BaseException:
+            # PRAGMA/configuration failures happen before the caller can own the
+            # handle, so close here rather than relying on a later finalizer.
+            conn.close()
+            raise
+
+    @contextmanager
+    def _connection(self) -> Iterator[sqlite3.Connection]:
+        """Yield a configured SQLite connection and always close it explicitly."""
+        conn = self._connect()
+        try:
+            yield conn
+        except BaseException:
+            if conn.in_transaction:
+                conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def _init_db(self) -> None:
-        with self._connect() as conn:
+        with self._connection() as conn:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("""CREATE TABLE IF NOT EXISTS sessions (
                 id TEXT PRIMARY KEY,
@@ -85,7 +105,7 @@ class Store:
         token = secrets.token_urlsafe(32)
         state = new_state(session_id)
         stamp = now_iso()
-        with self._connect() as conn:
+        with self._connection() as conn:
             conn.execute("BEGIN IMMEDIATE")
             conn.execute("INSERT INTO sessions VALUES (?, ?, ?, ?, ?, ?)",
                          (session_id, self._token_hash(token), 0,
@@ -96,7 +116,7 @@ class Store:
         return state, token
 
     def get(self, session_id: str, token: str) -> dict[str, Any]:
-        with self._connect() as conn:
+        with self._connection() as conn:
             row = conn.execute("SELECT * FROM sessions WHERE id=?", (session_id,)).fetchone()
         if not row:
             raise NotFound("Case not found")
@@ -106,7 +126,7 @@ class Store:
 
     def mutate(self, session_id: str, token: str, expected_revision: int,
                event_type: str, mutator: Callable[[dict[str, Any]], Any]) -> dict[str, Any]:
-        with self._connect() as conn:
+        with self._connection() as conn:
             conn.execute("BEGIN IMMEDIATE")
             row = conn.execute("SELECT * FROM sessions WHERE id=?", (session_id,)).fetchone()
             if not row:
@@ -134,6 +154,6 @@ class Store:
 
     def audit(self, session_id: str, token: str) -> list[dict[str, Any]]:
         self.get(session_id, token)
-        with self._connect() as conn:
+        with self._connection() as conn:
             rows = conn.execute("SELECT revision,event_type,payload_json,created_at FROM audit_log WHERE session_id=? ORDER BY id", (session_id,)).fetchall()
         return [{"revision": r["revision"], "event_type": r["event_type"], "payload": json.loads(r["payload_json"]), "created_at": r["created_at"]} for r in rows]

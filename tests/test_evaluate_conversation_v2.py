@@ -42,14 +42,13 @@ class ConversationV2EvaluatorTests(unittest.TestCase):
                  patch.object(evaluate_conversation_v2, "last_extraction_diagnostic", return_value=diagnostic), \
                  patch.object(evaluate_conversation_v2, "build_bounded_context",
                               wraps=evaluate_conversation_v2.build_bounded_context) as context_builder:
-                model_result = evaluate_conversation_v2.run_suite(path, "model", provider, timeout=1)
+                model_result = evaluate_conversation_v2.run_suite(path, "model", provider)
                 context_builder.assert_not_called()
-                evaluate_conversation_v2.run_suite(path, "model", provider, timeout=1,
-                                                   include_bounded_context=True)
+                evaluate_conversation_v2.run_suite(path, "model", provider, include_bounded_context=True)
                 context_builder.assert_called_once()
 
             rules_result = evaluate_conversation_v2.run_suite(
-                path, "rules", {"provider": "rules", "model": None, "configuration_complete": False}, timeout=1)
+                path, "rules", {"provider": "rules", "model": None, "configuration_complete": False})
 
         self.assertEqual(model_result["model_extraction_eligible_turns"], 1)
         self.assertEqual(model_result["provider_calls_attempted"], 1)

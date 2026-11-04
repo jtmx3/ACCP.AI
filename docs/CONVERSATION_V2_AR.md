@@ -70,12 +70,13 @@ $env:MODEL_PROVIDER = "ollama"
 $env:MODEL_BASE_URL = "http://127.0.0.1:11434/v1"
 $env:MODEL_NAME = "qwen3.5:4b-q4_K_M"
 $env:OLLAMA_REASONING_EFFORT = "none"
+$env:MODEL_TIMEOUT_SECONDS = "120"
 .\.venv\Scripts\python.exe -m scripts.evaluate_conversation_v2 `
-  --mode model --suite both --timeout 120 `
+  --mode model --suite both --preflight-timeout 5 `
   --output reports/evaluation/conversation-v2-model-windows.json
 ```
 
-هذا الوضع يجري preflight، ثم يستدعي النموذج مرة لكل دور مؤهل في المجموعات الاصطناعية. افتراضيًا يرسل رسالة الدور الحالية فقط. لإضافة السياق الاصطناعي المحدود عمدًا، أضف الخيار المستقل `--include-bounded-context`؛ لا يتجاوز ذلك حد السياق المذكور ولا يرسل جلسات حقيقية. استخدم ملف إخراج جديدًا لكل تشغيل ولا تنسب `valid_empty` أو fallback إلى نجاح استخراج.
+هذا الوضع يجري preflight، ثم يستدعي النموذج مرة لكل دور مؤهل في المجموعات الاصطناعية. `--preflight-timeout` يحدد مهلة فحص الخدمة/قائمة النموذج فقط؛ مهلة كل استخراج يحددها `MODEL_TIMEOUT_SECONDS`. افتراضيًا يرسل رسالة الدور الحالية فقط. لإضافة السياق الاصطناعي المحدود عمدًا، أضف الخيار المستقل `--include-bounded-context`؛ لا يتجاوز ذلك حد السياق المذكور ولا يرسل جلسات حقيقية. استخدم ملف إخراج جديدًا لكل تشغيل ولا تنسب `valid_empty` أو fallback إلى نجاح استخراج.
 
 تجربة نموذج فعلي واختبارات Windows على فرع v2 لم تُنفّذ في بيئة التطوير هذه. الحالة النموذجية الوحيدة الحية السابقة تخص ما أبلغ به صاحب المشروع على مرجع `25ae703`؛ لا تُنسب إلى هذا الفرع أو إلى تشغيل حالي.
 

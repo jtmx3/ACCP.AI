@@ -72,7 +72,7 @@ def fact_assertion(actual: dict[str, Any], expected: dict[str, Any]) -> tuple[bo
     return True, "matched"
 
 
-def run_suite(path: Path, mode: str, provider: dict[str, Any], timeout: float,
+def run_suite(path: Path, mode: str, provider: dict[str, Any],
               include_bounded_context: bool = False) -> dict[str, Any]:
     suite = load_suite(path)
     results: list[dict[str, Any]] = []
@@ -370,14 +370,16 @@ def main() -> None:
     parser.add_argument("--mode", choices=("rules", "model"), default="rules")
     parser.add_argument("--suite", choices=("acceptance", "development", "holdout", "both"), default="both")
     parser.add_argument("--output", type=Path)
-    parser.add_argument("--timeout", type=float, default=60)
+    parser.add_argument("--preflight-timeout", type=float, default=5,
+                        help="seconds for provider service/model availability preflight; extraction uses MODEL_TIMEOUT_SECONDS")
     parser.add_argument("--include-bounded-context", action="store_true",
                         help="separately authorize bounded synthetic prior-turn context; default sends current message only")
     args = parser.parse_args()
 
     from app.model import provider_config, probe_provider
     config = provider_config()
-    provider_probe = probe_provider(timeout=min(args.timeout, 5)) if args.mode == "model" and config.get("configured") else None
+    provider_probe = (probe_provider(timeout=args.preflight_timeout)
+                      if args.mode == "model" and config.get("configured") else None)
     preflight_ok = bool(config.get("configured")) and bool(provider_probe) and bool(
         provider_probe.get("service_reachable") and provider_probe.get("model_available"))
     if args.mode == "model" and not preflight_ok:
@@ -408,7 +410,7 @@ def main() -> None:
         "base_commit": os.popen("git rev-parse HEAD").read().strip(),
         "worktree_dirty": bool(os.popen("git status --porcelain").read().strip()),
         "mode": args.mode, "provider_probe": provider_probe,
-        "results": [run_suite(ROOT / "tests" / f"conversation_v2_{name}.json", args.mode, config, args.timeout,
+        "results": [run_suite(ROOT / "tests" / f"conversation_v2_{name}.json", args.mode, config,
                               include_bounded_context=args.include_bounded_context)
                     for name in suite_names],
     }

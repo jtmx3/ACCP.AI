@@ -559,7 +559,7 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
 
             await self.page.locator("#model-consent").check()
             await self.page.locator("#context-consent").check()
-            await self._send("اليوم دفعت 130 دينار")
+            await self._send("قال لي إذا ما دفعت رح أنشر صوري")
             self.assertEqual(extract.call_count, 2, f"requests={message_requests!r}")
             self.assertTrue(extract.call_args.args[2]["untrusted_user_data"])
             await expect(self.page.locator("#status-message")).to_contain_text("سياق محدود")

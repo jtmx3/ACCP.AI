@@ -95,8 +95,9 @@ python scripts/evaluate_scenarios.py --mode model `
   --mode rules --suite both `
   --output reports/evaluation/conversation-v2-rules-windows.json
 
+$env:MODEL_TIMEOUT_SECONDS = "120"
 .\.venv\Scripts\python.exe -m scripts.evaluate_conversation_v2 `
-  --mode model --suite both --timeout 120 --include-bounded-context `
+  --mode model --suite both --preflight-timeout 5 --include-bounded-context `
   --output reports/evaluation/conversation-v2-model-windows.json
 ```
 

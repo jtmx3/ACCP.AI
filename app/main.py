@@ -10,12 +10,14 @@ from pydantic import BaseModel, Field
 from app.core import (
     QUESTIONS, _add_message, _assessment, _explain_why, _next_slot, _record, _unresolved_money_relation,
     _user_intent, classify_current_danger, confirmation_is_current, handle_turn, now_iso, render_report,
-    report_data, resume_state, screen_current_danger, summary_digest, is_clear_user_question,
+    report_data, resume_state, screen_current_danger, summary_digest, is_clear_user_question, question_plan,
+    last_model_merge_trace,
 )
 from app.rag import answer_question, available_jurisdictions, load_corpus
 from app.model import (generate_grounded_answer, generate_interview_extraction, model_configured,
                        provider_config, probe_provider, test_provider_generation, reset_call_trace,
                        last_call_trace)
+from app.conversation import build_bounded_context, has_actionable_fact_goal, interpret_message
 from app.store import Forbidden, NotFound, StaleRevision, Store
 
 app = FastAPI(title="ACCP.AI", version="0.2.0", description="Local-first Arabic incident intake and review prototype")
@@ -29,6 +31,7 @@ class TurnRequest(BaseModel):
     kind: str = "answer"
     allow_external: bool = False
     allow_external_extraction: bool = False
+    allow_context_extraction: bool = False
 
     def model_post_init(self, __context):
         if self.kind not in {"answer", "question"}:
@@ -136,6 +139,34 @@ def get_session(session_id: str, x_case_token: str = Header(default="")):
     return {"session": state, "report": report}
 
 
+def _append_guidance_before_followup(state: dict, local_answer: dict, external_answer: dict | None) -> None:
+    if state.get("stage") == "urgent_stop":
+        return
+    followup = state.get("messages", [])[-1] if state.get("messages") else None
+    if not followup or followup.get("role") != "assistant" or followup.get("kind") not in {
+        "question", "clarification", "review"
+    }:
+        followup = None
+    if followup:
+        state["messages"].pop()
+    reply = external_answer["text"] if external_answer else local_answer["text"]
+    if external_answer:
+        reply += "\n\nصيغ الرد من مقتطفات حرفية موثقة، ولم يُرسل سجل المقابلة. راجع المصدر ولا تعتبره نصيحة قانونية."
+    response = _add_message(state, "assistant", reply, "answer")
+    used_ids = set(external_answer["source_ids"]) if external_answer else set()
+    response["citations"] = [citation for citation in local_answer["citations"]
+                             if not used_ids or citation["id"] in used_ids]
+    response["external_model_used"] = bool(external_answer)
+    if followup:
+        if followup.get("kind") in {"question", "clarification"}:
+            slot = (followup.get("question_plan") or {}).get("slot") or state.get("pending_slot")
+            if slot in QUESTIONS:
+                restored = _add_message(state, "assistant", followup.get("text", QUESTIONS[slot]), followup["kind"])
+                restored["question_plan"] = question_plan(state, slot)
+        else:
+            _add_message(state, "assistant", followup.get("text", "راجع الملخص الحالي."), "review")
+
+
 @app.post("/api/sessions/{session_id}/messages")
 def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(default="")):
     text = body.text.strip()
@@ -145,20 +176,30 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
     # Authenticate and check revision before any optional network operation.
     snapshot = _preflight(session_id, x_case_token, body.expected_revision)
     pending = snapshot.get("pending_slot")
+    message_interpretation = interpret_message(text, pending)
     intent = _user_intent(text)
-    auto_question = body.kind == "answer" and is_clear_user_question(text)
-    question_mode = body.kind == "question" or auto_question
+    if intent is None and "ask_why" in message_interpretation["goals"]:
+        intent = "why"
+    has_actionable_fact = has_actionable_fact_goal(text, pending)
+    mixed_why = intent == "why" and has_actionable_fact
+    mixed_guidance = "ask_guidance" in message_interpretation["goals"] and has_actionable_fact
+    mixed_fact_question = mixed_why or mixed_guidance
+    auto_question = body.kind == "answer" and is_clear_user_question(text) and not mixed_fact_question
+    question_mode = (body.kind == "question" or auto_question) and not mixed_fact_question
+    if mixed_fact_question:
+        intent = None
     if body.kind == "question" and intent != "why":
         intent = None
     urgent = classify_current_danger(text, pending) is True
     local_qa = None
     external_answer = None
     model_facts = None
+    extraction_context = None
     external_extraction_sent = False
     external_question_sent = False
     reset_call_trace()
 
-    if question_mode and not urgent and intent != "why":
+    if (question_mode or mixed_guidance) and not urgent and intent != "why":
         local_qa = answer_question(text, snapshot.get("jurisdiction"))
         if body.allow_external and model_configured() and local_qa["citations"]:
             external_question_sent = True
@@ -172,9 +213,13 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
             external_answer = generate_grounded_answer(text, selected_sources)
 
     if body.kind == "answer" and not auto_question and body.allow_external_extraction and model_configured() and not urgent and intent is None:
-        # Send only the current user message and pending slot; never the transcript or saved facts.
+        # Context is a separate opt-in; only current-message quotes may support model facts.
         external_extraction_sent = True
-        model_facts = generate_interview_extraction(text, pending)
+        if body.allow_context_extraction:
+            extraction_context = build_bounded_context(snapshot, text, pending)
+            model_facts = generate_interview_extraction(text, pending, extraction_context, message_interpretation)
+        else:
+            model_facts = generate_interview_extraction(text, pending)
 
     def mutate(state):
         if question_mode:
@@ -196,12 +241,18 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
             response["citations"] = citations
             response["external_model_used"] = bool(external_answer)
             if state.get("stage") == "interview" and pending in QUESTIONS:
-                _add_message(state, "assistant", "نكمل من السؤال السابق: " + QUESTIONS[pending], "question")
+                resumed_question = _add_message(state, "assistant", "نكمل من السؤال السابق: " + QUESTIONS[pending], "question")
+                resumed_question["question_plan"] = question_plan(state, pending)
                 state["pending_slot"] = pending
             state["assessment"] = _assessment(state)
             return
 
-        handle_turn(state, text, model_facts=model_facts)
+        if mixed_why:
+            handle_turn(state, text, model_facts=model_facts, message_interpretation=message_interpretation)
+        else:
+            handle_turn(state, text, model_facts=model_facts)
+        if mixed_guidance and local_qa is not None:
+            _append_guidance_before_followup(state, local_qa, external_answer)
         state["assessment"] = _assessment(state)
 
     state = _mutate(session_id, x_case_token, body.expected_revision, "user_message", mutate)
@@ -217,6 +268,10 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
             "fallback_used": not call_accepted,
             "provider": provider["provider"],
             "model": provider["model"],
+            "context_sent": extraction_context is not None,
+            "context_char_count": extraction_context.get("serialized_char_count") if extraction_context else 0,
+            "context_fact_count": len(extraction_context.get("related_facts", [])) if extraction_context else 0,
+            "context_message_count": len(extraction_context.get("recent_relevant_messages", [])) if extraction_context else 0,
         })
         if not call_accepted and not provider_call.get("failure_code"):
             provider_call["failure_code"] = "no_valid_result"
@@ -226,7 +281,9 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
             "external_model_used": bool(external_answer) or bool(model_facts),
             "external_data_sent": external_question_sent or external_extraction_sent,
             "external_model_purpose": "grounded_question" if external_question_sent else "current_message_extraction" if external_extraction_sent else None,
+            "external_context_sent": extraction_context is not None,
             "external_model_result_accepted": call_accepted,
+            "model_merge_trace": last_model_merge_trace() if external_extraction_sent else [],
             "extraction_outcome": (provider_call or {}).get("extraction_outcome") if external_extraction_sent else None,
             "fallback_used": bool(external_question_sent or external_extraction_sent) and not call_accepted,
             "fallback_to": ("local_rag" if external_question_sent else "rules") if (external_question_sent or external_extraction_sent) and not call_accepted else None,

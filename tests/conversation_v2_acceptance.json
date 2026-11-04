@@ -1,0 +1,107 @@
+{
+  "suite_id": "ACCP-CONVERSATION-V2-ACCEPTANCE-01",
+  "version": 1,
+  "authored_before_logic_changes": true,
+  "synthetic_internal_cases": true,
+  "description": "Owner-requested multi-turn acceptance cases frozen before conversation logic changes. The expectations measure grounded facts, prohibited inferences, correction/history, and next-question behavior; they are not independent human evaluation.",
+  "cases": [
+    {
+      "id": "A01-indirect-payment-does-not-answer-deadline",
+      "seed_facts": {
+        "narrative": {"status": "reported", "value": "في شخص هددني على واتساب", "quote": "في شخص هددني على واتساب"},
+        "threat": {"status": "reported", "value": true, "quote": "في شخص هددني"},
+        "details": {"status": "reported", "value": "هددني إذا ما دفعت 100 دينار", "quote": "هددني إذا ما دفعت 100 دينار"},
+        "direct_danger": {"status": "denied", "value": false, "quote": "ما في خطر مباشر"},
+        "initial_time": {"status": "unknown", "value": null, "quote": "ما بعرف متى بدأ"},
+        "repeated": {"status": "unknown", "value": null, "quote": "ما بعرف إذا تكرر"},
+        "requested_amount": {"status": "reported", "value": "100 دينار", "quote": "طلب مني 100 دينار"},
+        "paid_amount": {"status": "unknown", "value": null, "quote": "ما بعرف إذا دفعت"}
+      },
+      "pending_slot": "deadline",
+      "turns": [
+        {"text": "بس أنا دفعت", "expect": {"facts": {"paid_amount": {"status": "reported", "value": {"contains": "غير محدد"}}}, "absent": ["deadline"], "pending_slot": "deadline", "single_question": true}}
+      ]
+    },
+    {
+      "id": "A02-prior-payment-and-new-request-without-amounts",
+      "seed_facts": {},
+      "pending_slot": "narrative",
+      "turns": [
+        {"text": "دفعتله مبارح، واليوم طلب كمان", "expect": {"facts": {"paid_amount": {"status": "reported", "value": {"contains": "غير محدد"}}}, "absent": ["requested_amount"], "pending_slot": "requested_amount", "no_invented_amounts": true, "single_question": true}}
+      ]
+    },
+    {
+      "id": "A03-correct-requested-amount-preserve-paid",
+      "seed_facts": {
+        "narrative": {"status": "reported", "value": "طلب مبلغًا ودفع المستخدم مبلغًا", "quote": "طلب مبلغًا ودفع المستخدم مبلغًا"},
+        "details": {"status": "reported", "value": "طلب 100 دينار ودفع 130 دينار", "quote": "طلب مني 100 دينار ودفعت 130 دينار"},
+        "initial_time": {"status": "unknown", "value": null, "quote": "ما بعرف متى بدأ"},
+        "requested_amount": {"status": "reported", "value": "100 دينار", "quote": "طلب مني 100 دينار"},
+        "paid_amount": {"status": "reported", "value": "130 دينار", "quote": "دفعت 130 دينار"},
+        "payment_method": {"status": "unknown", "value": null, "quote": "ما بعرف وسيلة الدفع"},
+        "deadline": {"status": "unknown", "value": null, "quote": "ما بعرف إذا حدد مهلة"},
+        "evidence": {"status": "unknown", "value": null, "quote": "ما بعرف إذا في دليل"}
+      },
+      "money_events": [
+        {"id": "money-seed-requested", "kind": "requested", "amount": "100 دينار", "relation": "initial", "quote": "طلب مني 100 دينار"},
+        {"id": "money-seed-paid", "kind": "paid", "amount": "130 دينار", "relation": "initial", "quote": "دفعت 130 دينار"}
+      ],
+      "pending_slot": "requested_amount",
+      "turns": [
+        {"text": "قصدي المطلوب 120، اللي حولته ما تغير", "expect": {"facts": {"requested_amount": {"status": "reported", "value": {"contains": "120"}}, "paid_amount": {"status": "reported", "value": "130 دينار"}}, "history": {"requested_amount": [{"value": "100 دينار"}]}, "money_event_relation": {"kind": "requested", "relation": "correction", "amount_contains": "120"}, "single_question": true}}
+      ]
+    },
+    {
+      "id": "A04-multi-fact-impersonation-evidence-time",
+      "seed_facts": {},
+      "pending_slot": "narrative",
+      "turns": [
+        {"text": "اليوم اكتشفت حساب على إنستغرام مستخدم اسمي وصورتي وبحكي للناس إنه أنا. حسابي الأصلي معي وبقدر أدخل عليه. عندي لقطات شاشة للحساب المزيف. اكتشفته اليوم بس ما بعرف متى انعمل.", "expect": {"facts": {"impersonation": {"status": "reported", "value": true}, "platform": {"status": "reported"}, "evidence": {"status": "reported"}, "discovery_time": {"status": "reported"}, "account_creation_time": {"status": "unknown"}, "original_account_access_available": {"status": "reported", "value": true}}, "absent": ["account_access", "direct_danger"], "source_quote_contains": {"discovery_time": "اكتشفت"}, "single_question": true}}
+      ]
+    },
+    {
+      "id": "A05-unknown-identity-independent-from-evidence",
+      "seed_facts": {},
+      "pending_slot": "identity",
+      "turns": [
+        {"text": "ما بعرف مين هو، وعندي صور للرسائل", "expect": {"facts": {"identity": {"status": "unknown"}, "evidence": {"status": "reported"}}, "single_question": true}}
+      ]
+    },
+    {
+      "id": "A06-discovery-today-creation-unknown",
+      "seed_facts": {},
+      "pending_slot": "account_creation_time",
+      "turns": [
+        {"text": "اكتشفته اليوم، بس ما بعرف متى انعمل", "expect": {"facts": {"discovery_time": {"status": "reported"}, "account_creation_time": {"status": "unknown"}}, "absent": ["initial_time"], "single_question": true}}
+      ]
+    },
+    {
+      "id": "A07-current-danger-preempts-other-slot",
+      "seed_facts": {"threat": {"status": "reported", "value": true, "quote": "في شخص هددني"}},
+      "pending_slot": "initial_time",
+      "turns": [
+        {"text": "أنا بخطر مباشر الآن", "expect": {"facts": {"direct_danger": {"status": "reported", "value": true}}, "stage": "urgent_stop", "pending_slot": null, "last_assistant_kind": "safety"}}
+      ]
+    },
+    {
+      "id": "A08-advice-question-keeps-pending-slot",
+      "seed_facts": {"threat": {"status": "reported", "value": true, "quote": "في شخص هددني"}},
+      "pending_slot": "direct_danger",
+      "turns": [
+        {"text": "كيف أوثق الرسائل؟", "kind": "question", "expect": {"pending_slot": "direct_danger", "no_fact_change": true, "question_answered": true}}
+      ]
+    },
+    {
+      "id": "A09-short-answer-same-payment-not-a-new-event",
+      "seed_facts": {
+        "narrative": {"status": "reported", "value": "تم تحويل مبلغ", "quote": "تم تحويل مبلغ"},
+        "paid_amount": {"status": "reported", "value": "130 دينار", "quote": "دفعت 130 دينار"}
+      },
+      "pending_slot": "paid_amount_relation",
+      "money_events": [{"id": "money-seed-1", "kind": "paid", "amount": "130 دينار", "relation": "unresolved", "quote": "دفعت 130 دينار", "message_id": "m2"}],
+      "turns": [
+        {"text": "نفس المبلغ الأول، مش دفعة جديدة", "expect": {"facts": {"paid_amount": {"status": "reported", "value": "130 دينار"}, "paid_amount_relation": {"status": "reported", "value": "same"}}, "money_event_count": 1, "single_question": true}}
+      ]
+    }
+  ]
+}

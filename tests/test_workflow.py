@@ -1,6 +1,7 @@
 import unittest
 
-from app.core import _assessment, handle_turn, last_model_merge_trace, new_state, render_report
+from app.core import (QUESTIONS, QUESTION_RATIONALES, _assessment, handle_turn, last_model_merge_trace,
+                      new_state, question_plan, render_report)
 from app.rag import answer_question, retrieve
 
 
@@ -11,6 +12,31 @@ class InterviewWorkflowTests(unittest.TestCase):
     def say(self, text):
         handle_turn(self.state, text)
         return self.state["pending_slot"]
+
+    def test_questions_explain_target_reason_and_trigger_even_when_reasked(self):
+        self.assertEqual(self.state["messages"][0]["question_plan"]["slot"], "narrative")
+        handle_turn(self.state, "في شخص يهددني برسالة")
+        first = self.state["messages"][-1]
+        self.assertEqual(first["question_plan"]["slot"], "direct_danger")
+        self.assertIn("الخطر المباشر", first["question_plan"]["field_label"])
+        self.assertTrue(first["question_plan"]["reason"])
+        self.assertTrue(first["question_plan"]["condition"])
+
+        handle_turn(self.state, "عندي لقطات شاشة للرسالة")
+        repeated = self.state["messages"][-1]
+        self.assertEqual(repeated["kind"], "clarification")
+        self.assertEqual(repeated["question_plan"]["slot"], "direct_danger")
+        self.assertIn("الخطر المباشر", repeated["question_plan"]["condition"])
+
+    def test_every_interview_question_has_specific_reason_and_condition(self):
+        self.assertEqual(set(QUESTIONS), set(QUESTION_RATIONALES))
+        for slot in QUESTIONS:
+            plan = question_plan(self.state, slot)
+            with self.subTest(slot=slot):
+                self.assertEqual(plan["slot"], slot)
+                self.assertTrue(plan["field_label"])
+                self.assertTrue(plan["reason"])
+                self.assertTrue(plan["condition"])
 
     def test_reference_threat_scenario_preserves_distinctions_and_scores_90(self):
         self.assertEqual(self.say("في شخص عم يهددني على واتساب."), "direct_danger")

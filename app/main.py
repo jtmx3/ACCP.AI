@@ -65,6 +65,18 @@ def _preflight(session_id: str, token: str, expected_revision: int):
     return state
 
 
+def _saved_platform_for_guidance(state: dict) -> tuple[str | None, bool]:
+    """Return only a resolved platform fact; never infer one from unrelated history."""
+    fact = state.get("facts", {}).get("platform")
+    if not isinstance(fact, dict):
+        return None, False
+    if fact.get("status") == "conflict":
+        return None, True
+    if fact.get("status") == "reported" and isinstance(fact.get("value"), str):
+        return fact["value"], False
+    return None, False
+
+
 def _mutate(session_id: str, token: str, rev: int, event: str, fn):
     def apply_and_reconcile(state):
         fn(state)
@@ -257,6 +269,7 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
     guidance_question = (message_interpretation.get("guidance_question")
                          or extract_guidance_question(text) or text)
     local_guidance_context = ""
+    guidance_platform, guidance_platform_ambiguous = _saved_platform_for_guidance(snapshot)
     if question_mode or mixed_guidance:
         local_context = build_bounded_context(snapshot, text, pending)
         local_guidance_context = " ".join(
@@ -266,7 +279,10 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
     if (question_mode or mixed_guidance) and not urgent and intent not in {"why", "assessment_why"}:
         local_qa = answer_question(guidance_question, snapshot.get("jurisdiction"),
                                    context_text=local_guidance_context + " " + text,
-                                   allow_nonlocal_general=True)
+                                   allow_nonlocal_general=True,
+                                   platform_context=guidance_platform,
+                                   platform_context_ambiguous=guidance_platform_ambiguous,
+                                   platform_query=text, scope_query=text, topic_query=text)
         if body.allow_external and not mixed_guidance and model_configured() and local_qa["citations"]:
             external_question_sent = True
             corpus = load_corpus()
@@ -293,7 +309,11 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
             else:
                 result = local_qa or answer_question(guidance_question, state.get("jurisdiction"),
                                                      context_text=local_guidance_context + " " + text,
-                                                     allow_nonlocal_general=True)
+                                                     allow_nonlocal_general=True,
+                                                     platform_context=guidance_platform,
+                                                     platform_context_ambiguous=guidance_platform_ambiguous,
+                                                     platform_query=text, scope_query=text,
+                                                     topic_query=text)
                 reply = external_answer["text"] if external_answer else result["text"]
                 if external_answer:
                     reply += "\n\nصيغ الرد من مقتطفات حرفية موثقة، ولم يُرسل سجل المقابلة. راجع المصدر ولا تعتبره نصيحة قانونية."

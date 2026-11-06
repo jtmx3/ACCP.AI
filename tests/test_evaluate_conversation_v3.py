@@ -9,6 +9,17 @@ from scripts import evaluate_conversation_v3
 
 
 class ConversationV3EvaluatorTests(unittest.TestCase):
+    def test_no_citations_expectation_detects_cross_platform_source_leak(self):
+        leaking = {"messages": [{"role": "assistant", "kind": "answer", "text": "أي تطبيق؟",
+                                 "citations": [{"id": "GLOBAL-IG-SECURITY-2026"}]}]}
+        clean = {"messages": [{"role": "assistant", "kind": "answer", "text": "أي تطبيق؟",
+                               "citations": []}]}
+
+        self.assertFalse(next(check for check in evaluate_conversation_v3._assert_turn(
+            leaking, {}, 0, {"no_citations": True}) if check["check"] == "no_citations")["passed"])
+        self.assertTrue(next(check for check in evaluate_conversation_v3._assert_turn(
+            clean, {}, 0, {"no_citations": True}) if check["check"] == "no_citations")["passed"])
+
     def test_model_preflight_failure_records_not_run_without_generation_or_case_calls(self):
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / "not-run.json"
@@ -26,7 +37,7 @@ class ConversationV3EvaluatorTests(unittest.TestCase):
             generation.assert_not_called()
             run_suite.assert_not_called()
             report = json.loads(output.read_text(encoding="utf-8"))
-            self.assertEqual(report["evaluation_version"], "conversation-v3-2")
+            self.assertEqual(report["evaluation_version"], "conversation-v3-3")
             self.assertEqual(report["model_run_status"], "not_run")
             self.assertEqual(report["provider_attempts"], 0)
             self.assertEqual(report["results"], [])
@@ -55,7 +66,7 @@ class ConversationV3EvaluatorTests(unittest.TestCase):
                  patch("app.main.last_call_trace", return_value=trace):
                 report = evaluate_conversation_v3.run_suite(suite_path, mode="model")
 
-        self.assertEqual(report["evaluation_version"], "conversation-v3-2")
+        self.assertEqual(report["evaluation_version"], "conversation-v3-3")
         self.assertEqual(report["model_eligible_turns"], 22)
         self.assertEqual(report["provider_attempts"], 22)
         self.assertEqual(report["provider_fallbacks"], 22)

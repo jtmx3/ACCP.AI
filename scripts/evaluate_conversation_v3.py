@@ -123,6 +123,10 @@ def _assert_turn(session: dict[str, Any], previous: dict[str, Any], before_messa
     if "answer_contains" in expected:
         joined = "\n".join(m.get("text", "") for m in answers)
         add("answer_contains", expected["answer_contains"] in joined, joined)
+    if expected.get("no_citations"):
+        citation_ids = sorted({source.get("id") for message in answers
+                               for source in message.get("citations", []) if source.get("id")})
+        add("no_citations", not citation_ids, citation_ids)
     if "citation_topic" in expected:
         topic = expected["citation_topic"]
         wanted_ids = TOPIC_IDS[topic]
@@ -440,7 +444,7 @@ def run_suite(suite_path: Path, mode: str = "rules", with_context: bool = False)
         "turn_total_elapsed_p95_ms": _provider_percentile(total_turn_latencies, 0.95),
     }
     return {
-        "evaluation_version": "conversation-v3-2",
+        "evaluation_version": "conversation-v3-3",
         "mode": mode,
         "suite_id": suite["suite_id"],
         "suite_version": suite["version"],
@@ -512,7 +516,7 @@ def main() -> int:
     if args.mode == "model":
         preflight = probe_provider(timeout=max(0.1, args.preflight_timeout))
         if not preflight.get("configured") or not preflight.get("service_reachable") or not preflight.get("model_available"):
-            report = {"evaluation_version": "conversation-v3-2", "mode": "model", "model_run_status": "not_run",
+            report = {"evaluation_version": "conversation-v3-3", "mode": "model", "model_run_status": "not_run",
                       "provider_configured": bool(preflight.get("configured")), "provider": preflight,
                       "model_eligible_turns": 0, "provider_attempts": 0, "provider_fallback_rate": None,
                       "provider_accepted_responses": 0,
@@ -535,7 +539,7 @@ def main() -> int:
             return 2
         generation_test = test_provider_generation()
         if not generation_test.get("success"):
-            report = {"evaluation_version": "conversation-v3-2", "mode": "model", "model_run_status": "not_run",
+            report = {"evaluation_version": "conversation-v3-3", "mode": "model", "model_run_status": "not_run",
                       "provider_configured": True, "provider": preflight, "preflight_generation": generation_test,
                       "model_eligible_turns": 0, "provider_attempts": 0, "provider_fallback_rate": None,
                       "provider_accepted_responses": 0,

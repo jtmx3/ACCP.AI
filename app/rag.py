@@ -14,14 +14,39 @@ MIN_QUERY_TERMS = 2
 MIN_OVERLAP = 2
 MIN_QUERY_COVERAGE = 0.40
 
+PLATFORM_ALIASES = {
+    "whatsapp": ("واتساب", "واتس اب", "واتسآب", "whatsapp"),
+    "instagram": ("انستغرام", "انستجرام", "instagram"),
+    "facebook": ("فيسبوك", "فيس بوك", "facebook"),
+    "tiktok": ("تيك توك", "tiktok"),
+    "snapchat": ("سناب شات", "سناب", "snapchat"),
+    "telegram": ("تلغرام", "تليجرام", "تيليجرام", "telegram"),
+    "signal": ("سيجنال", "signal"),
+    "x": ("تويتر", "twitter", "x.com"),
+}
+PLATFORM_LABELS = {
+    "whatsapp": "واتساب", "instagram": "إنستغرام", "facebook": "فيسبوك",
+    "tiktok": "تيك توك", "snapchat": "سناب شات", "telegram": "تلغرام",
+    "signal": "سيجنال", "x": "X / تويتر",
+}
+PLATFORM_REQUIRED_TOPICS = {
+    "account_security", "account_recovery", "impersonation_reporting",
+    "platform_reporting", "device_session_management",
+}
+
+
+class GuidanceScopeError(ValueError):
+    """Raised for malformed topic/platform metadata in the local knowledge corpus."""
+
 
 def load_corpus(path: Path = CORPUS_PATH) -> dict[str, Any]:
     with path.open(encoding="utf-8") as f:
         corpus = json.load(f)
     if not isinstance(corpus.get("sources"), list):
         raise ValueError("Knowledge corpus must contain a sources list")
-    required = {"id", "title", "publisher", "url", "published_or_updated", "ingested_at", "geography", "content_version", "text"}
+    required = {"id", "title", "publisher", "url", "published_or_updated", "ingested_at", "geography", "content_version", "text", "topics", "platforms"}
     source_ids: set[str] = set()
+    valid_platforms = set(PLATFORM_ALIASES)
     for source in corpus["sources"]:
         missing = required - source.keys()
         if missing:
@@ -31,10 +56,17 @@ def load_corpus(path: Path = CORPUS_PATH) -> dict[str, Any]:
         source_ids.add(source["id"])
         if not source["url"].startswith("https://") or not source["geography"]:
             raise ValueError(f"Source {source['id']} has an invalid URL or geography")
-        for field in ("keywords", "required_keywords", "excluded_keywords"):
+        for field in ("keywords", "required_keywords", "excluded_keywords", "topics", "platforms"):
             values = source.get(field, [])
             if not isinstance(values, list) or any(not isinstance(value, str) or not value.strip() for value in values):
                 raise ValueError(f"Source {source['id']} has invalid {field}")
+        if not source["topics"]:
+            raise ValueError(f"Source {source['id']} must declare at least one retrieval topic")
+        platforms = set(source["platforms"])
+        if platforms - valid_platforms:
+            raise ValueError(f"Source {source['id']} has unsupported platform tags: {sorted(platforms - valid_platforms)}")
+        if (str(source["geography"]).upper() == "GLOBAL" or source.get("guidance_scope") == "global_platform") and not platforms:
+            raise ValueError(f"Global platform source {source['id']} must declare its platform")
     if not isinstance(corpus.get("geography_labels", {}), dict):
         raise ValueError("Knowledge corpus geography_labels must be an object")
     return corpus
@@ -56,6 +88,17 @@ def _normalize(value: str) -> str:
 
 
 NORMALIZED_STOPWORDS = {_normalize(word) for word in STOPWORDS}
+ACCOUNT_TERMS = {"حساب", "حسابي", "حسابك", "حسابه", "حسابها", "حسابات", "account", "accounts", "profile"}
+PROTECTION_TERMS = {
+    "احمي", "احم", "احافظ", "حافظ", "احفظ", "اؤمن", "اامن", "حمايه", "حمايه", "حمايه", "حفظ",
+    "تامين", "لتامين", "امان", "امن", "مؤمن", "حمايه", "secure", "security", "protect", "protection",
+    "safeguard", "safe", "keep", "securely", "two", "step", "verification", "passkey", "password",
+    "المصادقه", "الثنائيه", "تحقق", "خطوتين",
+}
+RECOVERY_TERMS = {
+    "استرداد", "استرجاع", "استرجع", "استعيد", "استعادة", "مخترق", "اختراق", "انسرق", "مسروق",
+    "recover", "recovery", "regain", "hacked", "hack", "compromised", "stolen", "locked",
+}
 
 
 def _tokens(value: str) -> set[str]:
@@ -76,16 +119,76 @@ def _tokens(value: str) -> set[str]:
     return result
 
 
+def _search_terms(value: str) -> set[str]:
+    terms = _tokens(value)
+    if terms & ACCOUNT_TERMS:
+        terms.add("__account__")
+    if terms & PROTECTION_TERMS:
+        terms.add("__protection__")
+    if terms & RECOVERY_TERMS:
+        terms.add("__recovery__")
+    return terms
+
+
+def _platforms_in_text(value: str) -> set[str]:
+    folded = _normalize(value)
+    found = set()
+    for platform, aliases in PLATFORM_ALIASES.items():
+        if any(_normalize(alias) in folded for alias in aliases):
+            found.add(platform)
+    return found
+
+
+def _query_topics(value: str) -> set[str]:
+    terms = _tokens(value)
+    normalized = _normalize(value)
+    platforms = _platforms_in_text(value)
+    has_account = bool(terms & ACCOUNT_TERMS)
+    topics: set[str] = set()
+
+    if has_account and terms & PROTECTION_TERMS:
+        topics.add("account_security")
+    if has_account and terms & RECOVERY_TERMS:
+        topics.update({"account_recovery", "account_security"})
+    if platforms and terms & (PROTECTION_TERMS | RECOVERY_TERMS):
+        topics.add("account_security" if terms & PROTECTION_TERMS else "account_recovery")
+    if terms & {"two", "step", "verification", "passkey", "password", "المصادقه", "الثنائيه", "خطوتين"}:
+        if platforms or has_account:
+            topics.add("account_security")
+
+    if terms & {"دليل", "ادله", "لقطه", "لقطات", "اثبات", "توثيق", "evidence", "screenshot", "screenshots"}:
+        topics.add("evidence_preservation")
+    if any(marker in normalized for marker in ("صور حميمه", "صور خاصه", "نشر صوري", "ابتزاز الصور", "image-based abuse", "intimate images", "sextortion")):
+        topics.add("image_based_abuse")
+    if terms & {"انتحال", "ينتحل", "انتحل", "مزيف", "مزيفه", "يدعي", "يتظاهر", "impersonation", "impersonating", "fake"}:
+        topics.update({"impersonation_reporting", "platform_reporting"})
+
+    money_action = terms & {"دفع", "دفعت", "دفعه", "تحويل", "حول", "حولت", "مصاري", "مال", "مبلغ", "bank", "payment", "paid", "transfer", "refund", "استرداد", "استرجاع", "استرجع", "استعيد", "احتيال", "محتال", "نصب", "scam", "fraud"}
+    if len(money_action) >= 2 or (money_action & {"استرداد", "استرجاع", "استرجع", "refund"}):
+        topics.add("payment_recovery")
+
+    report_terms = {"بلاغ", "ابلغ", "ابلاغ", "تقرير", "report", "reporting", "وحده", "unit"}
+    cybercrime_terms = {"جريمه", "جرائم", "crime", "cybercrime", "196", "ecrimes"}
+    if terms & cybercrime_terms and (terms & report_terms or terms & {"196", "ecrimes", "وحده", "unit"}):
+        topics.add("cybercrime_reporting")
+    if terms & {"حادث", "incident"} and terms & {"سيبراني", "الكتروني", "امن", "cybersecurity", "security", "jocert"}:
+        topics.add("cybersecurity_incident_reporting")
+    if terms & {"طوارئ", "911", "خطر", "مباشر", "emergency"}:
+        topics.add("emergency")
+
+    return topics
+
+
 def _excerpt(source: dict[str, Any], query_terms: set[str], max_chars: int = 480) -> str:
     text = str(source.get("text", "")).strip()
     sentences = [part.strip() for part in re.split(r"(?<=[.!?؟])\s+", text) if part.strip()]
     if not sentences:
         return text[:max_chars]
-    ranked = sorted(enumerate(sentences), key=lambda item: (-len(query_terms & _tokens(item[1])), item[0]))
+    ranked = sorted(enumerate(sentences), key=lambda item: (-len(query_terms & _search_terms(item[1])), item[0]))
     chosen: list[tuple[int, str]] = []
     total = 0
     for index, sentence in ranked:
-        if not (query_terms & _tokens(sentence)):
+        if not (query_terms & _search_terms(sentence)):
             continue
         if chosen and total + len(sentence) > max_chars:
             continue
@@ -102,7 +205,7 @@ def _excerpt(source: dict[str, Any], query_terms: set[str], max_chars: int = 480
 
 def _explicit_scope(query: str) -> str | None:
     normalized = _normalize(query)
-    cues = (("JO", ("الاردن", "بالاردن", "اردني", "الأردن", "jordan")),
+    cues = (("JO", ("الاردن", "بالاردن", "للاردن", "اردني", "الأردن", "jordan")),
             ("US", ("الولايات المتحدة", "امريكا", "الامريكية", "امريكي", "united states", "usa")),
             ("AU", ("استراليا", "استرالي", "australia")))
     for code, markers in cues:
@@ -119,69 +222,127 @@ def _requires_jurisdiction(query: str) -> bool:
     ))
 
 
+def _resolve_platform(query: str, platform_context: str | list[str] | None,
+                      platform_context_ambiguous: bool) -> tuple[str | None, bool, set[str]]:
+    current = _platforms_in_text(query)
+    if len(current) > 1:
+        return None, True, current
+    if len(current) == 1:
+        return next(iter(current)), False, current
+    if platform_context_ambiguous:
+        return None, True, set()
+    prior_text = " ".join(platform_context) if isinstance(platform_context, list) else (platform_context or "")
+    prior = _platforms_in_text(prior_text)
+    if len(prior) > 1:
+        return None, True, prior
+    return (next(iter(prior)) if prior else None), False, prior
+
+
 def retrieve(query: str, jurisdiction: str | None, limit: int = 3, corpus: dict[str, Any] | None = None,
-             context_text: str = "", allow_nonlocal_general: bool = False) -> list[dict[str, Any]]:
+             context_text: str = "", allow_nonlocal_general: bool = False,
+             platform: str | None = None, topics: set[str] | None = None) -> list[dict[str, Any]]:
     corpus = corpus or load_corpus()
-    scope = (jurisdiction or _explicit_scope(query + " " + context_text) or "").strip().upper()
+    scope = (jurisdiction or _explicit_scope(query) or "").strip().upper()
     available = {item["code"] for item in available_jurisdictions(corpus)}
     if scope and scope not in available:
         return []
-    query_terms = _tokens(query)
-    context_terms = _tokens(context_text)
-    if len(query_terms) < MIN_QUERY_TERMS and context_terms:
-        query_terms = context_terms
-    if len(query_terms) < MIN_QUERY_TERMS:
+    query_topics = set(topics) if topics is not None else _query_topics(query)
+    if not query_topics:
         return []
+    query_terms = _search_terms(query)
+    if len(query_terms) < MIN_QUERY_TERMS and context_text:
+        query_terms |= _search_terms(context_text)
     scored: list[tuple[float, int, dict[str, Any]]] = []
     for source in corpus["sources"]:
         geography = str(source["geography"]).upper()
         general_practice = source.get("guidance_scope") == "general_practice"
         global_platform = source.get("guidance_scope") == "global_platform" or geography == "GLOBAL"
-        allowed = (global_platform or general_practice) if not scope else (
+        allowed_geography = (global_platform or general_practice) if not scope else (
             geography == scope or global_platform or (allow_nonlocal_general and general_practice))
-        if not allowed:
+        if not allowed_geography:
             continue
+        source_platforms = set(source.get("platforms", []))
+        if source_platforms and (not platform or platform not in source_platforms):
+            continue
+        source_topics = set(source.get("topics", []))
+        matched_topics = query_topics & source_topics
+        if not matched_topics:
+            continue
+        query_tokens = _tokens(query)
         excluded = set().union(*(_tokens(term) for term in source.get("excluded_keywords", []))) if source.get("excluded_keywords") else set()
-        if query_terms & excluded:
+        if query_tokens & excluded:
             continue
         required = set().union(*(_tokens(term) for term in source.get("required_keywords", []))) if source.get("required_keywords") else set()
-        if required and not (query_terms & required):
+        if required and geography != "GLOBAL" and not (query_tokens & required):
             continue
-        terms = _tokens(" ".join((source["text"], source["title"], " ".join(source.get("keywords", [])))))
-        overlap_terms = query_terms & terms
+        source_terms = _search_terms(" ".join((source["text"], source["title"], " ".join(source.get("keywords", [])))))
+        overlap_terms = query_terms & source_terms
         overlap = len(overlap_terms)
-        coverage = overlap / len(query_terms)
-        if overlap < MIN_OVERLAP or coverage < MIN_QUERY_COVERAGE:
+        coverage = overlap / max(1, len(query_terms))
+        # Topic, platform, and geography have already been checked independently.
+        # Keyword overlap ranks sources within that safe scope; it cannot override scope mismatch.
+        if not overlap and not matched_topics:
             continue
-        # Prefer sources that cover several distinct query concepts, not one common word.
-        score = coverage + overlap * 0.08
+        score = len(matched_topics) * 1.0 + coverage * 0.20 + overlap * 0.03
         candidate = dict(source)
         candidate["excerpt"] = _excerpt(source, query_terms)
-        candidate["scope_note"] = ("إرشاد عام من مصدر وطني؛ لا يمثل قانونًا أو جهة محلية." if general_practice and geography != scope
-                                   else "إرشادات أمان خاصة بمنصة Instagram." if global_platform else None)
+        if general_practice and geography != scope:
+            candidate["scope_note"] = "إرشاد عام من مصدر وطني؛ لا يمثل قانونًا أو جهة محلية."
+        elif global_platform:
+            candidate["scope_note"] = f"إرشادات خاصة بمنصة {PLATFORM_LABELS.get(platform or '', platform or 'محددة')} فقط."
+        else:
+            candidate["scope_note"] = None
         scored.append((score, overlap, candidate))
     scored.sort(key=lambda item: (-item[0], -item[1], item[2]["id"]))
     return [source for _, _, source in scored[:limit]]
 
 
 def answer_question(query: str, jurisdiction: str | None, context_text: str = "",
-                    allow_nonlocal_general: bool = False) -> dict[str, Any]:
+                    allow_nonlocal_general: bool = False, *,
+                    platform_context: str | list[str] | None = None,
+                    platform_context_ambiguous: bool = False,
+                    platform_query: str | None = None,
+                    scope_query: str | None = None,
+                    topic_query: str | None = None) -> dict[str, Any]:
     corpus = load_corpus()
-    effective_scope = (jurisdiction or _explicit_scope(query + " " + context_text) or "").strip().upper()
-    sources = retrieve(query, effective_scope or None, corpus=corpus, context_text=context_text,
-                       allow_nonlocal_general=(allow_nonlocal_general or not _requires_jurisdiction(query)))
+    current_topic_text = topic_query if topic_query is not None else query
+    topics = _query_topics(current_topic_text)
+    current_platform_text = platform_query if platform_query is not None else query
+    platform, platform_ambiguous, mentioned_platforms = _resolve_platform(
+        current_platform_text, platform_context, platform_context_ambiguous)
+    explicit_scope = _explicit_scope(scope_query if scope_query is not None else query)
+    # A country named in the current question is a deliberate current-turn scope;
+    # otherwise use only the saved jurisdiction, never a country inferred from topic text.
+    effective_scope = (explicit_scope or jurisdiction or "").strip().upper() or None
+    platform_needed = bool(topics & PLATFORM_REQUIRED_TOPICS)
+
+    if platform_needed and platform_ambiguous:
+        response = "ظهر أكثر من تطبيق أو تعارضت معلومات المنصة. أي تطبيق تقصد في هذا السؤال؟ سأقتصر على مصدره الرسمي."
+        return {"text": response, "citations": [], "corpus_version": corpus["corpus_version"],
+                "resolved_platform": None, "resolved_topics": sorted(topics), "resolved_jurisdiction": effective_scope}
+    if platform_needed and platform is None:
+        response = "لأي تطبيق تقصد؟ اذكر اسم التطبيق، مثل واتساب أو إنستغرام، لأعرض إرشادات موثقة تخصه فقط."
+        return {"text": response, "citations": [], "corpus_version": corpus["corpus_version"],
+                "resolved_platform": None, "resolved_topics": sorted(topics), "resolved_jurisdiction": effective_scope}
+
+    sources = retrieve(current_topic_text, effective_scope, corpus=corpus, context_text=context_text,
+                       allow_nonlocal_general=(allow_nonlocal_general or not _requires_jurisdiction(query)),
+                       platform=platform, topics=topics)
     if not sources:
-        scope = effective_scope
         available = {item["code"] for item in available_jurisdictions(corpus)}
-        if not scope and _requires_jurisdiction(query):
+        if not effective_scope and _requires_jurisdiction(query):
             response = "يعتمد مسار الإبلاغ أو رقم الطوارئ على البلد. اذكر البلد الذي تسأل عنه لأبحث في مصدر رسمي مناسب؛ لن أفترض موقعك."
-        elif not scope:
-            response = "لا يوجد في قاعدة المعرفة مقتطف كافٍ يجيب عن هذا السؤال العام. لا أستنتج خطوات أو نتائج غير مدعومة بمصدر موثوق."
-        elif scope not in available:
+        elif effective_scope and effective_scope not in available:
             response = "ما عندي مصدر موثوق محلي لهذا الاختصاص في قاعدة المعرفة الحالية؛ لا أستطيع تقديم إرشاد محلي موثوق."
+        elif platform and platform_needed:
+            label = PLATFORM_LABELS.get(platform, platform)
+            response = f"ما عندي في قاعدة المعرفة الحالية مصدر رسمي مناسب لمنصة {label} لهذا الموضوع؛ لن أعرض خطوات من منصة أخرى."
+        elif not topics and not effective_scope:
+            response = "لا يوجد في قاعدة المعرفة مقتطف كافٍ يجيب عن هذا السؤال. لا أستنتج خطوات أو نتائج غير مدعومة بمصدر موثوق."
         else:
-            response = "ما عندي مصدر موثوق أو مقتطف كافٍ يطابق سؤالك ضمن الاختصاص المحدد. أمتنع عن الاستنتاج من تطابق لفظي ضعيف."
-        return {"text": response, "citations": [], "corpus_version": corpus["corpus_version"]}
+            response = "ما عندي مصدر موثوق أو مقتطف كافٍ يطابق موضوع السؤال ضمن النطاق المحدد؛ أمتنع عن الاستنتاج من تطابق لفظي ضعيف."
+        return {"text": response, "citations": [], "corpus_version": corpus["corpus_version"],
+                "resolved_platform": platform, "resolved_topics": sorted(topics), "resolved_jurisdiction": effective_scope}
 
     if effective_scope:
         lines = ["بحسب المقتطفات الموثقة؛ تظهر جهة المصدر ونطاقها بجوار كل مقتطف:"]
@@ -201,9 +362,11 @@ def answer_question(query: str, jurisdiction: str | None, context_text: str = ""
         citations.append({"id": source["id"], "title": source["title"], "publisher": source["publisher"], "url": source["url"],
                           "published_or_updated": source["published_or_updated"], "ingested_at": source["ingested_at"],
                           "geography": source["geography"], "guidance_scope": source.get("guidance_scope"),
+                          "topics": source.get("topics", []), "platforms": source.get("platforms", []),
                           "scope_note": source.get("scope_note"), "content_version": source["content_version"], "excerpt": excerpt})
     lines.append("\nهذه مقتطفات من المصادر فقط؛ لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية. إذا لم يُجب المقتطف عن سؤالك، أمتنع عن إضافة استنتاج.")
-    return {"text": "".join(lines), "citations": citations, "corpus_version": corpus["corpus_version"]}
+    return {"text": "".join(lines), "citations": citations, "corpus_version": corpus["corpus_version"],
+            "resolved_platform": platform, "resolved_topics": sorted(topics), "resolved_jurisdiction": effective_scope}
 
 
 if __name__ == "__main__":

@@ -64,10 +64,10 @@
     "subsequent_provider_p50_ms": null,
     "subsequent_provider_p95_ms": null,
     "model_pipeline_elapsed_p50_ms": null,
-    "integration_elapsed_p50_ms": 7.747,
-    "integration_elapsed_p95_ms": 13.554,
-    "turn_total_elapsed_p50_ms": 7.747,
-    "turn_total_elapsed_p95_ms": 13.554
+    "integration_elapsed_p50_ms": 9.436,
+    "integration_elapsed_p95_ms": 14.927,
+    "turn_total_elapsed_p50_ms": 9.436,
+    "turn_total_elapsed_p95_ms": 14.927
   },
   "turn_count": 27,
   "results": [
@@ -90,8 +90,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 13.891,
-            "turn_total_elapsed_ms": 13.891,
+            "integration_elapsed_ms": 14.317,
+            "turn_total_elapsed_ms": 14.317,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -106,7 +106,7 @@
               "id": "m3",
               "role": "assistant",
               "text": "هذه مقتطفات موثقة من دون افتراض بلدك؛ المصادر الوطنية ليست مسارات محلية خارج بلدها:\n[1] If you think your Instagram account has been hacked — Instagram Help Center, Meta\n- إذا كنت قلقًا على أمان حساب Instagram، افتح أدوات الأمان الرسمية داخل التطبيق.\n- راجع كلمة المرور وفعّل المصادقة الثنائية، وتحقق من بيانات التواصل والجلسات والتطبيقات المرتبطة.\n- هذه إرشادات للحساب داخل Instagram؛ قدرتك على الدخول لا تثبت وحدها وقوع اختراق أو عدمه.\nنطاق المصدر: إرشادات أمان خاصة بمنصة Instagram.\nالمقتطف الداعم: «توضح مساعدة Instagram أن من يعتقد أن حسابه اختُرق وما زال يستطيع الدخول يمكنه استخدام أدوات أمان الحساب، مثل تغيير كلمة المرور وتفعيل المصادقة الثنائية والتحقق من بيانات التواصل ومراجعة الجلسات والتطبيقات المرتبطة.»\nهذه مقتطفات من المصادر فقط؛ لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية. إذا لم يُجب المقتطف عن سؤالك، أمتنع عن إضافة استنتاج.",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "answer",
               "citations": [
                 {
@@ -129,7 +129,7 @@
               "id": "m4",
               "role": "assistant",
               "text": "نكمل من السؤال السابق: احكيلي شو صار معك.",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "question",
               "question_plan": {
                 "slot": "narrative",
@@ -226,8 +226,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 14.367,
-            "turn_total_elapsed_ms": 14.367,
+            "integration_elapsed_ms": 15.188,
+            "turn_total_elapsed_ms": 15.188,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -242,7 +242,7 @@
               "quote": "قبل ساعتين بدأت الواقعة",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -253,7 +253,7 @@
               "quote": "قبل ساعتين بدأت الواقعة",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             }
@@ -265,7 +265,7 @@
               "id": "m3",
               "role": "assistant",
               "text": "سجلت الجزء الذي ذكرته في مسودة الإفادة.\n\nهذه مقتطفات موثقة من دون افتراض بلدك؛ المصادر الوطنية ليست مسارات محلية خارج بلدها:\n[1] How to collect evidence — eSafety Commissioner, Australian Government\n- دوّن اسم المنصة ورابط الحساب أو المحتوى واسم المستخدم والتاريخ والوقت والسياق.\n- احتفظ بلقطات الشاشة التي توثق المحتوى والحساب، إن كان ذلك آمنًا ومسموحًا.\n- المصدر أسترالي؛ هذه نقاط توثيق عامة وليست إجراء إبلاغ محليًا. لا ترفع الأدلة إلى التطبيق.\nنطاق المصدر: إرشاد عام من مصدر وطني؛ لا يمثل قانونًا أو جهة محلية.\nالمقتطف الداعم: «لحفظ الأدلة ومعلومات عن إساءة أو تواصل إلكتروني، توصي eSafety الأسترالية بتسجيل المنصة المستخدمة، وروابط المحتوى أو الحسابات، وأسماء المستخدمين، والتواريخ والأوقات، والسياق أو تكرار التواصل.»\nهذه مقتطفات من المصادر فقط؛ لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية. إذا لم يُجب المقتطف عن سؤالك، أمتنع عن إضافة استنتاج.",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "answer",
               "citations": [
                 {
@@ -288,7 +288,7 @@
               "id": "m4",
               "role": "assistant",
               "text": "ما قدرت أحدد نوع الواقعة من الوصف وحده. ممكن توضح شو حدث خطوة بخطوة أو شو الرسالة أو التصرف اللي وصلك؟",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "question",
               "question_plan": {
                 "slot": "unclassified_details",
@@ -403,8 +403,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 9.386,
-            "turn_total_elapsed_ms": 9.386,
+            "integration_elapsed_ms": 8.749,
+            "turn_total_elapsed_ms": 8.749,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -419,7 +419,7 @@
               "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -430,7 +430,7 @@
               "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -441,7 +441,7 @@
               "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -452,7 +452,7 @@
               "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -463,7 +463,7 @@
               "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -474,7 +474,7 @@
               "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -485,7 +485,7 @@
               "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             }
@@ -499,7 +499,7 @@
               "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
               "message_id": "m2",
               "question_id": "m1",
-              "created_at": "2026-11-06T17:45:06+00:00"
+              "created_at": "2026-11-06T17:52:00+00:00"
             }
           ],
           "money_corrections": [],
@@ -508,7 +508,7 @@
               "id": "m3",
               "role": "assistant",
               "text": "هل أنت بخطر مباشر الآن؟",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "question",
               "question_plan": {
                 "slot": "direct_danger",
@@ -598,8 +598,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 12.768,
-            "turn_total_elapsed_ms": 12.768,
+            "integration_elapsed_ms": 12.55,
+            "turn_total_elapsed_ms": 12.55,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -614,7 +614,7 @@
               "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -625,7 +625,7 @@
               "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -636,7 +636,7 @@
               "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -647,7 +647,7 @@
               "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": [],
               "supporting_statements": [
@@ -655,7 +655,7 @@
                   "quote": "لا، ما في خطر مباشر علي الآن، بس اليوم رجع هددني",
                   "message_id": "m4",
                   "question_id": "m3",
-                  "at": "2026-11-06T17:45:06+00:00"
+                  "at": "2026-11-06T17:52:00+00:00"
                 }
               ]
             },
@@ -666,7 +666,7 @@
               "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -677,7 +677,7 @@
               "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -688,7 +688,7 @@
               "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -699,7 +699,7 @@
               "quote": "لا، ما في خطر مباشر علي الآن، بس اليوم رجع هددني. كيف أوثق الأدلة؟",
               "message_id": "m4",
               "question_id": "m3",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -710,7 +710,7 @@
               "quote": "لا، ما في خطر مباشر علي الآن، بس اليوم رجع هددني",
               "message_id": "m4",
               "question_id": "m3",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -721,7 +721,7 @@
               "quote": "لا، ما في خطر مباشر علي الآن، بس اليوم رجع هددني",
               "message_id": "m4",
               "question_id": "m3",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             }
@@ -735,7 +735,7 @@
               "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
               "message_id": "m2",
               "question_id": "m1",
-              "created_at": "2026-11-06T17:45:06+00:00"
+              "created_at": "2026-11-06T17:52:00+00:00"
             }
           ],
           "money_corrections": [],
@@ -744,7 +744,7 @@
               "id": "m5",
               "role": "assistant",
               "text": "سجلت الجزء الذي ذكرته في مسودة الإفادة.\n\nهذه مقتطفات موثقة من دون افتراض بلدك؛ المصادر الوطنية ليست مسارات محلية خارج بلدها:\n[1] How to collect evidence — eSafety Commissioner, Australian Government\n- دوّن اسم المنصة ورابط الحساب أو المحتوى واسم المستخدم والتاريخ والوقت والسياق.\n- احتفظ بلقطات الشاشة التي توثق المحتوى والحساب، إن كان ذلك آمنًا ومسموحًا.\n- المصدر أسترالي؛ هذه نقاط توثيق عامة وليست إجراء إبلاغ محليًا. لا ترفع الأدلة إلى التطبيق.\nنطاق المصدر: إرشاد عام من مصدر وطني؛ لا يمثل قانونًا أو جهة محلية.\nالمقتطف الداعم: «لحفظ الأدلة ومعلومات عن إساءة أو تواصل إلكتروني، توصي eSafety الأسترالية بتسجيل المنصة المستخدمة، وروابط المحتوى أو الحسابات، وأسماء المستخدمين، والتواريخ والأوقات، والسياق أو تكرار التواصل.»\nهذه مقتطفات من المصادر فقط؛ لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية. إذا لم يُجب المقتطف عن سؤالك، أمتنع عن إضافة استنتاج.",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "answer",
               "citations": [
                 {
@@ -767,7 +767,7 @@
               "id": "m6",
               "role": "assistant",
               "text": "هل دفعت أو حولت أي مبلغ؟ إذا نعم، كم؟",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "question",
               "question_plan": {
                 "slot": "paid_amount",
@@ -897,8 +897,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 8.936,
-            "turn_total_elapsed_ms": 8.936,
+            "integration_elapsed_ms": 8.358,
+            "turn_total_elapsed_ms": 8.358,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -913,7 +913,7 @@
               "quote": "انتبهت للحساب اليوم",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -924,7 +924,7 @@
               "quote": "ما عندي فكرة عن موعد إنشائه",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -935,7 +935,7 @@
               "quote": "انتبهت للحساب اليوم، لكن ما عندي فكرة عن موعد إنشائه",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             }
@@ -947,7 +947,7 @@
               "id": "m3",
               "role": "assistant",
               "text": "ما قدرت أحدد نوع الواقعة من الوصف وحده. ممكن توضح شو حدث خطوة بخطوة أو شو الرسالة أو التصرف اللي وصلك؟",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "question",
               "question_plan": {
                 "slot": "unclassified_details",
@@ -1025,8 +1025,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 7.899,
-            "turn_total_elapsed_ms": 7.899,
+            "integration_elapsed_ms": 8.702,
+            "turn_total_elapsed_ms": 8.702,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -1041,7 +1041,7 @@
               "quote": "الصفحة تنتحل دوري أمام الآخرين وتستعمل هويتي",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -1052,7 +1052,7 @@
               "quote": "الصفحة تنتحل دوري أمام الآخرين وتستعمل هويتي",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -1063,7 +1063,7 @@
               "quote": "الصفحة تنتحل دوري أمام الآخرين وتستعمل هويتي",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             }
@@ -1075,7 +1075,7 @@
               "id": "m3",
               "role": "assistant",
               "text": "هل بتعرف هوية الشخص، ولا المتوفر عندك بس اسم حساب أو رقم تواصل؟",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "question",
               "question_plan": {
                 "slot": "identity",
@@ -1149,8 +1149,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 7.47,
-            "turn_total_elapsed_ms": 7.47,
+            "integration_elapsed_ms": 7.902,
+            "turn_total_elapsed_ms": 7.902,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -1165,7 +1165,7 @@
               "quote": "الفاعل مجهول بالنسبة إلي، لكن عندي نسخة احتياطية من المحادثة",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -1176,7 +1176,7 @@
               "quote": "الفاعل مجهول بالنسبة إلي، لكن عندي نسخة احتياطية من المحادثة",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -1187,7 +1187,7 @@
               "quote": "الفاعل مجهول بالنسبة إلي، لكن عندي نسخة احتياطية من المحادثة",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             }
@@ -1199,7 +1199,7 @@
               "id": "m3",
               "role": "assistant",
               "text": "ما قدرت أحدد نوع الواقعة من الوصف وحده. ممكن توضح شو حدث خطوة بخطوة أو شو الرسالة أو التصرف اللي وصلك؟",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "question",
               "question_plan": {
                 "slot": "unclassified_details",
@@ -1273,8 +1273,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 6.978,
-            "turn_total_elapsed_ms": 6.978,
+            "integration_elapsed_ms": 9.939,
+            "turn_total_elapsed_ms": 9.939,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -1289,7 +1289,7 @@
               "quote": "اكتشفت الحساب اليوم",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -1300,7 +1300,7 @@
               "quote": "ويبدو أنه أُنشئ قبل أسبوع",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -1311,7 +1311,7 @@
               "quote": "اكتشفت الحساب اليوم، ويبدو أنه أُنشئ قبل أسبوع",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             }
@@ -1323,7 +1323,7 @@
               "id": "m3",
               "role": "assistant",
               "text": "ما قدرت أحدد نوع الواقعة من الوصف وحده. ممكن توضح شو حدث خطوة بخطوة أو شو الرسالة أو التصرف اللي وصلك؟",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "question",
               "question_plan": {
                 "slot": "unclassified_details",
@@ -1398,8 +1398,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 6.579,
-            "turn_total_elapsed_ms": 6.579,
+            "integration_elapsed_ms": 8.049,
+            "turn_total_elapsed_ms": 8.049,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -1414,7 +1414,7 @@
               "quote": "حسابي الأصلي معي وبقدر أدخل عليه",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -1425,7 +1425,7 @@
               "quote": "حسابي الأصلي معي وبقدر أدخل عليه",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             }
@@ -1437,7 +1437,7 @@
               "id": "m3",
               "role": "assistant",
               "text": "ما قدرت أحدد نوع الواقعة من الوصف وحده. ممكن توضح شو حدث خطوة بخطوة أو شو الرسالة أو التصرف اللي وصلك؟",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "question",
               "question_plan": {
                 "slot": "unclassified_details",
@@ -1511,8 +1511,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 7.973,
-            "turn_total_elapsed_ms": 7.973,
+            "integration_elapsed_ms": 9.837,
+            "turn_total_elapsed_ms": 9.837,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -1527,7 +1527,7 @@
               "quote": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -1538,7 +1538,7 @@
               "quote": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -1549,7 +1549,7 @@
               "quote": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -1560,7 +1560,7 @@
               "quote": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             }
@@ -1574,7 +1574,7 @@
               "quote": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
               "message_id": "m2",
               "question_id": "m1",
-              "created_at": "2026-11-06T17:45:06+00:00"
+              "created_at": "2026-11-06T17:52:00+00:00"
             },
             {
               "id": "money-2",
@@ -1584,7 +1584,7 @@
               "quote": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
               "message_id": "m2",
               "question_id": "m1",
-              "created_at": "2026-11-06T17:45:06+00:00"
+              "created_at": "2026-11-06T17:52:00+00:00"
             }
           ],
           "money_corrections": [],
@@ -1593,7 +1593,7 @@
               "id": "m3",
               "role": "assistant",
               "text": "شو قال لك تحديدًا أو شو صار؟",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "question",
               "question_plan": {
                 "slot": "details",
@@ -1660,8 +1660,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 9.406,
-            "turn_total_elapsed_ms": 9.406,
+            "integration_elapsed_ms": 9.878,
+            "turn_total_elapsed_ms": 9.878,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -1676,7 +1676,7 @@
               "quote": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -1687,7 +1687,7 @@
               "quote": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -1698,7 +1698,7 @@
               "quote": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -1709,7 +1709,7 @@
               "quote": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -1720,7 +1720,7 @@
               "quote": "الدفعة الثانية هي المبلغ الأول نفسه، ما حولت مرة ثانية",
               "message_id": "m4",
               "question_id": "m3",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             }
@@ -1734,7 +1734,7 @@
               "quote": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
               "message_id": "m2",
               "question_id": "m1",
-              "created_at": "2026-11-06T17:45:06+00:00"
+              "created_at": "2026-11-06T17:52:00+00:00"
             },
             {
               "id": "money-2",
@@ -1744,7 +1744,7 @@
               "quote": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
               "message_id": "m2",
               "question_id": "m1",
-              "created_at": "2026-11-06T17:45:06+00:00"
+              "created_at": "2026-11-06T17:52:00+00:00"
             }
           ],
           "money_corrections": [],
@@ -1753,7 +1753,7 @@
               "id": "m5",
               "role": "assistant",
               "text": "سجلت المعلومة التي أضفتها. بقي عندي هذا السؤال للتوضيح: شو قال لك تحديدًا أو شو صار؟",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "clarification",
               "question_plan": {
                 "slot": "details",
@@ -1821,8 +1821,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 8.243,
-            "turn_total_elapsed_ms": 8.243,
+            "integration_elapsed_ms": 9.663,
+            "turn_total_elapsed_ms": 9.663,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -1837,7 +1837,7 @@
               "quote": "بعد ما حولت المال",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -1848,7 +1848,7 @@
               "quote": "بعد ما حولت المال",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             }
@@ -1860,7 +1860,7 @@
               "id": "m3",
               "role": "assistant",
               "text": "سجلت الجزء الذي ذكرته في مسودة الإفادة.\n\nهذه مقتطفات موثقة من دون افتراض بلدك؛ المصادر الوطنية ليست مسارات محلية خارج بلدها:\n[1] What To Do if You Were Scammed — Federal Trade Commission, United States\n- إذا كان التحويل مرتبطًا باحتيال أو دفع لمحتال، فتواصل سريعًا مع البنك أو التطبيق أو الشركة التي عالجت التحويل.\n- اسألهم إن كان يمكن إيقاف العملية أو عكسها أو ما الخيارات المتاحة لوسيلة الدفع هذه.\n- لا يوجد ضمان للاسترداد؛ تفاصيل الحقوق والقنوات في المصدر تخص الولايات المتحدة.\nنطاق المصدر: إرشاد عام من مصدر وطني؛ لا يمثل قانونًا أو جهة محلية.\nالمقتطف الداعم: «توصي لجنة التجارة الفيدرالية الأمريكية من دفع لمحتال بالتواصل سريعًا مع البنك أو التطبيق أو الشركة التي عالجت الدفع وسؤالهم عن الخيارات المتاحة مثل إيقاف العملية أو عكسها إن أمكن.»\nهذه مقتطفات من المصادر فقط؛ لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية. إذا لم يُجب المقتطف عن سؤالك، أمتنع عن إضافة استنتاج.",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "answer",
               "citations": [
                 {
@@ -1883,7 +1883,7 @@
               "id": "m4",
               "role": "assistant",
               "text": "ما قدرت أحدد نوع الواقعة من الوصف وحده. ممكن توضح شو حدث خطوة بخطوة أو شو الرسالة أو التصرف اللي وصلك؟",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "question",
               "question_plan": {
                 "slot": "unclassified_details",
@@ -1971,8 +1971,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 8.386,
-            "turn_total_elapsed_ms": 8.386,
+            "integration_elapsed_ms": 9.761,
+            "turn_total_elapsed_ms": 9.761,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -1987,7 +1987,7 @@
               "id": "m3",
               "role": "assistant",
               "text": "هذه مقتطفات موثقة من دون افتراض بلدك؛ المصادر الوطنية ليست مسارات محلية خارج بلدها:\n[1] Report an account that's impersonating you on Instagram — Instagram Help Center, Meta\n- من داخل Instagram اختر الإبلاغ عن الحساب.\n- اختر سبب التظاهر بأنه شخص آخر واتبع الخطوات الرسمية الظاهرة في التطبيق.\n- هذا بلاغ داخل المنصة؛ لا يقرر نتيجة المراجعة ولا يحل محل مسار قانوني محلي.\nنطاق المصدر: إرشادات أمان خاصة بمنصة Instagram.\nالمقتطف الداعم: «تشرح مساعدة Instagram أن الإبلاغ عن حساب يتظاهر بأنه المستخدم يتم من داخل المنصة باختيار الإبلاغ عن الحساب ثم التظاهر بأنه شخص آخر. هذه أداة خاصة بالمنصة؛ لا تثبت أن الحساب المذكور منتحل ولا تحدد نتيجة المراجعة أو الإجراء القانوني المحلي.»\n[2] If you think your Instagram account has been hacked — Instagram Help Center, Meta\n- إذا كنت قلقًا على أمان حساب Instagram، افتح أدوات الأمان الرسمية داخل التطبيق.\n- راجع كلمة المرور وفعّل المصادقة الثنائية، وتحقق من بيانات التواصل والجلسات والتطبيقات المرتبطة.\n- هذه إرشادات للحساب داخل Instagram؛ قدرتك على الدخول لا تثبت وحدها وقوع اختراق أو عدمه.\nنطاق المصدر: إرشادات أمان خاصة بمنصة Instagram.\nالمقتطف الداعم: «توضح مساعدة Instagram أن من يعتقد أن حسابه اختُرق وما زال يستطيع الدخول يمكنه استخدام أدوات أمان الحساب، مثل تغيير كلمة المرور وتفعيل المصادقة الثنائية والتحقق من بيانات التواصل ومراجعة الجلسات والتطبيقات المرتبطة.»\nهذه مقتطفات من المصادر فقط؛ لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية. إذا لم يُجب المقتطف عن سؤالك، أمتنع عن إضافة استنتاج.",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "answer",
               "citations": [
                 {
@@ -2023,7 +2023,7 @@
               "id": "m4",
               "role": "assistant",
               "text": "نكمل من السؤال السابق: احكيلي شو صار معك.",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "question",
               "question_plan": {
                 "slot": "narrative",
@@ -2131,8 +2131,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 7.747,
-            "turn_total_elapsed_ms": 7.747,
+            "integration_elapsed_ms": 8.548,
+            "turn_total_elapsed_ms": 8.548,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -2147,7 +2147,7 @@
               "quote": "في حساب معجبين مشابه لاسمي وصورتي لكنه يوضح أنه حساب معجبين ولا يدعي أنه أنا",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -2158,7 +2158,7 @@
               "quote": "في حساب معجبين مشابه لاسمي وصورتي لكنه يوضح أنه حساب معجبين ولا يدعي أنه أنا",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             }
@@ -2170,7 +2170,7 @@
               "id": "m3",
               "role": "assistant",
               "text": "ما قدرت أحدد نوع الواقعة من الوصف وحده. ممكن توضح شو حدث خطوة بخطوة أو شو الرسالة أو التصرف اللي وصلك؟",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "question",
               "question_plan": {
                 "slot": "unclassified_details",
@@ -2216,7 +2216,7 @@
                 "quote": "في حساب معجبين مشابه لاسمي وصورتي لكنه يوضح أنه حساب معجبين ولا يدعي أنه أنا",
                 "message_id": "m2",
                 "question_id": "m1",
-                "updated_at": "2026-11-06T17:45:06+00:00",
+                "updated_at": "2026-11-06T17:52:00+00:00",
                 "source": "rules",
                 "history": []
               }
@@ -2252,8 +2252,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 7.582,
-            "turn_total_elapsed_ms": 7.582,
+            "integration_elapsed_ms": 8.811,
+            "turn_total_elapsed_ms": 8.811,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -2268,7 +2268,7 @@
               "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -2279,7 +2279,7 @@
               "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -2290,7 +2290,7 @@
               "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -2301,7 +2301,7 @@
               "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             }
@@ -2315,7 +2315,7 @@
               "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
               "message_id": "m2",
               "question_id": "m1",
-              "created_at": "2026-11-06T17:45:06+00:00"
+              "created_at": "2026-11-06T17:52:00+00:00"
             },
             {
               "id": "money-2",
@@ -2325,7 +2325,7 @@
               "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
               "message_id": "m2",
               "question_id": "m1",
-              "created_at": "2026-11-06T17:45:06+00:00"
+              "created_at": "2026-11-06T17:52:00+00:00"
             }
           ],
           "money_corrections": [],
@@ -2334,7 +2334,7 @@
               "id": "m3",
               "role": "assistant",
               "text": "هل أنت بخطر مباشر الآن؟",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "question",
               "question_plan": {
                 "slot": "direct_danger",
@@ -2413,8 +2413,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 8.883,
-            "turn_total_elapsed_ms": 8.883,
+            "integration_elapsed_ms": 12.554,
+            "turn_total_elapsed_ms": 12.554,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -2429,7 +2429,7 @@
               "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -2440,7 +2440,7 @@
               "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -2451,7 +2451,7 @@
               "quote": "المبلغ اللي طلبه كان 120 بدل 100، أما اللي حولته فهو 130، مش دفعة جديدة",
               "message_id": "m4",
               "question_id": "m3",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": [
                 {
@@ -2459,7 +2459,7 @@
                   "value": "100 دينار",
                   "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
                   "message_id": "m2",
-                  "at": "2026-11-06T17:45:06+00:00",
+                  "at": "2026-11-06T17:52:00+00:00",
                   "reason": "explicit_correction"
                 }
               ]
@@ -2471,7 +2471,7 @@
               "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": [],
               "supporting_statements": [
@@ -2479,7 +2479,7 @@
                   "quote": "المبلغ اللي طلبه كان 120 بدل 100، أما اللي حولته فهو 130، مش دفعة جديدة",
                   "message_id": "m4",
                   "question_id": "m3",
-                  "at": "2026-11-06T17:45:06+00:00"
+                  "at": "2026-11-06T17:52:00+00:00"
                 }
               ]
             }
@@ -2493,7 +2493,7 @@
               "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
               "message_id": "m2",
               "question_id": "m1",
-              "created_at": "2026-11-06T17:45:06+00:00"
+              "created_at": "2026-11-06T17:52:00+00:00"
             },
             {
               "id": "money-2",
@@ -2503,7 +2503,7 @@
               "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
               "message_id": "m2",
               "question_id": "m1",
-              "created_at": "2026-11-06T17:45:06+00:00"
+              "created_at": "2026-11-06T17:52:00+00:00"
             },
             {
               "id": "money-3",
@@ -2513,7 +2513,7 @@
               "quote": "المبلغ اللي طلبه كان 120 بدل 100، أما اللي حولته فهو 130، مش دفعة جديدة",
               "message_id": "m4",
               "question_id": "m3",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "target_event_id": "money-1"
             }
           ],
@@ -2528,7 +2528,7 @@
               "quote": "المبلغ اللي طلبه كان 120 بدل 100، أما اللي حولته فهو 130، مش دفعة جديدة",
               "message_id": "m4",
               "question_id": "m3",
-              "created_at": "2026-11-06T17:45:06+00:00"
+              "created_at": "2026-11-06T17:52:00+00:00"
             }
           ],
           "new_assistant_messages": [
@@ -2536,7 +2536,7 @@
               "id": "m5",
               "role": "assistant",
               "text": "سجلت المعلومة التي أضفتها. بقي عندي هذا السؤال للتوضيح: هل أنت بخطر مباشر الآن؟",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "clarification",
               "question_plan": {
                 "slot": "direct_danger",
@@ -2630,8 +2630,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 6.951,
-            "turn_total_elapsed_ms": 6.951,
+            "integration_elapsed_ms": 6.705,
+            "turn_total_elapsed_ms": 6.705,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -2646,7 +2646,7 @@
               "id": "m3",
               "role": "assistant",
               "text": "يعتمد مسار الإبلاغ أو رقم الطوارئ على البلد. اذكر البلد الذي تسأل عنه لأبحث في مصدر رسمي مناسب؛ لن أفترض موقعك.",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "answer",
               "citations": [],
               "external_model_used": false
@@ -2655,7 +2655,7 @@
               "id": "m4",
               "role": "assistant",
               "text": "نكمل من السؤال السابق: احكيلي شو صار معك.",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "question",
               "question_plan": {
                 "slot": "narrative",
@@ -2727,8 +2727,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 8.073,
-            "turn_total_elapsed_ms": 8.073,
+            "integration_elapsed_ms": 7.764,
+            "turn_total_elapsed_ms": 7.764,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -2743,7 +2743,7 @@
               "id": "m3",
               "role": "assistant",
               "text": "هذه مقتطفات موثقة من دون افتراض بلدك؛ المصادر الوطنية ليست مسارات محلية خارج بلدها:\n[1] If you think your Instagram account has been hacked — Instagram Help Center, Meta\n- إذا كنت قلقًا على أمان حساب Instagram، افتح أدوات الأمان الرسمية داخل التطبيق.\n- راجع كلمة المرور وفعّل المصادقة الثنائية، وتحقق من بيانات التواصل والجلسات والتطبيقات المرتبطة.\n- هذه إرشادات للحساب داخل Instagram؛ قدرتك على الدخول لا تثبت وحدها وقوع اختراق أو عدمه.\nنطاق المصدر: إرشادات أمان خاصة بمنصة Instagram.\nالمقتطف الداعم: «توضح مساعدة Instagram أن من يعتقد أن حسابه اختُرق وما زال يستطيع الدخول يمكنه استخدام أدوات أمان الحساب، مثل تغيير كلمة المرور وتفعيل المصادقة الثنائية والتحقق من بيانات التواصل ومراجعة الجلسات والتطبيقات المرتبطة.»\nهذه مقتطفات من المصادر فقط؛ لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية. إذا لم يُجب المقتطف عن سؤالك، أمتنع عن إضافة استنتاج.",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "answer",
               "citations": [
                 {
@@ -2766,7 +2766,7 @@
               "id": "m4",
               "role": "assistant",
               "text": "نكمل من السؤال السابق: احكيلي شو صار معك.",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "question",
               "question_plan": {
                 "slot": "narrative",
@@ -2860,8 +2860,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 7.013,
-            "turn_total_elapsed_ms": 7.013,
+            "integration_elapsed_ms": 9.054,
+            "turn_total_elapsed_ms": 9.054,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -2876,7 +2876,7 @@
               "quote": "شخص هددني على واتساب",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -2887,7 +2887,7 @@
               "quote": "شخص هددني على واتساب",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -2898,7 +2898,7 @@
               "quote": "شخص هددني على واتساب",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             }
@@ -2910,7 +2910,7 @@
               "id": "m3",
               "role": "assistant",
               "text": "هل أنت بخطر مباشر الآن؟",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "question",
               "question_plan": {
                 "slot": "direct_danger",
@@ -2969,8 +2969,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 7.208,
-            "turn_total_elapsed_ms": 7.208,
+            "integration_elapsed_ms": 10.76,
+            "turn_total_elapsed_ms": 10.76,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -2985,7 +2985,7 @@
               "quote": "شخص هددني على واتساب",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -2996,7 +2996,7 @@
               "quote": "شخص هددني على واتساب",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3007,7 +3007,7 @@
               "quote": "شخص هددني على واتساب",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3018,7 +3018,7 @@
               "quote": "لا، ما في خطر مباشر علي الآن، وما بعرف إذا نشر المحادثات ولا لأ",
               "message_id": "m4",
               "question_id": "m3",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3029,7 +3029,7 @@
               "quote": "لا، ما في خطر مباشر علي الآن، وما بعرف إذا نشر المحادثات ولا لأ",
               "message_id": "m4",
               "question_id": "m3",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             }
@@ -3041,7 +3041,7 @@
               "id": "m5",
               "role": "assistant",
               "text": "شو قال لك تحديدًا أو شو صار؟",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "question",
               "question_plan": {
                 "slot": "details",
@@ -3118,8 +3118,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 5.763,
-            "turn_total_elapsed_ms": 5.763,
+            "integration_elapsed_ms": 7.698,
+            "turn_total_elapsed_ms": 7.698,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -3134,7 +3134,7 @@
               "quote": "شخص هددني على واتساب",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3145,7 +3145,7 @@
               "quote": "شخص هددني على واتساب",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3156,7 +3156,7 @@
               "quote": "شخص هددني على واتساب",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             }
@@ -3168,7 +3168,7 @@
               "id": "m3",
               "role": "assistant",
               "text": "هل أنت بخطر مباشر الآن؟",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "question",
               "question_plan": {
                 "slot": "direct_danger",
@@ -3224,8 +3224,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 7.294,
-            "turn_total_elapsed_ms": 7.294,
+            "integration_elapsed_ms": 9.455,
+            "turn_total_elapsed_ms": 9.455,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -3240,7 +3240,7 @@
               "quote": "شخص هددني على واتساب",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3251,7 +3251,7 @@
               "quote": "شخص هددني على واتساب",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3262,7 +3262,7 @@
               "quote": "شخص هددني على واتساب",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3273,7 +3273,7 @@
               "quote": "لا، ما في خطر مباشر علي الآن",
               "message_id": "m4",
               "question_id": "m3",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             }
@@ -3285,7 +3285,7 @@
               "id": "m5",
               "role": "assistant",
               "text": "شو قال لك تحديدًا أو شو صار؟",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "question",
               "question_plan": {
                 "slot": "details",
@@ -3345,8 +3345,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 7.769,
-            "turn_total_elapsed_ms": 7.769,
+            "integration_elapsed_ms": 10.498,
+            "turn_total_elapsed_ms": 10.498,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -3361,7 +3361,7 @@
               "quote": "شخص هددني على واتساب",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3372,7 +3372,7 @@
               "quote": "شخص هددني على واتساب",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3383,7 +3383,7 @@
               "quote": "شخص هددني على واتساب",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3394,7 +3394,7 @@
               "quote": "لا، ما في خطر مباشر علي الآن",
               "message_id": "m4",
               "question_id": "m3",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3405,7 +3405,7 @@
               "quote": "قال إنه سيؤذيني إذا رفضت الدفع",
               "message_id": "m6",
               "question_id": "m5",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             }
@@ -3417,7 +3417,7 @@
               "id": "m7",
               "role": "assistant",
               "text": "متى بدأ التصرف أو وصلك أول تواصل؟ هذا غير وقت اكتشافك للواقعة.",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "question",
               "question_plan": {
                 "slot": "initial_time",
@@ -3477,8 +3477,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 6.844,
-            "turn_total_elapsed_ms": 6.844,
+            "integration_elapsed_ms": 9.012,
+            "turn_total_elapsed_ms": 9.012,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -3493,7 +3493,7 @@
               "quote": "شخص هددني على واتساب",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3504,7 +3504,7 @@
               "quote": "شخص هددني على واتساب",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3515,7 +3515,7 @@
               "quote": "شخص هددني على واتساب",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3526,7 +3526,7 @@
               "quote": "لا، ما في خطر مباشر علي الآن",
               "message_id": "m4",
               "question_id": "m3",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3537,7 +3537,7 @@
               "quote": "قال إنه سيؤذيني إذا رفضت الدفع",
               "message_id": "m6",
               "question_id": "m5",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3548,7 +3548,7 @@
               "quote": "بدأ قبل يومين",
               "message_id": "m8",
               "question_id": "m7",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             }
@@ -3560,7 +3560,7 @@
               "id": "m9",
               "role": "assistant",
               "text": "هل تكرر التهديد أو المضايقة المؤثرة؟ ليس مجرد استمرار الرسائل أو التواصل.",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "question",
               "question_plan": {
                 "slot": "repeated",
@@ -3623,8 +3623,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 7.509,
-            "turn_total_elapsed_ms": 7.509,
+            "integration_elapsed_ms": 9.31,
+            "turn_total_elapsed_ms": 9.31,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -3639,7 +3639,7 @@
               "quote": "شخص هددني على واتساب",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3650,7 +3650,7 @@
               "quote": "شخص هددني على واتساب",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3661,7 +3661,7 @@
               "quote": "شخص هددني على واتساب",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3672,7 +3672,7 @@
               "quote": "لا، ما في خطر مباشر علي الآن",
               "message_id": "m4",
               "question_id": "m3",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3683,7 +3683,7 @@
               "quote": "قال إنه سيؤذيني إذا رفضت الدفع",
               "message_id": "m6",
               "question_id": "m5",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3694,7 +3694,7 @@
               "quote": "بدأ قبل يومين",
               "message_id": "m8",
               "question_id": "m7",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3705,7 +3705,7 @@
               "quote": "نعم",
               "message_id": "m10",
               "question_id": "m9",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             }
@@ -3717,7 +3717,7 @@
               "id": "m11",
               "role": "assistant",
               "text": "هل بتعرف هوية الشخص، ولا المتوفر عندك بس اسم حساب أو رقم تواصل؟",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "question",
               "question_plan": {
                 "slot": "identity",
@@ -3789,8 +3789,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 6.417,
-            "turn_total_elapsed_ms": 6.417,
+            "integration_elapsed_ms": 9.436,
+            "turn_total_elapsed_ms": 9.436,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -3805,7 +3805,7 @@
               "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3816,7 +3816,7 @@
               "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3827,7 +3827,7 @@
               "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3838,7 +3838,7 @@
               "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             }
@@ -3852,7 +3852,7 @@
               "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
               "message_id": "m2",
               "question_id": "m1",
-              "created_at": "2026-11-06T17:45:06+00:00"
+              "created_at": "2026-11-06T17:52:00+00:00"
             },
             {
               "id": "money-2",
@@ -3862,7 +3862,7 @@
               "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
               "message_id": "m2",
               "question_id": "m1",
-              "created_at": "2026-11-06T17:45:06+00:00"
+              "created_at": "2026-11-06T17:52:00+00:00"
             }
           ],
           "money_corrections": [],
@@ -3871,7 +3871,7 @@
               "id": "m3",
               "role": "assistant",
               "text": "هل أنت بخطر مباشر الآن؟",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "question",
               "question_plan": {
                 "slot": "direct_danger",
@@ -3946,8 +3946,8 @@
             "eligible": false,
             "elapsed_ms": null,
             "provider_latency_ms": null,
-            "integration_elapsed_ms": 7.411,
-            "turn_total_elapsed_ms": 7.411,
+            "integration_elapsed_ms": 20.204,
+            "turn_total_elapsed_ms": 20.204,
             "provider_call": {},
             "diagnostic": {},
             "proposals": []
@@ -3962,7 +3962,7 @@
               "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3973,7 +3973,7 @@
               "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             },
@@ -3984,7 +3984,7 @@
               "quote": "قصدي المبلغ المطلوب 120 بدل 100",
               "message_id": "m4",
               "question_id": "m3",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": [
                 {
@@ -3992,7 +3992,7 @@
                   "value": "100 دينار",
                   "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
                   "message_id": "m2",
-                  "at": "2026-11-06T17:45:06+00:00",
+                  "at": "2026-11-06T17:52:00+00:00",
                   "reason": "explicit_correction"
                 }
               ]
@@ -4004,7 +4004,7 @@
               "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
               "message_id": "m2",
               "question_id": "m1",
-              "updated_at": "2026-11-06T17:45:06+00:00",
+              "updated_at": "2026-11-06T17:52:00+00:00",
               "source": "rules",
               "history": []
             }
@@ -4018,7 +4018,7 @@
               "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
               "message_id": "m2",
               "question_id": "m1",
-              "created_at": "2026-11-06T17:45:06+00:00"
+              "created_at": "2026-11-06T17:52:00+00:00"
             },
             {
               "id": "money-2",
@@ -4028,7 +4028,7 @@
               "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
               "message_id": "m2",
               "question_id": "m1",
-              "created_at": "2026-11-06T17:45:06+00:00"
+              "created_at": "2026-11-06T17:52:00+00:00"
             },
             {
               "id": "money-3",
@@ -4038,7 +4038,7 @@
               "quote": "قصدي المبلغ المطلوب 120 بدل 100",
               "message_id": "m4",
               "question_id": "m3",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "target_event_id": "money-1"
             }
           ],
@@ -4053,7 +4053,7 @@
               "quote": "قصدي المبلغ المطلوب 120 بدل 100",
               "message_id": "m4",
               "question_id": "m3",
-              "created_at": "2026-11-06T17:45:06+00:00"
+              "created_at": "2026-11-06T17:52:00+00:00"
             }
           ],
           "new_assistant_messages": [
@@ -4061,7 +4061,7 @@
               "id": "m5",
               "role": "assistant",
               "text": "سجلت الجزء الذي ذكرته في مسودة الإفادة.\n\nالدفع مسجل عندي؛ حتى نوثق إذا كان في مهلة محددة، وهذا مختلف عن مجرد حصول الدفع.",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "answer",
               "citations": [],
               "external_model_used": false
@@ -4070,7 +4070,7 @@
               "id": "m6",
               "role": "assistant",
               "text": "سجلت المعلومة التي أضفتها. بقي عندي هذا السؤال للتوضيح: هل أنت بخطر مباشر الآن؟",
-              "created_at": "2026-11-06T17:45:06+00:00",
+              "created_at": "2026-11-06T17:52:00+00:00",
               "kind": "clarification",
               "question_plan": {
                 "slot": "direct_danger",

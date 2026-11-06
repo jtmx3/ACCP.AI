@@ -786,7 +786,24 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
         if not requested_value:
             continue
         relation = _money_relation(clause, requested_value, existing_requested)
-        if relation in {"initial", "correction"}:
+        if relation == "correction":
+            requested_value = _inherit_correction_currency(requested_value,
+                                                           (existing_requested or {}).get("value"))
+            if _add_money_event(state, "requested", requested_value, relation, text, mid, question_id):
+                changed.add("money_events")
+                _set_answer(state, "requested_amount", requested_value, "reported", text, mid, question_id, changed)
+                existing_requested = state["facts"].get("requested_amount")
+            else:
+                if _add_money_event(state, "requested", requested_value, "unresolved", text, mid, question_id):
+                    changed.add("money_events")
+                    event = state["money_events"][-1]
+                    event["correction_target_ambiguous"] = sum(
+                        item.get("kind") == "requested" and item.get("amount") is not None
+                        and item.get("relation") in {"initial", "additional", "same"}
+                        and not item.get("target_event_id")
+                        for item in state["money_events"]
+                    ) > 1
+        elif relation == "initial":
             if _add_money_event(state, "requested", requested_value, relation, text, mid, question_id):
                 changed.add("money_events")
             _set_answer(state, "requested_amount", requested_value, "reported", text, mid, question_id, changed)
@@ -815,7 +832,23 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
     for clause, paid_value in paid_records:
         if paid_value:
             relation = _money_relation(clause, paid_value, existing_paid)
-            if relation in {"initial", "correction"}:
+            if relation == "correction":
+                paid_value = _inherit_correction_currency(paid_value, (existing_paid or {}).get("value"))
+                if _add_money_event(state, "paid", paid_value, relation, text, mid, question_id):
+                    changed.add("money_events")
+                    _set_answer(state, "paid_amount", paid_value, "reported", text, mid, question_id, changed)
+                    existing_paid = state["facts"].get("paid_amount")
+                else:
+                    if _add_money_event(state, "paid", paid_value, "unresolved", text, mid, question_id):
+                        changed.add("money_events")
+                        event = state["money_events"][-1]
+                        event["correction_target_ambiguous"] = sum(
+                            item.get("kind") == "paid" and item.get("amount") is not None
+                            and item.get("relation") in {"initial", "additional", "same"}
+                            and not item.get("target_event_id")
+                            for item in state["money_events"]
+                        ) > 1
+            elif relation == "initial":
                 if _add_money_event(state, "paid", paid_value, relation, text, mid, question_id):
                     changed.add("money_events")
                 _set_answer(state, "paid_amount", paid_value, "reported", text, mid, question_id, changed)
@@ -1082,9 +1115,28 @@ def _same_amount(left: Any, right: Any) -> bool:
     return bool(left_digits and right_digits and left_digits == right_digits)
 
 
+def _money_currency(value: Any) -> str | None:
+    normalized = normalize(str(value or ""))
+    for currency, aliases in {
+        "dinar": ("دينار", "دنانير", "د.ا"), "shekel": ("شيكل",),
+        "dollar": ("دولار",), "riyal": ("ريال",), "lira": ("ليرة",),
+    }.items():
+        if any(normalize(alias) in normalized for alias in aliases):
+            return currency
+    return None
+
+
+def _same_full_financial_amount(left: Any, right: Any) -> bool:
+    if not _same_amount(left, right):
+        return False
+    return _money_currency(left) == _money_currency(right)
+
+
 def _money_relation(text: str, amount: str, existing: dict[str, Any] | None) -> str:
     clause = normalize(text)
-    if any(marker in clause for marker in ("تصحيح", "المبلغ الصحيح", "بدل", "قصدي", "اقصد", "تعديل للمبلغ")):
+    has_current_reported_amount = bool(existing and existing.get("status") == "reported" and existing.get("value"))
+    if has_current_reported_amount and any(marker in clause for marker in (
+            "تصحيح", "المبلغ الصحيح", "بدل", "قصدي", "اقصد", "تعديل للمبلغ")):
         return "correction"
     if any(marker in clause for marker in ("زيادة", "اضافي", "اضافية", "كمان", "مبلغ ثاني", "مبلغ اخر", "دفعة ثانية", "دفعة اخرى")):
         return "additional"
@@ -1093,19 +1145,61 @@ def _money_relation(text: str, amount: str, existing: dict[str, Any] | None) -> 
     return "same" if _same_amount(amount, existing.get("value")) else "unresolved"
 
 
+def _inherit_correction_currency(amount: str, current_value: Any) -> str:
+    """A correction to the same amount field inherits its known currency if omitted."""
+    if not isinstance(current_value, str) or not _amount_digits(amount):
+        return amount
+    currency_terms = ("دينار", "دنانير", "د.ا", "شيكل", "دولار", "ريال", "ليرة")
+    if any(normalize(term) in normalize(amount) for term in currency_terms):
+        return amount
+    old_currency = next((term for term in currency_terms if normalize(term) in normalize(current_value)), None)
+    return f"{amount} {old_currency}" if old_currency else amount
+
+
+def _money_event_current_amount(state: dict[str, Any], event: dict[str, Any]) -> Any:
+    corrections = [item for item in state.get("money_corrections", [])
+                   if item.get("target_event_id") == event.get("id")]
+    return corrections[-1].get("amount") if corrections else event.get("amount")
+
+
+def _original_event_for_correction(state: dict[str, Any], kind: str) -> dict[str, Any] | None:
+    """Return the uniquely supported original event for a field-level correction."""
+    fact_key = "requested_amount" if kind == "requested" else "paid_amount"
+    current_fact = state.get("facts", {}).get(fact_key, {})
+    events = [event for event in state.get("money_events", [])
+              if event.get("kind") == kind and event.get("amount") is not None
+              and event.get("relation") in {"initial", "additional", "same"}
+              and not event.get("target_event_id")]
+    if not events:
+        return None
+    current_value = current_fact.get("value")
+    matches = [event for event in events
+               if _same_full_financial_amount(current_value, _money_event_current_amount(state, event))]
+    if len(matches) == 1:
+        return matches[0]
+    source_id = current_fact.get("message_id")
+    source_events = [event for event in state.get("money_events", [])
+                     if event.get("message_id") == source_id and event.get("kind") == kind]
+    source_roots = []
+    for source_event in source_events:
+        target_id = source_event.get("target_event_id") if source_event.get("relation") == "correction" else source_event.get("id")
+        root = next((event for event in events if event.get("id") == target_id), None)
+        if root and root not in source_roots:
+            source_roots.append(root)
+    return source_roots[0] if len(source_roots) == 1 else None
+
+
 def _add_money_event(state: dict[str, Any], kind: str, amount: str, relation: str, quote: str,
                      message_id: str, question_id: str | None) -> bool:
     events = state.setdefault("money_events", [])
     if relation == "correction":
-        existing = next((event for event in reversed(events)
-                         if event.get("kind") == kind and event.get("amount") is not None), None)
+        existing = _original_event_for_correction(state, kind)
         if existing:
             corrections = state.setdefault("money_corrections", [])
             if any(item.get("target_event_id") == existing.get("id") and item.get("message_id") == message_id
                    and item.get("amount") == amount for item in corrections):
                 return False
-            prior_corrections = [item for item in corrections if item.get("target_event_id") == existing.get("id")]
-            previous_amount = prior_corrections[-1].get("amount") if prior_corrections else existing.get("amount")
+            previous_amount = _money_event_current_amount(state, existing)
             corrections.append({"id": f"money-correction-{len(corrections) + 1}",
                                 "target_event_id": existing.get("id"), "kind": kind,
                                 "previous_amount": previous_amount, "amount": amount,
@@ -1116,6 +1210,7 @@ def _add_money_event(state: dict[str, Any], kind: str, amount: str, relation: st
                            "question_id": question_id, "created_at": now_iso(),
                            "target_event_id": existing.get("id")})
             return True
+        return False
     if any(event.get("message_id") == message_id and event.get("kind") == kind and
            event.get("amount") == amount and event.get("relation") == relation for event in events):
         return False
@@ -1152,7 +1247,26 @@ def _resolve_money_relation(state: dict[str, Any], text: str, mid: str, question
         return False
     event, _ = unresolved
     normalized = normalize(text)
-    if any(marker in normalized for marker in ("نفس المبلغ", "نفس الدفعة", "المبلغ الاول", "الدفعة الاولى",
+    correction_target = None
+    if event.get("correction_target_ambiguous"):
+        candidates = [item for item in state.get("money_events", [])
+                     if item.get("kind") == event.get("kind") and item.get("amount") is not None
+                     and item.get("relation") in {"initial", "additional", "same"}
+                     and not item.get("target_event_id")]
+        matching = [item for item in candidates
+                    if _same_full_financial_amount(_money_event_current_amount(state, item), text)]
+        if len(matching) == 1:
+            correction_target = matching[0]
+        else:
+            ordinal = next((index for index, markers in enumerate((("الاول", "اول مبلغ", "اولى"),
+                                                                    ("الثاني", "الثانية", "المبلغ الثاني")))
+                            if any(marker in normalized for marker in markers)), None)
+            if ordinal is not None and ordinal < len(candidates):
+                correction_target = candidates[ordinal]
+        if not correction_target:
+            return False
+        relation = "correction"
+    elif any(marker in normalized for marker in ("نفس المبلغ", "نفس الدفعة", "المبلغ الاول", "الدفعة الاولى",
                                                  "مش دفعة جديدة", "ما في تحويل ثاني", "ما تغير", "هو نفسه")):
         relation = "same"
     elif any(marker in normalized for marker in ("زيادة", "اضافي", "اضافية", "كمان", "مبلغ ثاني", "مبلغ اخر", "دفعة ثانية", "دفعة اخرى")):
@@ -1165,10 +1279,22 @@ def _resolve_money_relation(state: dict[str, Any], text: str, mid: str, question
     event["relation_quote"] = text
     event["relation_message_id"] = mid
     event["relation_updated_at"] = now_iso()
+    if correction_target:
+        event["target_event_id"] = correction_target.get("id")
+        event["correction_target_ambiguous"] = False
     fact_key = "requested_amount" if event["kind"] == "requested" else "paid_amount"
     relation_key = pending
     if relation == "correction":
         old = state["facts"].get(fact_key)
+        if correction_target:
+            state.setdefault("money_corrections", []).append({
+                "id": f"money-correction-{len(state.get('money_corrections', [])) + 1}",
+                "target_event_id": correction_target.get("id"), "kind": event.get("kind"),
+                "previous_amount": _money_event_current_amount(state, correction_target),
+                "amount": event.get("amount"), "relation": "correction", "quote": event.get("quote"),
+                "message_id": event.get("message_id"), "question_id": event.get("question_id"),
+                "created_at": now_iso(), "resolved_by_message_id": mid,
+            })
         if old:
             old.setdefault("history", []).append({"status": old.get("status"), "value": old.get("value"),
                 "quote": old.get("quote"), "message_id": old.get("message_id"), "at": now_iso(), "reason": "explicit_amount_relation_correction"})
@@ -1654,7 +1780,12 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
         state["stage"] = "interview"
         state["pending_slot"] = next_slot
         response_kind = "clarification" if next_slot == pending and next_slot in {"narrative", "unclassified_details"} else "question"
-        _add_question_message(state, next_slot, (why_reply + "\n\n" if why_reply else "") + QUESTIONS[next_slot], response_kind)
+        unresolved_money = _unresolved_money_relation(state)
+        question_text = QUESTIONS[next_slot]
+        if unresolved_money and unresolved_money[0].get("correction_target_ambiguous"):
+            kind_label = "مبلغًا مطلوبًا" if unresolved_money[0].get("kind") == "requested" else "دفعة"
+            question_text = f"ذكرت أكثر من {kind_label}. أي مبلغ سابق تقصد تصحيحه؟ اذكر المبلغ أو ترتيبه، من دون إعادة إرسال معلومات غير لازمة."
+        _add_question_message(state, next_slot, (why_reply + "\n\n" if why_reply else "") + question_text, response_kind)
         return state
     state["pending_slot"] = None
     state["stage"] = "review"
@@ -1698,42 +1829,49 @@ def display_value(fact: dict[str, Any] | None) -> str:
 def _report_correction_notes(state: dict[str, Any], message_times: dict[str, Any]) -> list[dict[str, Any]]:
     facts = state.get("facts", {})
     requested = facts.get("requested_amount", {})
-    details = facts.get("details", {})
-    if requested.get("status") != "reported" or details.get("status") != "reported":
+    if requested.get("status") != "reported":
         return []
     current_amount = requested.get("value")
-    current_message_id = requested.get("message_id")
-    if not current_amount or not current_message_id:
+    if not current_amount:
         return []
     correction_event = next((item for item in reversed(state.get("money_corrections", []))
-                             if item.get("kind") == "requested" and item.get("message_id") == current_message_id
-                             and _same_amount(item.get("amount"), current_amount)), None)
+                             if item.get("kind") == "requested"
+                             and _same_full_financial_amount(item.get("amount"), current_amount)), None)
     if not correction_event:
+        return []
+    root_event = next((item for item in state.get("money_events", [])
+                       if item.get("id") == correction_event.get("target_event_id")
+                       and item.get("kind") == "requested"), None)
+    original_amount = root_event.get("amount") if root_event else None
+    if not original_amount or _same_full_financial_amount(original_amount, current_amount):
         return []
     previous = next((item for item in reversed(requested.get("history", []))
                      if item.get("reason") in {"explicit_correction", "explicit_amount_relation_correction"}
                      and item.get("value") is not None), None)
-    if not previous or _same_amount(previous.get("value"), current_amount):
-        return []
-    previous_digits = _amount_digits(previous.get("value"))
-    detail_quotes = [details.get("quote", ""), details.get("value", "")]
-    if not previous_digits or not any(
-        _amount_digits(amount) == previous_digits
-        for quote in detail_quotes if isinstance(quote, str)
-        for _, _, amount in _amount_matches(quote)
-    ):
-        return []
+    source_message_id = root_event.get("message_id") if root_event else None
+    correction_message_id = correction_event.get("message_id")
+    target_field = "requested_amount"
+    for field in ("details", "narrative"):
+        source_fact = facts.get(field, {})
+        quote = source_fact.get("quote")
+        if source_fact.get("message_id") == source_message_id and isinstance(quote, str) and any(
+            _same_full_financial_amount(original_amount, amount) for _, _, amount in _amount_matches(quote)
+        ):
+            target_field = field
+            break
     return [{
-        "target_field": "details",
+        "target_field": target_field,
         "corrected_field": "requested_amount",
         "current_value": current_amount,
-        "previous_value": previous.get("value"),
-        "previous_quote": previous.get("quote"),
-        "previous_message_id": previous.get("message_id"),
-        "previous_message_at": message_times.get(previous.get("message_id")),
-        "correction_quote": requested.get("quote"),
-        "correction_message_id": current_message_id,
-        "correction_message_at": message_times.get(current_message_id),
+        "previous_value": original_amount,
+        "previous_quote": root_event.get("quote") if root_event else None,
+        "previous_message_id": source_message_id,
+        "previous_message_at": message_times.get(source_message_id),
+        "immediate_previous_value": previous.get("value") if previous else None,
+        "immediate_previous_quote": previous.get("quote") if previous else None,
+        "correction_quote": correction_event.get("quote"),
+        "correction_message_id": correction_message_id,
+        "correction_message_at": message_times.get(correction_message_id),
         "money_event_id": correction_event.get("id"),
     }]
 
@@ -1753,10 +1891,12 @@ def report_data(state: dict[str, Any]) -> dict[str, Any]:
         corrections_by_event.setdefault(correction.get("target_event_id"), []).append(correction)
     money_events = []
     for event in state.get("money_events", []):
-        corrections = corrections_by_event.get(event.get("id"), [])
+        root_event_id = event.get("target_event_id") if event.get("relation") == "correction" else event.get("id")
+        corrections = corrections_by_event.get(root_event_id, []) if event.get("relation") != "correction" else []
         money_events.append({**event,
             "current_amount": corrections[-1].get("amount") if corrections else event.get("amount"),
             "corrections": corrections,
+            "is_correction_record": event.get("relation") == "correction",
             "source_message_at": message_times.get(event.get("message_id")),
             "relation_message_at": message_times.get(corrections[-1].get("message_id")) if corrections else message_times.get(event.get("relation_message_id"))})
     unknown_statuses = {"unknown", "not_remembered", "declined"}
@@ -1853,6 +1993,13 @@ def render_report(state: dict[str, Any]) -> str:
         for event in data["money_events"]:
             original_amount = event.get("amount") or "غير محدد"
             current_amount = event.get("current_amount")
+            if event.get("is_correction_record"):
+                kind = kind_labels.get(event.get("kind"), "مالي")
+                lines.append(f"- سجل تصحيح تدقيقي للمبلغ {kind}: القيمة المصححة {original_amount}؛ "
+                             "ليس دفعة أو طلبًا ماليًا إضافيًا.")
+                if event.get("quote"):
+                    lines.append(f"  - نص التصحيح: «{event['quote']}»")
+                continue
             current_note = f"؛ القيمة المعتمدة حاليًا بعد التصحيح: {current_amount} (كانت الإفادة الأصلية: {original_amount})" if current_amount and current_amount != event.get("amount") else ""
             lines.append(f"- مبلغ {kind_labels.get(event.get('kind'), 'مالي')}: {original_amount}{current_note}؛ العلاقة: {relation_labels.get(event.get('relation'), 'غير معروفة')}؛ وقت الرسالة الأصلية: {event.get('source_message_at') or 'غير متاح'}")
             if event.get("quote"):

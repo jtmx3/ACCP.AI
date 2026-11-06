@@ -92,7 +92,8 @@ def _assert_turn(session: dict[str, Any], previous: dict[str, Any], before_messa
         count = len(session.get("money_events", []))
         add("money_event_count", count == expected["money_event_count"], count)
     if "paid_event_count" in expected:
-        count = sum(1 for event in session.get("money_events", []) if event.get("kind") == "paid")
+        count = sum(1 for event in session.get("money_events", [])
+                    if event.get("kind") == "paid" and event.get("relation") != "correction")
         add("paid_event_count", count == expected["paid_event_count"], count)
     for kind, wanted_relations in expected.get("money_relations", {}).items():
         actual_relations = []
@@ -140,6 +141,63 @@ def _provider_percentile(values: list[float], percentile: float) -> float | None
     lower, upper = int(rank), min(int(rank) + 1, len(ordered) - 1)
     weight = rank - lower
     return round(ordered[lower] * (1 - weight) + ordered[upper] * weight, 3)
+
+
+def _provider_turn_metrics(api_result: dict[str, Any], model_trace: dict[str, Any],
+                           proposals: list[dict[str, Any]],
+                           merge_trace: list[dict[str, Any]]) -> dict[str, Any]:
+    """Classify a model attempt using the integrated API's actual fallback decision."""
+    attempted = bool(model_trace.get("attempted"))
+    fallback_used = bool(api_result.get("fallback_used"))
+    outcome = api_result.get("extraction_outcome") or model_trace.get("extraction_outcome")
+    status = model_trace.get("status")
+    failure_code = model_trace.get("failure_code")
+    if not attempted:
+        fallback_category = "not_attempted" if fallback_used else None
+    elif not fallback_used:
+        fallback_category = None
+    elif status == "connection_error" or failure_code in {"timeout", "unreachable"}:
+        fallback_category = "connection_failure"
+    elif status == "http_error" or str(failure_code).startswith("http_"):
+        fallback_category = "provider_http_error"
+    elif status == "empty_response":
+        fallback_category = "empty_provider_response"
+    elif outcome == "response_rejected" or (model_trace.get("response_valid") is False and outcome != "provider_failed"):
+        fallback_category = "response_rejected"
+    elif outcome == "valid_empty":
+        fallback_category = "empty_extraction"
+    elif outcome == "all_facts_filtered":
+        fallback_category = "all_facts_filtered"
+    elif outcome == "provider_failed":
+        fallback_category = "provider_failure"
+    else:
+        fallback_category = "no_accepted_extraction"
+
+    ignored_fields = sorted({item.get("field") for item in merge_trace
+                             if item.get("disposition") == "ignored" and item.get("field")})
+    accepted_fields = sorted({item.get("field") for item in proposals if item.get("field")})
+    accepted_dispositions: dict[str, int] = {}
+    accepted_merge_trace = [item for item in merge_trace if item.get("field") in set(accepted_fields)]
+    for item in accepted_merge_trace:
+        disposition = item.get("disposition", "unrecorded")
+        accepted_dispositions[disposition] = accepted_dispositions.get(disposition, 0) + 1
+    merge_rejected = sorted(set(ignored_fields) & set(accepted_fields))
+    routed_fields = sorted({item.get("field") for item in accepted_merge_trace
+                            if item.get("disposition") == "routed_to_rules"})
+    correction_fields = sorted({item.get("field") for item in accepted_merge_trace
+                                if item.get("disposition") == "applied_correction"})
+    conflict_fields = sorted({item.get("field") for item in accepted_merge_trace
+                              if item.get("disposition") in {"conflict_created", "applied_conflict"}})
+    return {"attempted": attempted, "fallback_used": fallback_used,
+            "fallback_category": fallback_category, "extraction_outcome": outcome,
+            "response_valid": model_trace.get("response_valid"),
+            "facts_accepted": bool(proposals), "accepted_fact_count": len(proposals),
+            "accepted_then_merge_rejected_fields": merge_rejected,
+            "accepted_then_merge_rejected": bool(merge_rejected),
+            "accepted_fact_merge_dispositions": accepted_dispositions,
+            "accepted_facts_routed_to_rules_fields": routed_fields,
+            "accepted_facts_applied_as_corrections_fields": correction_fields,
+            "accepted_facts_preserved_as_conflicts_fields": conflict_fields}
 
 
 def replay_raw(path: Path) -> dict[str, Any]:
@@ -190,9 +248,22 @@ def run_suite(suite_path: Path, mode: str = "rules", with_context: bool = False)
     model_checks = model_matches = model_omissions = model_forbidden = 0
     model_expected_checks = model_forbidden_checks = 0
     guidance_checks = guidance_passed = followup_checks = followup_repeats = 0
+    provider_eligible_turns = 0
     provider_attempts = provider_accepted = provider_rejected = provider_fallbacks = 0
+    provider_extractions_with_facts = 0
+    provider_accepted_fact_count = 0
+    fallback_categories: dict[str, int] = {}
+    extraction_outcomes: dict[str, int] = {}
+    turns_with_accepted_facts_ignored_by_merge = 0
+    accepted_facts_ignored_by_merge = 0
+    accepted_facts_routed_to_rules = 0
+    accepted_facts_applied_as_corrections = 0
+    accepted_facts_preserved_as_conflicts = 0
+    accepted_fact_merge_dispositions: dict[str, int] = {}
     provider_latencies: list[float] = []
-    turn_latencies: list[float] = []
+    model_pipeline_latencies: list[float] = []
+    integration_latencies: list[float] = []
+    total_turn_latencies: list[float] = []
     first_call_latency: float | None = None
     subsequent_call_latencies: list[float] = []
     calls_by_case: dict[str, int] = {}
@@ -224,6 +295,7 @@ def run_suite(suite_path: Path, mode: str = "rules", with_context: bool = False)
                     extraction_eligible = (mode == "model" and configured and kind == "answer"
                         and not is_clear_user_question(text) and _user_intent(text) is None
                         and classify_current_danger(text, before.get("pending_slot")) is not True)
+                    provider_eligible_turns += int(extraction_eligible)
                     model_facts = None
                     model_trace: dict[str, Any] = {}
                     model_diag: dict[str, Any] = {}
@@ -243,16 +315,15 @@ def run_suite(suite_path: Path, mode: str = "rules", with_context: bool = False)
                             calls_by_case[case["case_id"]] += 1
                             latency = float(model_trace.get("latency_ms", model_elapsed_ms))
                             provider_latencies.append(latency)
+                            model_pipeline_latencies.append(float(model_elapsed_ms))
                             if calls_by_case[case["case_id"]] == 1:
                                 first_call_latency = latency if first_call_latency is None else first_call_latency
                             else:
                                 subsequent_call_latencies.append(latency)
-                            if model_trace.get("result_accepted"):
+                            if model_trace.get("response_valid") is True:
                                 provider_accepted += 1
-                            else:
+                            elif model_trace.get("extraction_outcome") == "response_rejected" or model_trace.get("status") == "response_rejected":
                                 provider_rejected += 1
-                            if model_trace.get("fallback_used"):
-                                provider_fallbacks += 1
 
                         # Extraction-only scoring is done before integration, against the same frozen expectations.
                         for field, wanted in turn.get("expect", {}).get("facts", {}).items():
@@ -284,13 +355,18 @@ def run_suite(suite_path: Path, mode: str = "rules", with_context: bool = False)
                             response = client.post(f"/api/sessions/{session_id}/messages", json=payload, headers=headers)
                     else:
                         response = client.post(f"/api/sessions/{session_id}/messages", json=payload, headers=headers)
-                    elapsed = round((time.perf_counter() - request_started) * 1000, 3)
-                    turn_latencies.append(elapsed)
+                    integration_elapsed_ms = round((time.perf_counter() - request_started) * 1000, 3)
+                    integration_latencies.append(integration_elapsed_ms)
+                    turn_total_elapsed_ms = round((model_elapsed_ms or 0.0) + integration_elapsed_ms, 3)
+                    total_turn_latencies.append(turn_total_elapsed_ms)
                     turn_result: dict[str, Any] = {"turn": turn_index, "text": text,
                                                    "expected": turn.get("expect", {}),
                                                    "http_status": response.status_code,
                                                    "model_extraction": {"eligible": extraction_eligible,
-                                                                        "elapsed_ms": model_elapsed_ms,
+                                                                           "elapsed_ms": model_elapsed_ms,
+                                                                        "provider_latency_ms": model_trace.get("latency_ms"),
+                                                                        "integration_elapsed_ms": integration_elapsed_ms,
+                                                                        "turn_total_elapsed_ms": turn_total_elapsed_ms,
                                                                         "provider_call": model_trace,
                                                                         "diagnostic": model_diag,
                                                                         "proposals": model_facts or []}}
@@ -301,6 +377,26 @@ def run_suite(suite_path: Path, mode: str = "rules", with_context: bool = False)
                         continue
                     api_result = response.json()
                     after = api_result["session"]
+                    model_metrics = _provider_turn_metrics(
+                        api_result, model_trace, list(model_facts or []),
+                        api_result.get("model_merge_trace", []))
+                    if extraction_eligible:
+                        provider_fallbacks += int(model_metrics["fallback_used"])
+                        if model_metrics.get("fallback_category"):
+                            category = model_metrics["fallback_category"]
+                            fallback_categories[category] = fallback_categories.get(category, 0) + 1
+                        outcome = model_metrics.get("extraction_outcome")
+                        if outcome:
+                            extraction_outcomes[outcome] = extraction_outcomes.get(outcome, 0) + 1
+                        provider_extractions_with_facts += int(model_metrics["facts_accepted"])
+                        provider_accepted_fact_count += model_metrics["accepted_fact_count"]
+                        turns_with_accepted_facts_ignored_by_merge += int(model_metrics["accepted_then_merge_rejected"])
+                        accepted_facts_ignored_by_merge += len(model_metrics["accepted_then_merge_rejected_fields"])
+                        accepted_facts_routed_to_rules += len(model_metrics["accepted_facts_routed_to_rules_fields"])
+                        accepted_facts_applied_as_corrections += len(model_metrics["accepted_facts_applied_as_corrections_fields"])
+                        accepted_facts_preserved_as_conflicts += len(model_metrics["accepted_facts_preserved_as_conflicts_fields"])
+                        for disposition, count in model_metrics["accepted_fact_merge_dispositions"].items():
+                            accepted_fact_merge_dispositions[disposition] = accepted_fact_merge_dispositions.get(disposition, 0) + count
                     checks = _assert_turn(after, before, before_message_count, turn.get("expect", {}))
                     turn_result.update({"pending_slot": after.get("pending_slot"), "stage": after.get("stage"),
                                         "facts": after.get("facts", {}), "money_events": after.get("money_events", []),
@@ -310,6 +406,8 @@ def run_suite(suite_path: Path, mode: str = "rules", with_context: bool = False)
                                         "external_data_sent": api_result.get("external_data_sent"),
                                         "fallback_used": api_result.get("fallback_used"),
                                         "extraction_outcome": api_result.get("extraction_outcome"),
+                                        "message_plan_applied": api_result.get("message_plan_applied", False),
+                                        "model_turn_metrics": model_metrics,
                                         "model_merge_trace": api_result.get("model_merge_trace", []),
                                         "checks": checks,
                                         "passed": all(item["passed"] for item in checks)})
@@ -329,15 +427,20 @@ def run_suite(suite_path: Path, mode: str = "rules", with_context: bool = False)
 
     total_turns = sum(len(case["turns"]) for case in results)
     passing_cases = sum(1 for case in results if case.get("passed"))
-    percentiles = {"p50_ms": _provider_percentile(provider_latencies, 0.50),
-                   "p95_ms": _provider_percentile(provider_latencies, 0.95),
-                   "first_request_ms": first_call_latency,
-                   "subsequent_p50_ms": _provider_percentile(subsequent_call_latencies, 0.50),
-                   "subsequent_p95_ms": _provider_percentile(subsequent_call_latencies, 0.95),
-                   "all_turns_p50_ms": _provider_percentile(turn_latencies, 0.50),
-                   "all_turns_p95_ms": _provider_percentile(turn_latencies, 0.95)}
+    percentiles = {
+        "provider_latency_p50_ms": _provider_percentile(provider_latencies, 0.50),
+        "provider_latency_p95_ms": _provider_percentile(provider_latencies, 0.95),
+        "first_provider_request_ms": first_call_latency,
+        "subsequent_provider_p50_ms": _provider_percentile(subsequent_call_latencies, 0.50),
+        "subsequent_provider_p95_ms": _provider_percentile(subsequent_call_latencies, 0.95),
+        "model_pipeline_elapsed_p50_ms": _provider_percentile(model_pipeline_latencies, 0.50),
+        "integration_elapsed_p50_ms": _provider_percentile(integration_latencies, 0.50),
+        "integration_elapsed_p95_ms": _provider_percentile(integration_latencies, 0.95),
+        "turn_total_elapsed_p50_ms": _provider_percentile(total_turn_latencies, 0.50),
+        "turn_total_elapsed_p95_ms": _provider_percentile(total_turn_latencies, 0.95),
+    }
     return {
-        "evaluation_version": "conversation-v3-1",
+        "evaluation_version": "conversation-v3-2",
         "mode": mode,
         "suite_id": suite["suite_id"],
         "suite_version": suite["version"],
@@ -350,10 +453,22 @@ def run_suite(suite_path: Path, mode: str = "rules", with_context: bool = False)
         "provider_configured": configured,
         "provider": {k: v for k, v in provider.items() if k in {"provider", "model", "mode"}} if provider else None,
         "with_bounded_context": with_context,
+        "model_eligible_turns": provider_eligible_turns,
         "provider_attempts": provider_attempts,
+        "provider_fallback_rate": provider_fallbacks / provider_eligible_turns if provider_eligible_turns else None,
         "provider_accepted_responses": provider_accepted,
         "provider_rejected_responses": provider_rejected,
+        "provider_extractions_with_accepted_facts": provider_extractions_with_facts,
+        "provider_accepted_fact_count": provider_accepted_fact_count,
         "provider_fallbacks": provider_fallbacks,
+        "provider_fallback_categories": fallback_categories,
+        "provider_extraction_outcomes": extraction_outcomes,
+        "accepted_fact_merge_dispositions": accepted_fact_merge_dispositions,
+        "accepted_facts_ignored_by_merge": accepted_facts_ignored_by_merge,
+        "accepted_facts_routed_to_rules": accepted_facts_routed_to_rules,
+        "accepted_facts_applied_as_corrections": accepted_facts_applied_as_corrections,
+        "accepted_facts_preserved_as_conflicts": accepted_facts_preserved_as_conflicts,
+        "turns_with_accepted_facts_ignored_by_merge": turns_with_accepted_facts_ignored_by_merge,
         "integrated_system": {"passed_cases": passing_cases, "total_cases": len(results),
                               "case_rate": passing_cases / len(results) if results else None,
                               "passed_assertions": system_passed, "total_assertions": system_checks,
@@ -397,10 +512,18 @@ def main() -> int:
     if args.mode == "model":
         preflight = probe_provider(timeout=max(0.1, args.preflight_timeout))
         if not preflight.get("configured") or not preflight.get("service_reachable") or not preflight.get("model_available"):
-            report = {"evaluation_version": "conversation-v3-1", "mode": "model", "model_run_status": "not_run",
+            report = {"evaluation_version": "conversation-v3-2", "mode": "model", "model_run_status": "not_run",
                       "provider_configured": bool(preflight.get("configured")), "provider": preflight,
-                      "provider_attempts": 0, "provider_accepted_responses": 0,
-                      "provider_rejected_responses": 0, "provider_fallbacks": 0, "results": [],
+                      "model_eligible_turns": 0, "provider_attempts": 0, "provider_fallback_rate": None,
+                      "provider_accepted_responses": 0,
+                      "provider_rejected_responses": 0, "provider_extractions_with_accepted_facts": 0,
+                      "provider_accepted_fact_count": 0,
+                      "provider_fallbacks": 0, "provider_fallback_categories": {},
+                      "provider_extraction_outcomes": {}, "accepted_fact_merge_dispositions": {},
+                      "accepted_facts_ignored_by_merge": 0, "accepted_facts_routed_to_rules": 0,
+                      "accepted_facts_applied_as_corrections": 0, "accepted_facts_preserved_as_conflicts": 0,
+                      "turns_with_accepted_facts_ignored_by_merge": 0,
+                      "results": [],
                       "reason": preflight.get("failure_code") or "provider_preflight_failed",
                       "note": "No conversation extraction call was made; no model result is claimed."}
             rendered = json.dumps(report, ensure_ascii=False, indent=2)
@@ -412,10 +535,18 @@ def main() -> int:
             return 2
         generation_test = test_provider_generation()
         if not generation_test.get("success"):
-            report = {"evaluation_version": "conversation-v3-1", "mode": "model", "model_run_status": "not_run",
+            report = {"evaluation_version": "conversation-v3-2", "mode": "model", "model_run_status": "not_run",
                       "provider_configured": True, "provider": preflight, "preflight_generation": generation_test,
-                      "provider_attempts": 0, "provider_accepted_responses": 0,
-                      "provider_rejected_responses": 0, "provider_fallbacks": 0, "results": [],
+                      "model_eligible_turns": 0, "provider_attempts": 0, "provider_fallback_rate": None,
+                      "provider_accepted_responses": 0,
+                      "provider_rejected_responses": 0, "provider_extractions_with_accepted_facts": 0,
+                      "provider_accepted_fact_count": 0,
+                      "provider_fallbacks": 0, "provider_fallback_categories": {},
+                      "provider_extraction_outcomes": {}, "accepted_fact_merge_dispositions": {},
+                      "accepted_facts_ignored_by_merge": 0, "accepted_facts_routed_to_rules": 0,
+                      "accepted_facts_applied_as_corrections": 0, "accepted_facts_preserved_as_conflicts": 0,
+                      "turns_with_accepted_facts_ignored_by_merge": 0,
+                      "results": [],
                       "reason": generation_test.get("failure_code") or "preflight_generation_failed",
                       "note": "Fixed-text generation did not succeed; no conversation extraction call was made."}
             rendered = json.dumps(report, ensure_ascii=False, indent=2)
@@ -437,9 +568,14 @@ def main() -> int:
         print(f"Saved: {args.output}")
     print(json.dumps({key: report.get(key) for key in (
         "evaluation_version", "mode", "model_run_status", "preflight", "preflight_generation",
-        "provider_configured", "provider", "provider_attempts",
-        "provider_accepted_responses", "provider_rejected_responses", "provider_fallbacks",
-        "integrated_system", "model_extraction_only", "guidance", "repeat_question_checks", "latency")},
+        "provider_configured", "provider", "model_eligible_turns", "provider_attempts", "provider_fallback_rate",
+        "provider_accepted_responses", "provider_rejected_responses", "provider_extractions_with_accepted_facts",
+        "provider_accepted_fact_count",
+        "provider_fallbacks", "provider_fallback_categories", "provider_extraction_outcomes",
+        "accepted_fact_merge_dispositions", "accepted_facts_ignored_by_merge", "accepted_facts_routed_to_rules",
+        "accepted_facts_applied_as_corrections", "accepted_facts_preserved_as_conflicts",
+        "turns_with_accepted_facts_ignored_by_merge", "integrated_system", "model_extraction_only",
+        "guidance", "repeat_question_checks", "latency")},
         ensure_ascii=False, indent=2))
     return 0 if report["integrated_system"]["case_rate"] == 1.0 else 1
 

@@ -240,20 +240,23 @@
         quote.textContent = `الاقتباس: «${fact.quote}»`;
         wrapper.append(quote);
       }
-      if (key === 'details') {
+      if (['details', 'narrative', 'requested_amount'].includes(key)) {
         const requested = facts.requested_amount;
-        const previous = [...(requested?.history || [])].reverse().find(item =>
-          ['explicit_correction', 'explicit_amount_relation_correction'].includes(item.reason) && item.value != null);
-        const currentDigits = String(requested?.value ?? '').replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))).replace(/\D/g, '');
-        const previousDigits = String(previous?.value ?? '').replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))).replace(/\D/g, '');
-        const detailDigits = String(fact.quote || fact.value || '').replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))).replace(/\D/g, '');
-        const correctionRecorded = (state.money_corrections || []).some(item => item.kind === 'requested' &&
-          item.message_id === requested?.message_id &&
-          String(item.amount || '').replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))).replace(/\D/g, '') === currentDigits);
-        if (previous && previousDigits && currentDigits && previousDigits !== currentDigits && detailDigits.includes(previousDigits) && correctionRecorded) {
+        const latestCorrection = [...(state.money_corrections || [])].reverse().find(item =>
+          item.kind === 'requested' && String(item.amount) === String(requested?.value));
+        const originalEvent = latestCorrection && (state.money_events || []).find(item => item.id === latestCorrection.target_event_id);
+        const latinDigits = value => String(value ?? '').replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
+        const amountDigits = value => latinDigits(value).replace(/\D/g, '');
+        const originalDigits = amountDigits(originalEvent?.amount);
+        const currentKey = latinDigits(requested?.value).replace(/[\s،,]/g, '').toLowerCase();
+        const originalKey = latinDigits(originalEvent?.amount).replace(/[\s،,]/g, '').toLowerCase();
+        const sourceFact = ['details', 'narrative'].map(field => [field, facts[field]]).find(([, item]) =>
+          item?.message_id === originalEvent?.message_id && amountDigits(item.quote || item.value).includes(originalDigits));
+        const noteField = sourceFact?.[0] || 'requested_amount';
+        if (latestCorrection && originalEvent && originalDigits && currentKey !== originalKey && noteField === key) {
           const note = document.createElement('div');
           note.className = 'fact-correction-note';
-          note.textContent = `توضيح مستند إلى تصحيح لاحق: المبلغ المطلوب المعتمد حاليًا ${requested.value}؛ وكانت الإفادة الأصلية في هذا الموضع تذكر ${previous.value}. بقي الاقتباس الأصلي أعلاه دون تعديل.`;
+          note.textContent = `توضيح مستند إلى تصحيح لاحق: المبلغ المطلوب المعتمد حاليًا ${requested.value}؛ وكانت الإفادة الأصلية في هذا الموضع تذكر ${originalEvent.amount}. بقي الاقتباس الأصلي أعلاه حرفيًا كما ورد.`;
           wrapper.append(note);
         }
       }

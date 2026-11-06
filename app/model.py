@@ -19,6 +19,28 @@ EXTRACTION_REQUEST_CHAR_BUDGET = 24_000
 EXTRACTION_OUTPUT_CHAR_RESERVE = 6_000
 
 
+class InterviewUnderstanding(list[dict[str, Any]]):
+    """Validated current-turn facts plus the validated role plan and safe diagnostics.
+
+    Subclassing list preserves the previous extraction API for existing callers;
+    new callers can inspect `.facts`, `.message_plan`, and `.diagnostic` explicitly.
+    """
+
+    def __init__(self, facts: list[dict[str, Any]], message_plan: dict[str, Any],
+                 diagnostic: dict[str, Any]):
+        super().__init__(facts)
+        self.message_plan = dict(message_plan)
+        self.diagnostic = dict(diagnostic)
+
+    @property
+    def facts(self) -> list[dict[str, Any]]:
+        return list(self)
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"message_plan": dict(self.message_plan), "facts": list(self),
+                "diagnostic": dict(self.diagnostic)}
+
+
 def provider_config() -> dict[str, Any]:
     """Return safe provider configuration facts; never return a key or full URL."""
     provider = os.getenv("MODEL_PROVIDER", "rules").strip().lower() or "rules"
@@ -417,6 +439,16 @@ def _amount_is_exactly_supported(value: str, quote: str) -> bool:
     return True
 
 
+def _same_full_money_value(left: Any, right: Any) -> bool:
+    """Compare a proposed amount with a referenced event, including any stated currency."""
+    if not isinstance(left, str) or not isinstance(right, str):
+        return False
+    left_numbers, right_numbers = _number_tokens(left), _number_tokens(right)
+    if len(left_numbers) != 1 or len(right_numbers) != 1 or left_numbers != right_numbers:
+        return False
+    return _currency_tokens(left) == _currency_tokens(right)
+
+
 def _context_reference_index(context: dict[str, Any] | None) -> tuple[
         set[str], set[str], set[str], str | None, dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
     context = context or {}
@@ -504,6 +536,12 @@ def validate_interview_facts_diagnostic(text: str, payload: str,
     guidance_question = parsed.get("guidance_question")
     if guidance_question is not None and (not isinstance(guidance_question, str) or guidance_question not in text):
         return reject("quote_mismatch", "guidance_question must be an exact span of the current user message.")
+    if "ask_guidance" in message_goals:
+        normalized_guidance = _normalize_arabic(guidance_question or "")
+        guidance_cues = ("نصيح", "ارشاد", "احافظ", "احمي", "اامن", "احفظ", "اوثق", "ابلغ",
+                         "اتصرف", "شو اعمل", "ماذا افعل", "كيف افعل", "كيف احمي", "كيف احفظ")
+        if not guidance_question or not any(cue in normalized_guidance for cue in guidance_cues):
+            return reject("other_validation", "ask_guidance requires a verbatim current-message span that requests actionable guidance.")
     message_refs, fact_refs, event_refs, expected_question_ref, fact_index, event_index = _context_reference_index(bounded_context)
     facts = parsed.get("facts")
     if not isinstance(facts, list):
@@ -568,9 +606,25 @@ def validate_interview_facts_diagnostic(text: str, payload: str,
             if target_fact.get("field") != field:
                 reason = ("context_reference_invalid", f"{prefix} target field does not match the proposed field.")
         if reason is None and target_event is not None:
-            expected_kind = {"requested_amount_relation": "requested", "paid_amount_relation": "paid"}.get(field)
-            if operation not in {"same", "support", "add"} or (expected_kind and target_event.get("kind") != expected_kind):
-                reason = ("context_reference_invalid", f"{prefix} target event is incompatible with the proposed field or operation.")
+            event_fields = {
+                "requested": {"requested_amount", "requested_amount_relation"},
+                "paid": {"paid_amount", "paid_amount_relation"},
+            }
+            event_kind = target_event.get("kind")
+            if field not in event_fields.get(event_kind, set()):
+                reason = ("context_reference_invalid", f"{prefix} target event kind cannot support the proposed field.")
+            elif operation not in {"same", "support", "correct"}:
+                reason = ("context_reference_invalid", f"{prefix} target event does not authorize this operation.")
+            elif status != "reported":
+                reason = ("context_reference_invalid", f"{prefix} a referenced money event cannot establish an unknown, denied, or declined report.")
+            elif operation in {"same", "support"}:
+                if field in {"requested_amount", "paid_amount"}:
+                    if not _same_full_money_value(value, target_event.get("amount")):
+                        reason = ("context_reference_invalid", f"{prefix} same/support must preserve the referenced amount and currency exactly.")
+                elif value != "same":
+                    reason = ("context_reference_invalid", f"{prefix} a relation-field reference may only state that the event is the same.")
+            elif field not in {"requested_amount", "paid_amount"}:
+                reason = ("context_reference_invalid", f"{prefix} a money correction must target the matching amount field.")
         reference_operation_supported = False
         if reason is None and operation in {"same", "support"}:
             normalized_current = _normalize_arabic(quote if isinstance(quote, str) else "")
@@ -581,7 +635,7 @@ def validate_interview_facts_diagnostic(text: str, payload: str,
                 reference_operation_supported = (explicit_reference
                     and target_fact.get("status") == status and target_fact.get("value") == value)
             elif target_event is not None:
-                reference_operation_supported = explicit_reference
+                reference_operation_supported = explicit_reference and operation in {"same", "support"}
             if not reference_operation_supported:
                 reason = ("context_reference_invalid", f"{prefix}.{operation} is not supported by the cited current-message reference.")
         if reason is None and operation == "correct" and not any(marker in _normalize_arabic(quote if isinstance(quote, str) else "")
@@ -673,7 +727,7 @@ def validate_interview_facts(text: str, payload: str) -> list[dict[str, Any]] | 
 
 def generate_interview_extraction(text: str, pending_slot: str | None,
                                   bounded_context: dict[str, Any] | None = None,
-                                  message_interpretation: dict[str, Any] | None = None) -> list[dict[str, Any]] | None:
+                                  message_interpretation: dict[str, Any] | None = None) -> InterviewUnderstanding | None:
     """Extract current-turn facts with optional bounded, per-turn-authorized context.
 
     Context is supplied separately as untrusted data. Fact quotes and validation still
@@ -784,4 +838,8 @@ def generate_interview_extraction(text: str, pending_slot: str | None,
                            filtered_fact_fields=[item["field"] for item in filtered],
                            filtered_fact_code_counts={code: sum(1 for item in filtered if item.get("filter_code") == code)
                                                       for code in sorted({item.get("filter_code", "other_validation") for item in filtered})})
-    return facts
+    if facts is None:
+        return None
+    diagnostic = last_extraction_diagnostic() or {}
+    plan = diagnostic.get("message_plan") or {"goals": [], "guidance_question": None}
+    return InterviewUnderstanding(facts, plan, diagnostic)

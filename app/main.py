@@ -191,24 +191,68 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
         intent = "why"
     if intent is None and "ask_assessment_reason" in message_interpretation["goals"]:
         intent = "assessment_why"
-    has_actionable_fact = has_actionable_fact_goal(text, pending)
-    mixed_why = intent in {"why", "assessment_why"} and has_actionable_fact
-    mixed_guidance = "ask_guidance" in message_interpretation["goals"] and has_actionable_fact
-    mixed_fact_question = mixed_why or mixed_guidance
-    auto_question = body.kind == "answer" and is_clear_user_question(text) and not mixed_fact_question
-    question_mode = (body.kind == "question" or auto_question) and not mixed_fact_question
-    if mixed_fact_question:
-        intent = None
-    if body.kind == "question" and intent != "why":
-        intent = None
     urgent = classify_current_danger(text, pending) is True
     local_qa = None
     external_answer = None
     model_facts = None
+    model_message_plan: dict[str, Any] = {"goals": [], "guidance_question": None}
+    message_plan_applied = False
     extraction_context = None
     external_extraction_sent = False
     external_question_sent = False
     reset_call_trace()
+
+    # Extract role goals and current-turn facts in one call. Plan fields come only
+    # from the model validator, and all routing/safety outcomes remain application-owned.
+    initial_actionable_fact = has_actionable_fact_goal(text, pending)
+    initial_auto_question = body.kind == "answer" and is_clear_user_question(text) and not initial_actionable_fact
+    if (body.kind == "answer" and not initial_auto_question and body.allow_external_extraction
+            and model_configured() and not urgent and intent is None):
+        external_extraction_sent = True
+        if body.allow_context_extraction:
+            extraction_context = build_bounded_context(snapshot, text, pending)
+            model_facts = generate_interview_extraction(text, pending, extraction_context, message_interpretation)
+        else:
+            model_facts = generate_interview_extraction(text, pending)
+        candidate_plan = getattr(model_facts, "message_plan", None)
+        if isinstance(candidate_plan, dict):
+            plan_goals = candidate_plan.get("goals", [])
+            if isinstance(plan_goals, list) and all(isinstance(goal, str) for goal in plan_goals):
+                model_message_plan = {"goals": list(dict.fromkeys(plan_goals)),
+                                      "guidance_question": candidate_plan.get("guidance_question")}
+                message_plan_applied = bool(model_message_plan["goals"])
+                message_interpretation = {**message_interpretation,
+                    "goals": list(dict.fromkeys(message_interpretation.get("goals", []) + plan_goals)),
+                    "guidance_question": model_message_plan.get("guidance_question") or message_interpretation.get("guidance_question"),
+                }
+                message_interpretation["fact_text"] = extract_fact_text(
+                    text, message_interpretation.get("guidance_question"))
+        if intent is None and "ask_why" in model_message_plan["goals"]:
+            intent = "why"
+        if intent is None and "ask_assessment_reason" in model_message_plan["goals"]:
+            intent = "assessment_why"
+
+    actionable_plan_goals = {"answer_pending_question", "correct_prior_fact", "add_fact", "unknown",
+                             "not_remembered", "decline_disclosure", "confirm_or_reference_prior_fact"}
+    has_actionable_fact = (initial_actionable_fact or bool(
+        actionable_plan_goals.intersection(message_interpretation.get("goals", []))))
+    question_goals = {"ask_question", "ask_guidance", "ask_why", "ask_assessment_reason"}
+    model_question_goal = bool(set(model_message_plan["goals"]) & question_goals)
+    if question_goals.intersection(message_interpretation.get("goals", [])):
+        # A pending slot alone does not turn a pure question into factual interview input.
+        fact_text = message_interpretation.get("fact_text")
+        has_actionable_fact = bool(model_facts or (isinstance(fact_text, str) and fact_text.strip()))
+    mixed_why = intent in {"why", "assessment_why"} and has_actionable_fact
+    mixed_guidance = "ask_guidance" in message_interpretation["goals"] and has_actionable_fact
+    mixed_fact_question = mixed_why or mixed_guidance
+    auto_question = (body.kind == "answer" and (is_clear_user_question(text) or model_question_goal)
+                     and not mixed_fact_question)
+    question_mode = (body.kind == "question" or auto_question) and not mixed_fact_question
+    explanation_intent = intent
+    if mixed_fact_question:
+        intent = None
+    if body.kind == "question" and intent not in {"why", "assessment_why"}:
+        intent = None
 
     guidance_question = (message_interpretation.get("guidance_question")
                          or extract_guidance_question(text) or text)
@@ -233,15 +277,6 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
                 if source:
                     selected_sources.append({**source, "excerpt": citation.get("excerpt", "")})
             external_answer = generate_grounded_answer(guidance_question, selected_sources)
-
-    if body.kind == "answer" and not auto_question and body.allow_external_extraction and model_configured() and not urgent and intent is None:
-        # Context is a separate opt-in; only current-message quotes may support model facts.
-        external_extraction_sent = True
-        if body.allow_context_extraction:
-            extraction_context = build_bounded_context(snapshot, text, pending)
-            model_facts = generate_interview_extraction(text, pending, extraction_context, message_interpretation)
-        else:
-            model_facts = generate_interview_extraction(text, pending)
 
     def mutate(state):
         if question_mode:
@@ -277,7 +312,7 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
         handle_turn(state, text, model_facts=model_facts, message_interpretation=message_interpretation,
                     fact_text=message_interpretation.get("fact_text"))
         if mixed_why and state.get("stage") != "urgent_stop":
-            if intent == "assessment_why":
+            if explanation_intent == "assessment_why":
                 explanation = explain_assessment(state)
             else:
                 target_slot = _why_target_slot(text, pending)
@@ -307,23 +342,27 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
             "context_char_count": extraction_context.get("serialized_char_count") if extraction_context else 0,
             "context_fact_count": len(extraction_context.get("related_facts", [])) if extraction_context else 0,
             "context_message_count": len(extraction_context.get("recent_relevant_messages", [])) if extraction_context else 0,
+            "message_plan_applied": message_plan_applied,
+            "message_goals": model_message_plan["goals"],
         })
         if not call_accepted and not provider_call.get("failure_code"):
             provider_call["failure_code"] = "no_valid_result"
         if model_facts is not None:
             provider_call["fact_fields"] = [fact.get("field") for fact in model_facts]
     return {"session": state, "report": report_data(state),
-            "external_model_used": bool(external_answer) or bool(model_facts),
+            "external_model_used": bool(external_answer) or bool(model_facts) or message_plan_applied,
             "external_data_sent": bool(provider_call and provider_call.get("attempted")),
             "external_model_purpose": "grounded_question" if external_question_sent else "current_message_extraction" if external_extraction_sent else None,
             "external_context_sent": bool(provider_call and provider_call.get("context_sent")),
             "external_model_result_accepted": call_accepted,
+            "message_plan_applied": message_plan_applied,
+            "message_plan": model_message_plan if message_plan_applied else None,
             "model_merge_trace": last_model_merge_trace() if external_extraction_sent else [],
             "extraction_outcome": (provider_call or {}).get("extraction_outcome") if external_extraction_sent else None,
             "fallback_used": bool(external_question_sent or external_extraction_sent) and not call_accepted,
             "fallback_to": ("local_rag" if external_question_sent else "rules") if (external_question_sent or external_extraction_sent) and not call_accepted else None,
             "question_detected": auto_question,
-            "runtime_mode": provider["mode"] if call_accepted else "rules",
+            "runtime_mode": provider["mode"] if call_accepted or message_plan_applied else "rules",
             "provider_call": provider_call}
 
 

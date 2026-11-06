@@ -521,6 +521,8 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         self.page.on("request", capture_message_request)
 
         def fake_chat(messages):
+            from app.model import _update_call_trace
+            _update_call_trace(attempted=True, status="generated", latency_ms=1.0, result_accepted=True)
             payload = json.loads(messages[1]["content"])
             outbound.append(payload)
             if not payload["sources"]:
@@ -528,8 +530,20 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
             source = payload["sources"][0]
             return json.dumps({"claims": [{"source_id": source["source_id"], "quote": source["excerpt"][:40]}]}, ensure_ascii=False)
 
+        def fake_extraction(*_args, **_kwargs):
+            from app.model import _update_call_trace
+            _update_call_trace(attempted=True, status="generated", latency_ms=1.0,
+                               result_accepted=False, fallback_used=True)
+            return []
+
+        async def send_and_wait(text):
+            async with self.page.expect_response(
+                    lambda response: response.request.method == "POST" and "/messages" in response.url) as response_info:
+                await self._send(text)
+            return await response_info.value
+
         with patch.dict("os.environ", env), \
-             patch("app.main.generate_interview_extraction", return_value=[]) as extract, \
+             patch("app.main.generate_interview_extraction", side_effect=fake_extraction) as extract, \
              patch("app.main.generate_grounded_answer", wraps=main.generate_grounded_answer) as answer, \
              patch("app.model._chat", side_effect=fake_chat) as provider:
             await self.page.goto(self.base_url)
@@ -539,18 +553,18 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(await self.page.locator("#model-consent").is_checked())
             self.assertFalse(await self.page.locator("#context-consent").is_checked())
 
-            await self._send("في شخص يهددني على واتساب")
+            await send_and_wait("في شخص يهددني على واتساب")
             await expect(self.page.locator("#status-message")).to_contain_text("تم حفظ الرسالة وتحديث الحالة بالقواعد المحلية.")
             await expect(self.page.locator("#chat .question-plan").last).to_contain_text("الخطر المباشر")
             extract.assert_not_called()
             self.assertFalse(await self.page.locator("#model-consent").is_checked())
             self.assertFalse(message_requests[-1]["allow_external_extraction"])
             await self.page.locator("#model-consent").check()
-            await self._send("لا")
+            await send_and_wait("لا")
+            await expect(self.page.locator("#status-message")).to_contain_text("نص الرسالة الحالية فقط")
             self.assertEqual(extract.call_count, 1, f"requests={message_requests!r}")
             self.assertEqual(extract.call_args.args[:2], ("لا", "direct_danger"))
             self.assertEqual(len(extract.call_args.args), 2)
-            await expect(self.page.locator("#status-message")).to_contain_text("نص الرسالة الحالية فقط")
             self.assertFalse(await self.page.locator("#model-consent").is_checked())
             self.assertFalse(await self.page.locator("#context-consent").is_checked())
             self.assertTrue(message_requests[-1]["allow_external_extraction"])
@@ -559,7 +573,7 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
 
             await self.page.locator("#model-consent").check()
             await self.page.locator("#context-consent").check()
-            await self._send("قال لي إذا ما دفعت رح أنشر صوري")
+            await send_and_wait("قال لي إذا ما دفعت رح أنشر صوري")
             self.assertEqual(extract.call_count, 2, f"requests={message_requests!r}")
             self.assertTrue(extract.call_args.args[2]["untrusted_user_data"])
             await expect(self.page.locator("#status-message")).to_contain_text("سياق محدود")
@@ -570,7 +584,7 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
             await expect(self.page.locator("#status-message")).to_contain_text("تم تحديث الاختصاص")
             await self.page.locator("#toggle-mode").click()
             await expect(self.page.locator("#model-consent-copy")).to_contain_text("مقتطفات المصادر المختارة")
-            await self._send("كيف أحفظ الأدلة واللقطات؟")
+            await send_and_wait("كيف أحفظ الأدلة واللقطات؟")
             await expect(self.page.locator("#status-message")).to_contain_text("تم حفظ الرسالة وتحديث الحالة بالقواعد المحلية.")
             answer.assert_not_called()
             provider.assert_not_called()
@@ -579,7 +593,10 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(message_requests[-1]["allow_external_extraction"])
 
             await self.page.locator("#model-consent").check()
-            await self._send("كيف أحفظ الأدلة واللقطات؟")
+            question_response = await send_and_wait("كيف أحفظ الأدلة واللقطات؟")
+            question_payload = await question_response.json()
+            self.assertTrue(question_payload["external_data_sent"],
+                            f"payload={question_payload!r}, requests={message_requests!r}")
             await expect(self.page.locator("#status-message")).to_contain_text("نص السؤال الحالي")
             await expect(self.page.locator("#model-consent")).not_to_be_checked()
             self.assertTrue(message_requests[-1]["allow_external"])

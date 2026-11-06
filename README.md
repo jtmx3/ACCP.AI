@@ -13,7 +13,7 @@
 - جواب RAG يعرض مقتطف المصدر المسترجع نفسه مع بياناته؛ يستبعد النظام الأسئلة الضعيفة أو غير المطابقة بدل توسيع النتيجة بتشابه لفظي واحد.
 - الوضع الافتراضي محلي ولا يحتاج مفتاحًا. مزود OpenAI-compatible اختياري يتطلب موافقة مستقلة لكل إرسال. في وضع السؤال يُرسل السؤال الحالي والمقتطفات المختارة؛ وفي وضع المقابلة يُرسل نص الرسالة الحالية فقط لاستخراج حقائق منظمة. لا يُرسل سجل المحادثة أو رمز الجلسة أو حقائق سابقة تلقائيًا.
 
-القيود المعمارية في [`docs/HANDOFF_AR.md`](docs/HANDOFF_AR.md)، سياسة الفرز التجريبية في [`docs/POLICY_AR.md`](docs/POLICY_AR.md)، وسجل التحقق وحدوده في [`docs/VALIDATION_AR.md`](docs/VALIDATION_AR.md).
+القيود المعمارية في [`docs/HANDOFF_AR.md`](docs/HANDOFF_AR.md)، سياسة الفرز التجريبية في [`docs/POLICY_AR.md`](docs/POLICY_AR.md)، وسجل التحقق وحدوده في [`docs/VALIDATION_AR.md`](docs/VALIDATION_AR.md). يلخص [`docs/CONVERSATION_V3_WINDOWS_AR.md`](docs/CONVERSATION_V3_WINDOWS_AR.md) تطوير v3، أوامر Windows، نتائج المجموعات الاصطناعية، وحدود اختبار النموذج الحي.
 
 ## التشغيل المحلي — Linux/macOS
 
@@ -81,7 +81,7 @@ node --check static/app.js
 
 في Ubuntu يمكن استخدام `python -m playwright install --with-deps chromium`. سير عمل GitHub Actions يشغل فحوصات Python/JavaScript، وصحة قاعدة المصادر، واختبارات القواعد وAPI والتزامن والمزود الوهمي والمتصفح عند كل `push` و`pull_request`.
 
-يوثق [`docs/CONVERSATION_V2_AR.md`](docs/CONVERSATION_V2_AR.md) تدفق الأهداف متعددة النوايا، نطاق السياق والموافقات، تعريف مقاييس المحادثة، نتائج المجموعات الاصطناعية، وأوامر Windows لتقييم القواعد أو Ollama. تشغيل النموذج من CLI يتطلب `--include-bounded-context` منفصلًا لإرسال سياق صناعي؛ الافتراضي يرسل الرسالة الحالية فقط.
+يوثق [`docs/CONVERSATION_V2_AR.md`](docs/CONVERSATION_V2_AR.md) أساس v2، بينما يشرح [`docs/CONVERSATION_V3_WINDOWS_AR.md`](docs/CONVERSATION_V3_WINDOWS_AR.md) أهداف الرسالة المتعددة، الإحالات القابلة للتحقق، إجابات الأسئلة المختلطة، استرجاع المصادر الرسمية، ونتائج v3. الأداة `scripts/evaluate_conversation_v3.py` تفصل استخراج النموذج عن دمج القواعد، وتفشل مغلقة قبل المحادثة إذا لم ينجح فحص الاتصال والنموذج والتوليد الثابت.
 
 ## قاعدة المصادر
 
@@ -102,11 +102,13 @@ app/core.py               المقابلة، الاستخراج المحلي، �
 app/main.py               FastAPI ونقاط الخدمة وترتيب الاستدعاءات الخارجية
 app/model.py              مخطط الاستخراج والجواب الحرفي الاختياري والتحقق
 app/conversation.py       تحليل أهداف الرسالة وبناء سياق محدود
+app/fields.py             مخطط موحد لحقول الاستخراج وأنواعها
 app/rag.py                استرجاع محلي، مقتطفات، وامتناع عند ضعف الصلة
 app/store.py              SQLite، رمز الجلسة، وتحقق الإصدار
 static/                   واجهة عربية RTL وحالة طلب لكل جلسة
 data/knowledge.json       قاعدة المصادر حسب الجغرافيا
-scripts/evaluate_conversation_v2.py  تقييم القواعد/النموذج متعدد الجولات
+scripts/evaluate_conversation_v2.py  تقييم المحادثة v2
+scripts/evaluate_conversation_v3.py  تقييم v3، استخراج منفصلًا عن الدمج
 tests/                    اختبارات القواعد، API، التزامن، النموذج الوهمي والمتصفح
 .github/workflows/tests.yml  تشغيل CI
 ```

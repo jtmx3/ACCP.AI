@@ -1,0 +1,25 @@
+{
+  "evaluation_version": "guidance-live-smoke-v1",
+  "created_at": "2026-11-06T18:30:38.180142+00:00",
+  "test_status": "not_run",
+  "synthetic_only": true,
+  "bounded_context_consent": true,
+  "provider_config": {
+    "provider": "rules",
+    "mode": "rules",
+    "model": null,
+    "base_url_host": "api.openai.com",
+    "configuration_complete": false,
+    "ollama_reasoning_effort": null
+  },
+  "preflight": null,
+  "preflight_generation": null,
+  "scenarios": [],
+  "summary": {
+    "passed": 0,
+    "total": 6,
+    "failed": 0
+  },
+  "note": "A model preflight and live API calls are required. This is a small synthetic smoke test, not an accuracy benchmark or proof of real-world readiness.",
+  "reason": "expected_local_ollama_model_not_configured"
+}

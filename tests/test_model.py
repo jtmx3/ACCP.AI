@@ -246,9 +246,10 @@ class OptionalModelTests(unittest.TestCase):
             self.assertEqual(body["reasoning_effort"], "none")
             self.assertNotIn("reasoning", body)
             system_prompt = body["messages"][0]["content"]
-            self.assertIn('"value":true', system_prompt)
-            self.assertIn('"value":null', system_prompt)
+            self.assertIn("value=true", system_prompt)
+            self.assertIn("value=null", system_prompt)
             self.assertIn("narrative", system_prompt)
+            self.assertIn("current_quote", system_prompt)
             request_text = body["messages"][1]["content"]
             self.assertEqual(json.loads(request_text)["current_user_message"], text)
 
@@ -297,8 +298,9 @@ class OptionalModelTests(unittest.TestCase):
             result = generate_interview_extraction(text, "narrative")
         self.assertEqual(result[0]["field"], "threat")
         sent = json.loads(chat.call_args.args[0][1]["content"])
-        self.assertEqual(set(sent), {"pending_question_slot", "current_user_message", "allowed_fact_fields"})
+        self.assertEqual(set(sent), {"pending_question_slot", "current_user_message", "allowed_fact_fields_and_types"})
         self.assertEqual(sent["current_user_message"], text)
+        self.assertEqual(sent["allowed_fact_fields_and_types"]["threat"], "binary")
         self.assertEqual(sent["pending_question_slot"], "narrative")
         self.assertNotIn("session_id", str(sent))
         self.assertNotIn("transcript", str(sent))
@@ -321,6 +323,51 @@ class OptionalModelTests(unittest.TestCase):
         self.assertNotIn("case_token", json.dumps(sent, ensure_ascii=False))
         system = chat.call_args.args[0][0]["content"]
         self.assertIn("تلميحات الأهداف اقتراحات أولية فقط", system)
+        self.assertIn('"ask_question"', system)
+
+    def test_contextual_yes_is_valid_only_for_the_referenced_pending_question(self):
+        text = "نعم"
+        context = {
+            "pending_question": {"slot": "repeated", "question_ref": "m8", "text": "هل تكرر التهديد؟"},
+            "recent_relevant_messages": [{"message_ref": "m8", "role": "assistant", "text": "هل تكرر التهديد؟"}],
+            "related_facts": [], "related_money_events": [],
+        }
+        candidate = {"facts": [{"field": "repeated", "status": "reported", "value": True,
+                                "current_quote": text, "question_ref": "m8", "context_refs": ["m8"],
+                                "operation": "answer"}]}
+        accepted = validate_interview_facts_diagnostic(text, json.dumps(candidate, ensure_ascii=False),
+                                                       "repeated", context)
+        self.assertTrue(accepted["accepted"])
+        self.assertEqual(accepted["facts"][0]["field"], "repeated")
+        self.assertEqual(accepted["facts"][0]["question_ref"], "m8")
+
+        candidate["facts"][0]["question_ref"] = "m404"
+        rejected = validate_interview_facts_diagnostic(text, json.dumps(candidate, ensure_ascii=False),
+                                                       "repeated", context)
+        self.assertEqual(rejected["filtered_facts"][0]["filter_code"], "context_reference_invalid")
+
+    def test_same_operation_requires_and_preserves_an_authorized_target_fact(self):
+        text = "نفس المحفظة الإلكترونية."
+        fact_ref = "fact:payment_method:m2"
+        context = {"pending_question": {"slot": "payment_method", "question_ref": "m3"},
+                   "recent_relevant_messages": [{"message_ref": "m2", "role": "user",
+                                                "text": "حولت عن طريق محفظة إلكترونية."}],
+                   "related_facts": [{"fact_ref": fact_ref, "field": "payment_method", "status": "reported",
+                                      "value": "محفظة إلكترونية", "quote": "حولت عن طريق محفظة إلكترونية.",
+                                      "message_ref": "m2"}], "related_money_events": []}
+        payload = {"facts": [{"field": "payment_method", "status": "reported", "value": "محفظة إلكترونية",
+                              "current_quote": text, "operation": "same", "target_fact_id": fact_ref,
+                              "context_refs": [fact_ref]}]}
+        result = validate_interview_facts_diagnostic(text, json.dumps(payload, ensure_ascii=False),
+                                                     "payment_method", context)
+        self.assertTrue(result["accepted"])
+        self.assertEqual(result["facts"][0]["target_fact_id"], fact_ref)
+        self.assertEqual(result["facts"][0]["operation"], "same")
+
+        payload["facts"][0]["target_fact_id"] = "fact:identity:m2"
+        rejected = validate_interview_facts_diagnostic(text, json.dumps(payload, ensure_ascii=False),
+                                                       "payment_method", context)
+        self.assertEqual(rejected["filtered_facts"][0]["filter_code"], "context_reference_invalid")
 
     def test_malformed_extraction_falls_back_but_semantic_fact_is_filtered(self):
         text = "طلب مني 100 دينار"

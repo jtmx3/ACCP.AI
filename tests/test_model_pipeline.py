@@ -4,7 +4,7 @@ from app.core import handle_turn, last_model_merge_trace, new_state
 
 
 class ModelPipelineTests(unittest.TestCase):
-    def test_merge_trace_distinguishes_rule_agreement_from_rule_precedence(self):
+    def test_merge_trace_distinguishes_agreement_from_explicit_disagreement(self):
         text = "شخص هددني برسالة."
         state = new_state("synthetic-model-agrees-with-rules")
         handle_turn(state, text, model_facts=[{"field": "threat", "status": "reported", "value": True,
@@ -15,8 +15,9 @@ class ModelPipelineTests(unittest.TestCase):
         state = new_state("synthetic-model-disagrees-with-rules")
         handle_turn(state, text, model_facts=[{"field": "threat", "status": "denied", "value": False,
                                                "quote": "هددني"}])
-        self.assertEqual(last_model_merge_trace()[0]["disposition"], "superseded_by_rules")
+        self.assertEqual(last_model_merge_trace()[0]["disposition"], "conflict_created")
         self.assertFalse(last_model_merge_trace()[0]["rule_extraction_agrees"])
+        self.assertEqual(state["facts"]["threat"]["status"], "conflict")
 
     def test_model_amount_suggestion_cannot_overwrite_initial_amount_or_skip_relation_question(self):
         state = new_state("synthetic-model-money-case")

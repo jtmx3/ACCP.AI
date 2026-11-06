@@ -62,8 +62,9 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertFalse(why_message["external_model_used"])
         question = self.turn("كيف أحفظ الأدلة واللقطات؟", kind="question")
         answer_message = question["messages"][-2]
-        self.assertIn("ما عندي مصدر موثوق", answer_message["text"])
-        self.assertEqual(answer_message["citations"], [])
+        self.assertIn("المصادر الوطنية ليست مسارات محلية", answer_message["text"])
+        self.assertTrue(any(source["id"] == "AU-ESAFETY-EVIDENCE-2026" for source in answer_message["citations"]))
+        self.assertTrue(all(source["scope_note"] for source in answer_message["citations"]))
         response = self.client.put(
             f"/api/sessions/{self.case_id}/jurisdiction",
             headers=self.headers,
@@ -158,7 +159,9 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertEqual(state["pending_slot"], "direct_danger")
         self.assertEqual(state["facts"], facts_before)
         self.assertEqual(state["messages"][-2]["kind"], "answer")
-        self.assertIn("ما عندي مصدر موثوق", state["messages"][-2]["text"])
+        self.assertIn("المصادر الوطنية ليست مسارات محلية", state["messages"][-2]["text"])
+        self.assertTrue(any(citation["id"] == "AU-ESAFETY-EVIDENCE-2026"
+                            for citation in state["messages"][-2]["citations"]))
         self.assertEqual(state["messages"][-1]["kind"], "question")
         self.assertIn("هل أنت بخطر مباشر الآن؟", state["messages"][-1]["text"])
 
@@ -482,7 +485,8 @@ class ApiIntegrationTests(unittest.TestCase):
             return []
 
         with patch.dict(os.environ, {"MODEL_PROVIDER": "openai-compatible", "MODEL_API_KEY": "test-only"}), \
-             patch("app.main.generate_interview_extraction", side_effect=slow_extract):
+             patch("app.main.generate_interview_extraction", side_effect=slow_extract), \
+             patch("app.main.last_call_trace", return_value={"attempted": True, "latency_ms": 1}):
             with ThreadPoolExecutor(max_workers=2) as pool:
                 futures = [
                     pool.submit(main.post_message, self.case_id, TurnRequest(expected_revision=0, text="شخص يهددني برسالة", allow_external_extraction=True), self.token),
@@ -540,7 +544,8 @@ class ApiIntegrationTests(unittest.TestCase):
             return result
 
         with patch.dict(os.environ, {"MODEL_PROVIDER": "openai-compatible", "MODEL_API_KEY": "test-only"}), \
-             patch("app.main.generate_grounded_answer", side_effect=slow_answer):
+             patch("app.main.generate_grounded_answer", side_effect=slow_answer), \
+             patch("app.main.last_call_trace", return_value={"attempted": True, "latency_ms": 1}):
             with ThreadPoolExecutor(max_workers=2) as pool:
                 first = pool.submit(main.post_message, self.case_id,
                                     TurnRequest(expected_revision=1, text="كيف أحفظ الأدلة واللقطات؟", kind="question", allow_external=True), self.token)

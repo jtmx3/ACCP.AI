@@ -247,8 +247,9 @@
         const currentDigits = String(requested?.value ?? '').replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))).replace(/\D/g, '');
         const previousDigits = String(previous?.value ?? '').replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))).replace(/\D/g, '');
         const detailDigits = String(fact.quote || fact.value || '').replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))).replace(/\D/g, '');
-        const correctionRecorded = (state.money_events || []).some(event => event.kind === 'requested' && event.relation === 'correction' &&
-          event.message_id === requested?.message_id && String(event.amount || '').replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))).replace(/\D/g, '') === currentDigits);
+        const correctionRecorded = (state.money_corrections || []).some(item => item.kind === 'requested' &&
+          item.message_id === requested?.message_id &&
+          String(item.amount || '').replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))).replace(/\D/g, '') === currentDigits);
         if (previous && previousDigits && currentDigits && previousDigits !== currentDigits && detailDigits.includes(previousDigits) && correctionRecorded) {
           const note = document.createElement('div');
           note.className = 'fact-correction-note';

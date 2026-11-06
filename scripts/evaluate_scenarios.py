@@ -427,8 +427,8 @@ def run(dataset_path: Path, output_path: Path, mode: str = "rules") -> dict[str,
         candidate_log.append(entry)
         return facts
 
-    def capture_handle_turn(state, text: str, model_facts=None):
-        result = original_handle_turn(state, text, model_facts=model_facts)
+    def capture_handle_turn(state, text: str, model_facts=None, **kwargs):
+        result = original_handle_turn(state, text, model_facts=model_facts, **kwargs)
         for event in core.last_model_merge_trace():
             merge_log.append({"step": evaluation_context.get("step"), **event})
         return result

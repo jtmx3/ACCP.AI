@@ -8,7 +8,7 @@ from typing import Any
 CORPUS_PATH = Path(__file__).resolve().parent.parent / "data" / "knowledge.json"
 STOPWORDS = {
     "كيف", "هل", "ماذا", "لماذا", "شو", "ايش", "متى", "وين", "من", "على", "الى", "عن", "في", "مع", "هذا", "هذه", "ذلك", "انا", "انت", "كان", "كانت",
-    "معنى", "كلمة", "لغة", "اللغة", "عربية", "العربية", "شرح", "يعني", "يعنيها", "ماهو", "هو", "هي", "افعل", "أفعل", "عبر", "اذا", "التي", "بعد", "ما", "منه", "لها", "له", "what", "how", "when", "where", "why", "who", "which", "would", "should", "could", "with", "from", "that", "this", "there", "their", "have", "has", "are", "the", "and", "for", "but", "you", "your", "can", "meaning", "word", "language", "arabic", "i", "me", "my", "do", "does", "if", "via", "a", "an", "of", "in", "or", "on", "it", "to",
+    "معنى", "كلمة", "لغة", "اللغة", "عربية", "العربية", "شرح", "يعني", "يعنيها", "ماهو", "هو", "هي", "افعل", "أفعل", "عبر", "اذا", "التي", "بعد", "ما", "منه", "لها", "له", "كنت", "زلت", "بس", "قد", "what", "how", "when", "where", "why", "who", "which", "would", "should", "could", "with", "from", "that", "this", "there", "their", "have", "has", "are", "the", "and", "for", "but", "you", "your", "can", "meaning", "word", "language", "arabic", "i", "me", "my", "do", "does", "if", "via", "a", "an", "of", "in", "or", "on", "it", "to",
 }
 MIN_QUERY_TERMS = 2
 MIN_OVERLAP = 2
@@ -43,7 +43,8 @@ def load_corpus(path: Path = CORPUS_PATH) -> dict[str, Any]:
 def available_jurisdictions(corpus: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     corpus = corpus or load_corpus()
     labels = corpus.get("geography_labels", {})
-    codes = sorted({str(source["geography"]).upper() for source in corpus["sources"]})
+    codes = sorted({str(source["geography"]).upper() for source in corpus["sources"]
+                    if str(source["geography"]).upper() != "GLOBAL"})
     return [{"code": code, "label": labels.get(code, code),
              "source_count": sum(1 for source in corpus["sources"] if str(source["geography"]).upper() == code)} for code in codes]
 
@@ -99,18 +100,46 @@ def _excerpt(source: dict[str, Any], query_terms: set[str], max_chars: int = 480
     return excerpt if len(excerpt) <= max_chars else excerpt[:max_chars].rsplit(" ", 1)[0] + "…"
 
 
-def retrieve(query: str, jurisdiction: str | None, limit: int = 3, corpus: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+def _explicit_scope(query: str) -> str | None:
+    normalized = _normalize(query)
+    cues = (("JO", ("الاردن", "بالاردن", "اردني", "الأردن", "jordan")),
+            ("US", ("الولايات المتحدة", "امريكا", "الامريكية", "امريكي", "united states", "usa")),
+            ("AU", ("استراليا", "استرالي", "australia")))
+    for code, markers in cues:
+        if any(_normalize(marker) in normalized for marker in markers):
+            return code
+    return None
+
+
+def _requires_jurisdiction(query: str) -> bool:
+    normalized = _normalize(query)
+    return any(marker in normalized for marker in (
+        "ابلغ", "ابلاغ", "بلاغ", "الشرطه", "الشرطة", "قانوني", "رقم الطوارئ", "رقم 911", "رقم 196",
+        "جهة مختصة", "محكمة", "تعويض قانوني", "report cybercrime", "official report", "police", "legal advice", "emergency number",
+    ))
+
+
+def retrieve(query: str, jurisdiction: str | None, limit: int = 3, corpus: dict[str, Any] | None = None,
+             context_text: str = "", allow_nonlocal_general: bool = False) -> list[dict[str, Any]]:
     corpus = corpus or load_corpus()
-    scope = (jurisdiction or "").strip().upper()
+    scope = (jurisdiction or _explicit_scope(query + " " + context_text) or "").strip().upper()
     available = {item["code"] for item in available_jurisdictions(corpus)}
-    if scope not in available:
+    if scope and scope not in available:
         return []
     query_terms = _tokens(query)
+    context_terms = _tokens(context_text)
+    if len(query_terms) < MIN_QUERY_TERMS and context_terms:
+        query_terms = context_terms
     if len(query_terms) < MIN_QUERY_TERMS:
         return []
     scored: list[tuple[float, int, dict[str, Any]]] = []
     for source in corpus["sources"]:
-        if str(source["geography"]).upper() != scope:
+        geography = str(source["geography"]).upper()
+        general_practice = source.get("guidance_scope") == "general_practice"
+        global_platform = source.get("guidance_scope") == "global_platform" or geography == "GLOBAL"
+        allowed = (global_platform or general_practice) if not scope else (
+            geography == scope or global_platform or (allow_nonlocal_general and general_practice))
+        if not allowed:
             continue
         excluded = set().union(*(_tokens(term) for term in source.get("excluded_keywords", []))) if source.get("excluded_keywords") else set()
         if query_terms & excluded:
@@ -128,33 +157,51 @@ def retrieve(query: str, jurisdiction: str | None, limit: int = 3, corpus: dict[
         score = coverage + overlap * 0.08
         candidate = dict(source)
         candidate["excerpt"] = _excerpt(source, query_terms)
+        candidate["scope_note"] = ("إرشاد عام من مصدر وطني؛ لا يمثل قانونًا أو جهة محلية." if general_practice and geography != scope
+                                   else "إرشادات أمان خاصة بمنصة Instagram." if global_platform else None)
         scored.append((score, overlap, candidate))
     scored.sort(key=lambda item: (-item[0], -item[1], item[2]["id"]))
     return [source for _, _, source in scored[:limit]]
 
 
-def answer_question(query: str, jurisdiction: str | None) -> dict[str, Any]:
+def answer_question(query: str, jurisdiction: str | None, context_text: str = "",
+                    allow_nonlocal_general: bool = False) -> dict[str, Any]:
     corpus = load_corpus()
-    sources = retrieve(query, jurisdiction, corpus=corpus)
+    effective_scope = (jurisdiction or _explicit_scope(query + " " + context_text) or "").strip().upper()
+    sources = retrieve(query, effective_scope or None, corpus=corpus, context_text=context_text,
+                       allow_nonlocal_general=(allow_nonlocal_general or not _requires_jurisdiction(query)))
     if not sources:
-        scope = (jurisdiction or "").strip().upper()
+        scope = effective_scope
         available = {item["code"] for item in available_jurisdictions(corpus)}
-        if not scope:
-            response = "ما عندي مصدر موثوق محلي لهذا السؤال قبل تحديد البلد أو الاختصاص. لا أستنتج قانونًا أو جهة تواصل من دون مصدر واختصاص واضحين."
+        if not scope and _requires_jurisdiction(query):
+            response = "يعتمد مسار الإبلاغ أو رقم الطوارئ على البلد. اذكر البلد الذي تسأل عنه لأبحث في مصدر رسمي مناسب؛ لن أفترض موقعك."
+        elif not scope:
+            response = "لا يوجد في قاعدة المعرفة مقتطف كافٍ يجيب عن هذا السؤال العام. لا أستنتج خطوات أو نتائج غير مدعومة بمصدر موثوق."
         elif scope not in available:
             response = "ما عندي مصدر موثوق محلي لهذا الاختصاص في قاعدة المعرفة الحالية؛ لا أستطيع تقديم إرشاد محلي موثوق."
         else:
             response = "ما عندي مصدر موثوق أو مقتطف كافٍ يطابق سؤالك ضمن الاختصاص المحدد. أمتنع عن الاستنتاج من تطابق لفظي ضعيف."
         return {"text": response, "citations": [], "corpus_version": corpus["corpus_version"]}
 
-    lines = ["بحسب المقتطفات الموثقة ضمن الاختصاص المحدد:"]
+    if effective_scope:
+        lines = ["بحسب المقتطفات الموثقة؛ تظهر جهة المصدر ونطاقها بجوار كل مقتطف:"]
+    else:
+        lines = ["هذه مقتطفات موثقة من دون افتراض بلدك؛ المصادر الوطنية ليست مسارات محلية خارج بلدها:"]
     citations = []
     for number, source in enumerate(sources, start=1):
         excerpt = source["excerpt"]
-        lines.append(f"\n[{number}] «{excerpt}»")
+        lines.append(f"\n[{number}] {source['title']} — {source['publisher']}")
+        for step in source.get("answer_steps", []):
+            lines.append(f"\n- {step}")
+        if not source.get("answer_steps"):
+            lines.append(f"\n«{excerpt}»")
+        if source.get("scope_note"):
+            lines.append(f"\nنطاق المصدر: {source['scope_note']}")
+        lines.append(f"\nالمقتطف الداعم: «{excerpt}»")
         citations.append({"id": source["id"], "title": source["title"], "publisher": source["publisher"], "url": source["url"],
                           "published_or_updated": source["published_or_updated"], "ingested_at": source["ingested_at"],
-                          "geography": source["geography"], "content_version": source["content_version"], "excerpt": excerpt})
+                          "geography": source["geography"], "guidance_scope": source.get("guidance_scope"),
+                          "scope_note": source.get("scope_note"), "content_version": source["content_version"], "excerpt": excerpt})
     lines.append("\nهذه مقتطفات من المصادر فقط؛ لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية. إذا لم يُجب المقتطف عن سؤالك، أمتنع عن إضافة استنتاج.")
     return {"text": "".join(lines), "citations": citations, "corpus_version": corpus["corpus_version"]}
 

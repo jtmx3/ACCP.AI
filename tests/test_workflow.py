@@ -419,7 +419,9 @@ class InterviewWorkflowTests(unittest.TestCase):
         self.assertTrue(any(c["id"] == "AU-ESAFETY-EVIDENCE-2026" for c in no_local_evidence_steps["citations"]))
         self.assertTrue(all(c.get("scope_note") for c in no_local_evidence_steps["citations"]
                             if c["geography"] != "JO"))
-        self.assertTrue(all(c["excerpt"] in jocert["text"] for c in jocert["citations"]))
+        self.assertTrue(all(c["excerpt"] for c in jocert["citations"]))
+        self.assertTrue(all(c["excerpt"] not in jocert["text"] for c in jocert["citations"]))
+        self.assertIn("افتح تفاصيل المصدر", jocert["text"])
 
 
 if __name__ == "__main__":

@@ -1790,6 +1790,7 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
     if intent == "why" and actionable_goals.intersection((message_interpretation or {}).get("goals", [])):
         intent = None
     if intent == "pause":
+        state["resume_stage"] = previous_stage if previous_stage in {"interview", "review", "urgent_stop"} else "interview"
         state["stage"] = "paused"
         state["pending_slot"] = pending
         _add_message(state, "assistant", "حفظت الجلسة. تقدر ترجع لها وتكمل من نفس المكان.", "status")
@@ -1979,12 +1980,25 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
 
 def resume_state(state: dict[str, Any]) -> dict[str, Any]:
     if state["stage"] == "paused":
-        state["stage"] = "interview"
+        resume_stage = state.pop("resume_stage", "interview")
         pending_guidance = state.get("pending_guidance")
         if isinstance(pending_guidance, dict) and pending_guidance.get("status") == "awaiting_platform":
+            state["stage"] = "interview"
             prompt = pending_guidance.get("clarification_text") or "لأي تطبيق تقصد؟ اذكر اسم التطبيق لأعرض مصدره الرسمي فقط."
             _add_message(state, "assistant", prompt, "guidance_clarification")
             return state
+        if resume_stage == "review":
+            state["stage"] = "review"
+            state["pending_slot"] = None
+            state["assessment"] = _assessment(state)
+            _add_message(state, "assistant", "رجعنا إلى مراجعة الملخص المحفوظ. لم يتغير تأكيد هذا الإصدار.", "review")
+            return state
+        if resume_stage == "urgent_stop":
+            state["stage"] = "urgent_stop"
+            state["assessment"] = _assessment(state)
+            _add_message(state, "assistant", "استُكملت الجلسة المحفوظة ضمن مسار السلامة. لن نتابع أسئلة المقابلة هنا.", "safety")
+            return state
+        state["stage"] = "interview"
         slot = state.get("pending_slot") or _next_slot(state)
         state["pending_slot"] = slot
         text = QUESTIONS.get(slot, "تقدر تراجع الملخص أو تضيف معلومة جديدة.")
@@ -2086,9 +2100,10 @@ def report_data(state: dict[str, Any]) -> dict[str, Any]:
             "is_correction_record": event.get("relation") == "correction",
             "source_message_at": message_times.get(event.get("message_id")),
             "relation_message_at": message_times.get(corrections[-1].get("message_id")) if corrections else message_times.get(event.get("relation_message_id"))})
-    unknown_statuses = {"unknown", "not_remembered", "declined"}
     missing_fields = [key for key in _relevant_slots(state) if not _has(state, key)]
-    unknown_fields = [key for key, fact in facts.items() if fact.get("status") in unknown_statuses]
+    unknown_fields = [key for key, fact in facts.items() if fact.get("status") == "unknown"]
+    not_remembered_fields = [key for key, fact in facts.items() if fact.get("status") == "not_remembered"]
+    declined_fields = [key for key, fact in facts.items() if fact.get("status") == "declined"]
     unresolved_fields = [key for key, fact in facts.items() if fact.get("status") == "unresolved"]
     conflicting_fields = [key for key, fact in facts.items() if fact.get("status") == "conflict"]
     field_keys = sorted(set(facts) | set(_relevant_slots(state)))
@@ -2107,6 +2122,7 @@ def report_data(state: dict[str, Any]) -> dict[str, Any]:
             "field_labels": {key: LABELS.get(key, "معلومة إضافية") for key in field_keys},
             "field_notes": dict(FIELD_NOTES),
             "missing_fields": missing_fields, "unknown_fields": unknown_fields,
+            "not_remembered_fields": not_remembered_fields, "declined_fields": declined_fields,
             "unresolved_fields": unresolved_fields, "conflicting_fields": conflicting_fields,
             "unresolved_money_events": unresolved_money_events, "confirmed": current_confirmation,
             "confirmation_history": history,
@@ -2200,10 +2216,14 @@ def render_report(state: dict[str, Any]) -> str:
     lines += ["", "### أسباب النتيجة", ""] + [f"- {r}" for r in assessment["reasons"] or ["لا توجد إشارة كافية لتحديد درجة."]] + ["", "## المعلومات الناقصة أو غير المحسومة", ""]
     missing = [LABELS.get(k, "معلومة إضافية") for k in data["missing_fields"]]
     unknown = [LABELS.get(k, "معلومة إضافية") for k in data["unknown_fields"]]
+    not_remembered = [LABELS.get(k, "معلومة إضافية") for k in data["not_remembered_fields"]]
+    declined = [LABELS.get(k, "معلومة إضافية") for k in data["declined_fields"]]
     unresolved = [LABELS.get(k, "معلومة إضافية") for k in data["unresolved_fields"]]
     conflicts = [LABELS.get(k, "معلومة إضافية") for k in data["conflicting_fields"]]
     lines += ["- لم تُسجل بعد: " + (", ".join(missing) if missing else "لا توجد حقول مقابلة أساسية ناقصة."),
-              "- غير معروفة/لم يتذكرها المستخدم/فضّل عدم الإجابة: " + (", ".join(unknown) if unknown else "لا توجد حقول بهذه الحالات."),
+              "- غير معروفة للمستخدم: " + (", ".join(unknown) if unknown else "لا توجد."),
+              "- لا يتذكرها المستخدم: " + (", ".join(not_remembered) if not_remembered else "لا توجد."),
+              "- فضّل المستخدم عدم الإفصاح: " + (", ".join(declined) if declined else "لا توجد."),
               "- غير محسومة: " + (", ".join(unresolved) if unresolved else "لا توجد."),
               "- التعارضات الفعلية: " + (", ".join(conflicts) if conflicts else "لا توجد تعارضات مسجلة.")]
     if data["unresolved_money_events"]:

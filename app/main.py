@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app.core import (
-    QUESTIONS, _add_message, _assessment, _explain_why, _why_target_slot, explain_assessment,
+    QUESTIONS, LABELS, _add_message, _assessment, _explain_why, _why_target_slot, explain_assessment,
     _finalize_changed_facts, _next_slot, _record, _unresolved_money_relation,
     _user_intent, classify_current_danger, confirmation_is_current, handle_turn, now_iso, normalize, render_report,
     report_data, resume_state, screen_current_danger, summary_digest, is_clear_user_question, question_plan,
@@ -20,7 +20,7 @@ from app.core import (
 from app.rag import answer_question, available_jurisdictions, load_corpus
 from app.model import (generate_grounded_answer, generate_interview_extraction, model_configured,
                        provider_config, probe_provider, test_provider_generation, reset_call_trace,
-                       last_call_trace, call_trace_history)
+                       last_call_trace, call_trace_history, last_extraction_diagnostic)
 from app.conversation import (build_bounded_context, extract_fact_text, extract_guidance_question,
                               has_actionable_fact_goal, interpret_message)
 from app.store import Forbidden, NotFound, StaleRevision, Store
@@ -535,6 +535,50 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
     if guidance_fallback_used:
         fallback_targets.append("local_rag")
     fallback_to = "+".join(fallback_targets) if fallback_targets else None
+    extraction_diagnostic = last_extraction_diagnostic() if external_extraction_sent else None
+    filtered_diagnostics = []
+    for item in (extraction_diagnostic or {}).get("filtered_facts", []):
+        if not isinstance(item, dict):
+            continue
+        field = item.get("field") if isinstance(item.get("field"), str) else None
+        code = item.get("filter_code") if isinstance(item.get("filter_code"), str) else "other_validation"
+        detail = item.get("filter_detail") if isinstance(item.get("filter_detail"), str) else "لم يُسجل تفصيل التحقق."
+        filtered_diagnostics.append({"field": field, "field_label": LABELS.get(field, "معلومة إضافية"),
+                                     "code": code, "detail": detail})
+    if external_extraction_sent and not filtered_diagnostics:
+        trace_fields = (provider_call or {}).get("filtered_fact_fields", [])
+        trace_code_counts = (provider_call or {}).get("filtered_fact_code_counts", {})
+        if isinstance(trace_fields, list) and len(trace_fields) == 1 and isinstance(trace_code_counts, dict) and len(trace_code_counts) == 1:
+            field = trace_fields[0] if isinstance(trace_fields[0], str) else None
+            code, count = next(iter(trace_code_counts.items()))
+            if field and isinstance(code, str) and count:
+                filtered_diagnostics.append({"field": field, "field_label": LABELS.get(field, "معلومة إضافية"),
+                                             "code": code, "detail": "تفصيل التحقق غير محفوظ في trace هذا التشغيل."})
+    model_diagnostics = None
+    if external_extraction_sent or external_question_sent:
+        trace_response_valid = (provider_call or {}).get("response_valid")
+        trace_status = (provider_call or {}).get("status")
+        raw_received = bool(isinstance((extraction_diagnostic or {}).get("raw_response"), str)
+                            and (extraction_diagnostic or {}).get("raw_response", "").strip())
+        model_diagnostics = {
+            "provider_response": {"received": (raw_received or trace_response_valid is True
+                                                   or trace_status in {"valid_empty", "all_facts_filtered", "partially_accepted"})
+                                                 if external_extraction_sent else bool(external_answer),
+                                  "status": trace_status,
+                                  "latency_ms": (provider_call or {}).get("latency_ms"),
+                                  "failure_code": (provider_call or {}).get("failure_code")},
+            "validation": {"response_valid": ((extraction_diagnostic or {}).get("accepted")
+                                                 if extraction_diagnostic else trace_response_valid)
+                                                if external_extraction_sent else None,
+                           "accepted_fields": [fact.get("field") for fact in (model_facts or [])] if external_extraction_sent else [],
+                           "filtered_facts": filtered_diagnostics if external_extraction_sent else []},
+            "merge": {"performed": bool(last_model_merge_trace()),
+                      "field_dispositions": last_model_merge_trace() if external_extraction_sent else []},
+            "fallback": {"used": fallback_used, "to": fallback_to},
+            "raw_response_included": False,
+        }
+        if provider_call is not None and external_extraction_sent:
+            provider_call["validation_diagnostics"] = filtered_diagnostics
     timings = {"request_preflight_ms": request_preflight_ms, "provider_preflight_ms": None,
                "provider_preflight_performed": False, "message_understanding_ms": understanding_ms,
                "retrieval_ms": retrieval_ms, "answer_generation_ms": answer_generation_ms,
@@ -555,7 +599,8 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
             "fallback_to": fallback_to,
             "question_detected": auto_question or resolving_pending_guidance,
             "runtime_mode": provider["mode"] if call_accepted or message_plan_applied else "rules",
-            "provider_call": provider_call, "provider_calls": provider_calls, "timings": timings}
+            "provider_call": provider_call, "provider_calls": provider_calls, "timings": timings,
+            "model_diagnostics": model_diagnostics}
 
 
 @app.post("/api/sessions/{session_id}/resume")

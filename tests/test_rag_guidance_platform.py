@@ -41,8 +41,14 @@ class RealCorpusGuidanceRetrievalTests(unittest.TestCase):
                                  citation_ids)
                 self.assertTrue(any("التحقق بخطوتين" in citation["excerpt"]
                                     or "التحقق بخطوتين" in result["text"] for citation in result["citations"]))
-                self.assertIn("WhatsApp Help Center", result["text"])
                 self.assertIn("واتساب", result["text"])
+                self.assertEqual(result["text"].count("التحقق بخطوتين"), 1)
+                self.assertTrue(all(citation["publisher"] == "WhatsApp Help Center, Meta"
+                                    for citation in result["citations"]))
+                self.assertLessEqual(len([line for line in result["text"].splitlines()
+                                          if line[:1].isdigit() and ". " in line]), 4)
+                self.assertNotIn("المقتطف الداعم", result["text"])
+                self.assertTrue(all(citation["excerpt"] for citation in result["citations"]))
 
     def test_instagram_security_remains_platform_scoped(self):
         result = answer_question("كيف أؤمن حسابي الأصلي على إنستغرام إذا كنت ما زلت أستطيع الدخول؟", None)
@@ -50,7 +56,7 @@ class RealCorpusGuidanceRetrievalTests(unittest.TestCase):
         self.assertIn("GLOBAL-IG-SECURITY-2026", citation_ids)
         self.assertFalse(any(source_id.startswith("GLOBAL-WA-") for source_id in citation_ids))
         self.assertIn("Instagram", result["text"])
-        self.assertIn("هذه إرشادات للحساب داخل Instagram", result["text"])
+        self.assertTrue(any("إنستغرام" in citation.get("scope_note", "") for citation in result["citations"]))
 
     def test_current_platform_overrides_prior_platform_and_ambiguous_target_clarifies(self):
         switched = answer_question(
@@ -86,7 +92,8 @@ class RealCorpusGuidanceRetrievalTests(unittest.TestCase):
         self.assertIn("GLOBAL-WA-RECOVERY-2026", citation_ids)
         self.assertNotIn("GLOBAL-IG-SECURITY-2026", citation_ids)
         self.assertIn("رمز التسجيل", result["text"])
-        self.assertIn("WhatsApp Help Center", result["text"])
+        self.assertTrue(any(citation["publisher"] == "WhatsApp Help Center, Meta"
+                            for citation in result["citations"]))
 
     def test_current_country_is_separate_from_saved_jurisdiction(self):
         result = answer_question("ما هي وسائل التواصل مع وحدة الجرائم الإلكترونية بالأردن؟", "US")
@@ -170,6 +177,50 @@ class RoutedRealCorpusGuidanceTests(unittest.TestCase):
         self.assertNotIn("GLOBAL-IG-SECURITY-2026", response["text"])
         self.assertTrue(result["question_detected"])
         self.assertEqual(result["session"]["pending_slot"], "narrative")
+
+    def test_short_sourced_whatsapp_answer_resumes_pending_interview_once(self):
+        first = self.send("في شخص عم يهددني على واتساب.")
+        pending = first["session"]["pending_slot"]
+        self.assertEqual(pending, "direct_danger")
+        question = "كيف أحمي حسابي على واتساب؟"
+        result = self.ask_with_simulated_goal_plan(question, question)
+        messages = result["session"]["messages"]
+        answer = next(message for message in reversed(messages)
+                      if message.get("role") == "assistant" and message.get("kind") == "answer")
+        followups = [message for message in messages if message.get("role") == "assistant"
+                     and message.get("kind") == "question"
+                     and message.get("text", "").startswith("نكمل من السؤال السابق:")]
+        self.assertEqual(len(followups), 1)
+        self.assertIn("direct_danger", result["session"]["pending_slot"])
+        self.assertTrue(answer["citations"])
+        self.assertTrue(all(citation["id"].startswith("GLOBAL-WA-") for citation in answer["citations"]))
+        self.assertFalse(any(citation["id"].startswith("GLOBAL-IG-") for citation in answer["citations"]))
+        self.assertIn("التحقق بخطوتين", answer["text"])
+        self.assertIn("نطاق المصادر", answer["text"])
+        self.assertNotIn("المقتطف الداعم", answer["text"])
+        self.assertTrue(all(citation.get("url") and citation.get("excerpt") for citation in answer["citations"]))
+
+    def test_pending_platform_clarification_survives_pause_and_resume(self):
+        text = "بدي نصيحة أحافظ فيها على حسابي."
+        pending = self.ask_with_simulated_goal_plan(text, text)
+        self.assertEqual(pending["session"]["pending_guidance"]["status"], "awaiting_platform")
+        clarification_count = sum(message.get("kind") == "guidance_clarification"
+                                  for message in pending["session"]["messages"])
+        paused = self.send("احفظ الجلسة")
+        self.assertEqual(paused["session"]["stage"], "paused")
+        response = self.client.post(f"/api/sessions/{self.session_id}/resume", headers=self.headers,
+                                    json={"expected_revision": self.revision})
+        self.assertEqual(response.status_code, 200, response.text)
+        result = response.json()
+        self.revision = result["session"]["revision"]
+        state = result["session"]
+        self.assertEqual(state["stage"], "interview")
+        self.assertEqual(state["pending_slot"], "narrative")
+        self.assertEqual(state["pending_guidance"]["status"], "awaiting_platform")
+        self.assertEqual(sum(message.get("kind") == "guidance_clarification" for message in state["messages"]),
+                         clarification_count + 1)
+        self.assertEqual(state["messages"][-1]["kind"], "guidance_clarification")
+        self.assertIn("أي تطبيق", state["messages"][-1]["text"])
 
 
 if __name__ == "__main__":

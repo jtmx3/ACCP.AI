@@ -348,26 +348,62 @@ def answer_question(query: str, jurisdiction: str | None, context_text: str = ""
                 "clarification_required": None}
 
     if effective_scope:
-        lines = ["بحسب المقتطفات الموثقة؛ تظهر جهة المصدر ونطاقها بجوار كل مقتطف:"]
+        lines = ["خطوات مختصرة بحسب المصادر الموثقة:"]
     else:
-        lines = ["هذه مقتطفات موثقة من دون افتراض بلدك؛ المصادر الوطنية ليست مسارات محلية خارج بلدها:"]
+        lines = ["خطوات مختصرة من مصادر موثقة؛ لا أفترض بلدك، والمصادر الوطنية لا تمثل مسارًا محليًا خارجه:"]
     citations = []
+    selected_steps: list[str] = []
+    seen_steps: set[str] = set()
+    seen_step_concepts: set[str] = set()
+    step_concept_phrases = {
+        "two_step_verification": ("التحقق بخطوتين", "التحقق الثنائي"),
+        "recovery_email": ("بريد الاسترداد", "البريد الإلكتروني للاسترداد"),
+        "linked_devices": ("الأجهزة المرتبطة", "الأجهزة المرتبطه"),
+        "app_lock": ("قفل التطبيق",),
+        "passkey": ("مفتاح المرور", "passkey"),
+    }
+
+    def step_concepts(step: str) -> set[str]:
+        normalized = _normalize(step)
+        return {concept for concept, phrases in step_concept_phrases.items()
+                if any(_normalize(phrase) in normalized for phrase in phrases)}
+
+    def add_step(candidate: str) -> None:
+        step = str(candidate).strip()
+        key = _normalize(step)
+        concepts = step_concepts(step)
+        if not step or key in seen_steps or (concepts and concepts.issubset(seen_step_concepts)):
+            return
+        if len(selected_steps) < 4:
+            selected_steps.append(step)
+            seen_steps.add(key)
+            seen_step_concepts.update(concepts)
+
+    for source in sources:
+        source_steps = source.get("short_answer_steps") or source.get("answer_steps", [])
+        if source_steps:
+            add_step(source_steps[0])
+    if len(selected_steps) < 4:
+        for source in sources:
+            source_steps = source.get("short_answer_steps") or source.get("answer_steps", [])
+            for candidate in source_steps[1:]:
+                add_step(candidate)
+                if len(selected_steps) >= 4:
+                    break
+    for number, step in enumerate(selected_steps, start=1):
+        lines.append(f"\n{number}. {step}")
+    scope_notes = list(dict.fromkeys(str(source.get("scope_note")).strip() for source in sources
+                                     if source.get("scope_note")))
+    if scope_notes:
+        lines.append("\nنطاق المصادر: " + "؛ ".join(scope_notes))
     for number, source in enumerate(sources, start=1):
         excerpt = source["excerpt"]
-        lines.append(f"\n[{number}] {source['title']} — {source['publisher']}")
-        for step in source.get("answer_steps", []):
-            lines.append(f"\n- {step}")
-        if not source.get("answer_steps"):
-            lines.append(f"\n«{excerpt}»")
-        if source.get("scope_note"):
-            lines.append(f"\nنطاق المصدر: {source['scope_note']}")
-        lines.append(f"\nالمقتطف الداعم: «{excerpt}»")
         citations.append({"id": source["id"], "title": source["title"], "publisher": source["publisher"], "url": source["url"],
                           "published_or_updated": source["published_or_updated"], "ingested_at": source["ingested_at"],
                           "geography": source["geography"], "guidance_scope": source.get("guidance_scope"),
                           "topics": source.get("topics", []), "platforms": source.get("platforms", []),
                           "scope_note": source.get("scope_note"), "content_version": source["content_version"], "excerpt": excerpt})
-    lines.append("\nهذه مقتطفات من المصادر فقط؛ لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية. إذا لم يُجب المقتطف عن سؤالك، أمتنع عن إضافة استنتاج.")
+    lines.append("\nافتح تفاصيل المصدر لقراءة المقتطف والنطاق. هذه معلومات عامة لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية؛ لا أضيف استنتاجًا يتجاوز المصادر.")
     return {"text": "".join(lines), "citations": citations, "corpus_version": corpus["corpus_version"],
             "resolved_platform": platform, "resolved_topics": sorted(topics), "resolved_jurisdiction": effective_scope,
             "clarification_required": None}

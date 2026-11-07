@@ -470,6 +470,11 @@
           const extractionOutcome = result.extraction_outcome || result.provider_call?.extraction_outcome;
           const extractionCall = result.external_model_purpose === 'current_message_extraction';
           const latency = result.provider_call?.latency_ms ?? 'غير متاح';
+          const unsupportedGoals = result.model_diagnostics?.validation?.unsupported_message_goals || [];
+          const goalLabels = { decline_disclosure: 'الامتناع عن الإفصاح', unknown: 'عدم المعرفة',
+            not_remembered: 'عدم التذكر', answer_pending_question: 'الإجابة عن السؤال المعلّق' };
+          const unsupportedGoalNote = unsupportedGoals.length
+            ? `؛ تفسير غير مدعوم لم يُطبّق: ${unsupportedGoals.map(goal => goalLabels[goal] || 'هدف حواري').join('، ')}` : '';
           if (extractionCall && extractionOutcome === 'valid_empty') {
             const diagnostics = result.model_diagnostics || {};
             const response = diagnostics.provider_response || {};
@@ -484,7 +489,7 @@
             ).join(' و');
             $('runtime-mode').textContent = `القواعد المحلية — رد صالح من ${provider} بلا وقائع مستخرجة.`;
             setStatus(`رد ${provider} صالح بنيويًا لكنه لم يتضمن وقائع؛ لم يُعد ذلك نجاحًا للاستخراج، وطُبقت القواعد المحلية على الرسالة.`, false, ctx);
-            $('runtime-detail').textContent = `استجابة المزود: ${response.received ? 'وصل رد' : 'لم يصل رد'}؛ حالة التحقق: ${validation.response_valid ? 'بنية صالحة' : 'غير صالحة'}؛ الدمج: ${mergeSummary}؛ الرجوع: ${fallback.used ? `إلى ${fallbackTarget}` : 'لم يحدث'}؛ لا توجد حقائق مستخرجة. زمن الاستجابة ${latency} مللي ثانية.`;
+            $('runtime-detail').textContent = `استجابة المزود: ${response.received ? 'وصل رد' : 'لم يصل رد'}؛ حالة التحقق: ${validation.response_valid ? 'بنية صالحة' : 'غير صالحة'}؛ الدمج: ${mergeSummary}؛ الرجوع: ${fallback.used ? `إلى ${fallbackTarget}` : 'لم يحدث'}؛ لا توجد حقائق مستخرجة${unsupportedGoalNote}. زمن الاستجابة ${latency} مللي ثانية.`;
           } else if (extractionCall && extractionOutcome === 'all_facts_filtered') {
             const validation = result.model_diagnostics?.validation || {};
             const providerResponse = result.model_diagnostics?.provider_response || {};
@@ -500,7 +505,7 @@
             const fallbackTarget = String(fallback.to || 'rules').split('+').map(target =>
               ({ rules: 'القواعد المحلية', local_rag: 'الإجابة المحلية المستندة إلى المصادر' })[target] || 'معالجة محلية'
             ).join(' و');
-            $('runtime-detail').textContent = `استجابة المزود: ${providerResponse.received ? 'وصل رد' : 'لم يصل رد'}؛ حالة التحقق: ${validation.response_valid ? 'بنية صالحة' : 'غير صالحة'}؛ الدمج: ${mergeSummary}؛ الرجوع: ${fallback.used ? `إلى ${fallbackTarget}` : 'لم يحدث'}. أسباب التصفية: ${reasons || 'غير متاحة لهذا التشغيل'}؛ زمن الاستجابة ${latency} مللي ثانية.`;
+            $('runtime-detail').textContent = `استجابة المزود: ${providerResponse.received ? 'وصل رد' : 'لم يصل رد'}؛ حالة التحقق: ${validation.response_valid ? 'بنية صالحة' : 'غير صالحة'}؛ الدمج: ${mergeSummary}؛ الرجوع: ${fallback.used ? `إلى ${fallbackTarget}` : 'لم يحدث'}${unsupportedGoalNote}. أسباب التصفية: ${reasons || 'غير متاحة لهذا التشغيل'}؛ زمن الاستجابة ${latency} مللي ثانية.`;
           } else if (result.external_model_result_accepted) {
             const filteredCount = Number(result.provider_call?.filtered_fact_count || 0);
             const runtimeLabel = result.runtime_mode === 'local_model' ? 'نموذج Ollama المحلي' : 'مزود خارجي';
@@ -508,10 +513,10 @@
             const filterNote = filteredCount ? `؛ واستبعد النظام ${filteredCount} من الحقائق غير المسندة عن الحالة` : '';
             const extractedCount = Number(result.provider_call?.fact_fields?.length || 0);
             const acceptedSummary = extractionCall ? `عدد الوقائع المقبولة: ${extractedCount}` : 'قُبل جواب الاستناد إلى المصادر';
-            setStatus(`أُرسل ${purpose} بموافقتك إلى ${provider}؛ ${acceptedSummary}${filterNote}.`, true, ctx);
+            setStatus(`أُرسل ${purpose} بموافقتك إلى ${provider}؛ ${acceptedSummary}${filterNote}${unsupportedGoalNote}.`, true, ctx);
             $('runtime-detail').textContent = filteredCount
-              ? `آخر عملية: ${extractionCall ? `استخراج من ${provider}؛ عدد الوقائع المقبولة ${extractedCount}، وعدد المقترحات المصفاة ${filteredCount}` : `قُبل الجواب الموثق من ${provider}`}؛ زمن الاستجابة ${latency} مللي ثانية.`
-              : `آخر عملية: ${extractionCall ? `استخراج من ${provider}؛ عدد الوقائع المقبولة ${extractedCount}` : `قُبل الجواب الموثق من ${provider}`}؛ زمن الاستجابة ${latency} مللي ثانية.`;
+              ? `آخر عملية: ${extractionCall ? `استخراج من ${provider}؛ عدد الوقائع المقبولة ${extractedCount}، وعدد المقترحات المصفاة ${filteredCount}` : `قُبل الجواب الموثق من ${provider}`}${unsupportedGoalNote}؛ زمن الاستجابة ${latency} مللي ثانية.`
+              : `آخر عملية: ${extractionCall ? `استخراج من ${provider}؛ عدد الوقائع المقبولة ${extractedCount}` : `قُبل الجواب الموثق من ${provider}`}${unsupportedGoalNote}؛ زمن الاستجابة ${latency} مللي ثانية.`;
           } else {
             $('runtime-mode').textContent = `القواعد المحلية — عاد الطلب إليها بعد تعذر قبول نتيجة ${provider}.`;
             setStatus(`لم تُقبل نتيجة ${provider} بعد إرسال ${purpose} بموافقتك؛ فعاد الطلب إلى ${result.fallback_to === 'local_rag' ? 'الإجابة المحلية المستندة إلى المصادر' : 'القواعد المحلية'}.`, false, ctx);

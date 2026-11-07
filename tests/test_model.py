@@ -246,7 +246,8 @@ class OptionalModelTests(unittest.TestCase):
             self.assertEqual(body["reasoning_effort"], "none")
             self.assertNotIn("reasoning", body)
             system_prompt = body["messages"][0]["content"]
-            self.assertIn("value=true", system_prompt)
+            self.assertIn("reported=true", system_prompt)
+            self.assertIn("denied=false", system_prompt)
             self.assertIn("value=null", system_prompt)
             self.assertIn("narrative", system_prompt)
             self.assertIn("current_quote", system_prompt)

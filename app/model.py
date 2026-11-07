@@ -375,16 +375,19 @@ def _reported_text_conflicts_with_clear_negation(field: str, normalized_quote: s
 
 def _nonreported_status_has_support(field: str, status: str, normalized_quote: str,
                                     pending_slot: str | None) -> bool:
-    unknown_markers = ("ما بعرف", "لا اعرف", "مش عارف", "غير معروف", "ما عندي فكرة", "مجهول",
-                       "ما بتذكر", "لا اتذكر", "مش متذكر", "مش متاكد", "ما اعرف")
-    memory_markers = ("ما بتذكر", "لا اتذكر", "مش متذكر", "ناسي", "ناسية")
-    decline_markers = ("ما بدي", "لا اريد", "مش حاب", "ما حاب", "لن اكتب", "لا ارغب", "مش مستعد")
+    unknown_markers = ("ما بعرف", "لا اعرف", "مش عارف", "غير معروف", "ما عندي فكرة", "ما عندي علم",
+                       "مجهول", "مش متاكد", "غير متاكد", "ما عندي تاكيد", "لا اعلم", "ما اعلم")
+    memory_markers = ("ما بتذكر", "لا اتذكر", "مش متذكر", "ناسي", "ناسية", "نسيت", "مش حافظ")
+    decline_markers = ("ما بدي", "لا اريد", "مش حاب", "ما حاب", "لن اكتب", "لا ارغب", "مش مستعد",
+                       "افضل عدم", "بفضل عدم", "افضل ما", "ما بدي اشارك", "ما بدي اكشف",
+                       "لا ارغب في ذكر", "لا ارغب بذكر", "لن اذكر")
     field_cues = {
         "identity": ("هوي", "مين هو", "مين صاحب", "اسمه", "اسم الحساب", "رقم التواصل", "مجهول", "الشخص نفسه"),
         "published": ("نشر", "ينشر", "نزل", "ينزل", "رفع", "منشور"),
         "requested_amount": ("طلب", "مبلغ", "دينار", "ريال", "دولار"),
         "paid_amount": ("دفع", "دفعت", "حول", "حوالة", "تحويل", "مبلغ"),
-        "payment_method": ("دفع", "دفعت", "حول", "حوالة", "تحويل", "محفظة", "بطاقة"),
+        "payment_method": ("دفع", "دفعت", "حول", "حوالة", "تحويل", "محفظة", "بطاقة", "وسيلة دفع", "طريقة دفع"),
+        "deadline": ("مهلة", "موعد", "قبل", "وقت للدفع", "اخر موعد"),
         "evidence": ("دليل", "نسخ", "لقطات", "رسائل", "محفوظ"),
         "contact": ("رقم", "حساب", "معرف", "اسم المستخدم", "واتساب"),
         "initial_time": ("متى", "وقت", "مبارح", "امبارح", "اليوم", "الاسبوع", "قبل", "بدا", "بداية"),
@@ -407,6 +410,50 @@ def _nonreported_status_has_support(field: str, status: str, normalized_quote: s
     if field == "paid_amount" and re.search(r"\d", normalized_quote.translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789"))) is None:
         return any(cue in normalized_quote for cue in field_cues["paid_amount"])
     return False
+
+
+def _denied_status_has_support(field: str, normalized_quote: str) -> bool:
+    """Require explicit field-scoped negation; uncertainty or refusal is not denial."""
+    unknown_markers = ("ما بعرف", "لا اعرف", "مش عارف", "غير معروف", "ما عندي فكرة", "ما عندي علم",
+                       "مجهول", "مش متاكد", "غير متاكد", "ما عندي تاكيد", "لا اعلم", "ما اعلم")
+    memory_markers = ("ما بتذكر", "لا اتذكر", "مش متذكر", "ناسي", "ناسية", "نسيت", "مش حافظ")
+    decline_markers = ("ما بدي", "لا اريد", "مش حاب", "ما حاب", "لن اكتب", "لا ارغب", "مش مستعد",
+                       "افضل عدم", "بفضل عدم", "افضل ما", "ما بدي اشارك", "ما بدي اكشف",
+                       "لا ارغب في ذكر", "لا ارغب بذكر", "لن اذكر")
+    if any(marker in normalized_quote for marker in unknown_markers + memory_markers + decline_markers):
+        return False
+    anchors = FIELD_ANCHORS.get(field, ())
+    has_field_anchor = any(_normalize_arabic(anchor) in normalized_quote for anchor in anchors)
+    explicit_negation = any(marker in normalized_quote for marker in (
+        "ما في", "مافي", "لا يوجد", "ليس هناك", "لم ", "ما ", "مش ", "ليس ", "لا ", "بدون ",
+    ))
+    return bool(anchors and has_field_anchor and explicit_negation)
+
+
+def _message_goal_is_supported(goal: str, text: str, pending_slot: str | None) -> bool:
+    """Validate sensitive interpretation goals independently of fact acceptance."""
+    status_by_goal = {"unknown": "unknown", "not_remembered": "not_remembered",
+                      "decline_disclosure": "declined"}
+    status = status_by_goal.get(goal)
+    if status:
+        normalized = _normalize_arabic(text)
+        candidates = list(ALLOWED_EXTRACTION_FIELDS)
+        if pending_slot in ALLOWED_EXTRACTION_FIELDS:
+            candidates.insert(0, pending_slot)
+        return any(_nonreported_status_has_support(field, status, normalized, pending_slot)
+                   for field in candidates)
+    normalized_text = _normalize_arabic(text).strip()
+    question_prefixes = ("كيف", "هل", "متى", "وين", "اين", "شو", "ايش", "اش", "ليش", "لماذا",
+                         "ماذا", "مين", "من", "كم", "ما معنى", "ما الذي", "ما هي", "ما هو")
+    starts_as_question = any(normalized_text == prefix or normalized_text.startswith(prefix + " ")
+                             for prefix in question_prefixes)
+    if goal == "ask_question":
+        return starts_as_question or "؟" in text or "?" in text
+    if goal == "answer_pending_question":
+        if not pending_slot or not text.strip():
+            return False
+        return not starts_as_question
+    return True
 
 
 def _contact_value_is_specific(value: str, quote: str) -> bool:
@@ -508,13 +555,16 @@ def _context_reference_index(context: dict[str, Any] | None) -> tuple[
 def _valid_pending_short_answer(field: str, status: str, value: Any, quote: str,
                                 pending_slot: str | None, question_ref: Any,
                                 expected_question_ref: str | None) -> bool:
-    if field not in BINARY_FIELDS or field != pending_slot or not expected_question_ref:
+    if field not in BINARY_FIELDS | {"deadline"} or field != pending_slot or not expected_question_ref:
         return False
     if question_ref != expected_question_ref:
         return False
     normalized = _normalize_arabic(quote).strip(" .،؛")
     yes = normalized in {"نعم", "اه", "ايوه", "ايوا", "صحيح", "اكيد", "اجل"}
     no = normalized in {"لا", "لأ", "ابدا", "كلا"}
+    if field == "deadline":
+        # A bare yes cannot supply the required deadline string; a referenced no is a complete denial.
+        return no and status == "denied" and value is None
     return ((yes and status == "reported" and value is True)
             or (no and status == "denied" and value is False))
 
@@ -564,6 +614,13 @@ def validate_interview_facts_diagnostic(text: str, payload: str,
                          "اتصرف", "شو اعمل", "ماذا افعل", "كيف افعل", "كيف احمي", "كيف احفظ")
         if not guidance_question or not any(cue in normalized_guidance for cue in guidance_cues):
             return reject("other_validation", "ask_guidance requires a verbatim current-message span that requests actionable guidance.")
+    supported_message_goals = []
+    unsupported_message_goals = []
+    for goal in dict.fromkeys(message_goals):
+        if _message_goal_is_supported(goal, text, pending_slot):
+            supported_message_goals.append(goal)
+        else:
+            unsupported_message_goals.append(goal)
     message_refs, fact_refs, event_refs, expected_question_ref, fact_index, event_index = _context_reference_index(bounded_context)
     facts = parsed.get("facts")
     if not isinstance(facts, list):
@@ -721,6 +778,8 @@ def validate_interview_facts_diagnostic(text: str, payload: str,
                 reason = ("value_inconsistent", f"Denied binary field {field!r} must have value false.")
             if field not in BINARY_FIELDS and value is not None:
                 reason = ("value_inconsistent", f"Denied text field {field!r} must have null value.")
+            if reason is None and not contextual_short_answer and not _denied_status_has_support(field, normalized_quote):
+                reason = ("unsupported_status_evidence", f"Denied status for {field!r} lacks explicit field-scoped negation.")
         elif reason is None and value is not None:
             reason = ("value_inconsistent", f"Non-reported status {status!r} must have null value.")
         if reason is None and status in {"unknown", "not_remembered", "declined"} and not _nonreported_status_has_support(
@@ -736,8 +795,10 @@ def validate_interview_facts_diagnostic(text: str, payload: str,
                 accepted_item[ref_key] = fact[ref_key]
         checked.append(accepted_item)
     return {"accepted": True, "facts": checked, "filtered_facts": filtered,
-            "message_plan": {"goals": list(dict.fromkeys(message_goals)),
+            "message_plan": {"goals": supported_message_goals,
+                             "unsupported_goals": unsupported_message_goals,
                              "guidance_question": guidance_question},
+            "unsupported_message_goals": unsupported_message_goals,
             "json_valid": True, "schema_valid": True,
             "rejection_code": None, "rejection_detail": None}
 
@@ -777,10 +838,11 @@ def generate_interview_extraction(text: str, pending_slot: str | None,
             "استخدم message_goals لتسجيل كل غرض واضح معًا، لا تختَر غرضًا واحدًا فقط. تلميحات الأهداف اقتراحات أولية فقط؛ تحقق منها من الرسالة والسياق المسموح. إن احتوت الرسالة سؤالًا إرشاديًا، ضع السؤال فقط في guidance_question كجزء حرفي متصل من الرسالة؛ لا تعِد صياغته ولا تجب عنه. "
             "كل quote اقتباس حرفي متصل من current_user_message، ولا تنقل اقتباسًا سابقًا على أنه جديد. لا تستخرج من السياق وحده حقيقة جديدة. "
             "الحقول وأنواعها المسموحة: " + json.dumps(schema, ensure_ascii=False) + ". "
-            "أمثلة أنواع القيم: threat reported يستخدم value=true، وplatform reported يستخدم value=\"واتساب\"، وaccount_creation_time unknown يستخدم value=null فقط، وnarrative reported يستخدم value مساويًا تمامًا لـcurrent_quote. "
-            "للحقول الثنائية: reported=true وdenied=false. للحقول النصية والزمنية والمبالغ: reported تتطلب قيمة نصية غير فارغة. narrative reported يجب أن تساوي current_quote حرفيًا. "
-            "لحقول relation استخدم فقط same أو additional أو correction. للمجهول الصريح استخدم status=unknown وvalue=null مع اقتباس الجملة التي تخص الحقل؛ لا تعمم الجهل على حقول أخرى. "
-            "لا تستخدم unknown أو not_remembered أو declined لمجرد غياب المعلومة. لا تستخدم null أو نصًا فارغًا لقيمة reported. "
+            "أنواع القيم حاسمة: الحقل الثنائي reported=true وdenied=false؛ أما كل حقل نصي أو زمني أو مبلغ أو relation فـreported له قيمة نصية مطابقة للسند، وdenied له value=null. كل unknown أو not_remembered أو declined له value=null. لا تستخدم false إلا للحقل الثنائي المنفي، ولا تستخدم null عامًا للحقائق المبلّغ عنها. narrative reported يساوي current_quote حرفيًا. "
+            "فرّق الحالات: denied نفي صريح لحدوث/وجود الحقل؛ unknown عدم معرفة هل حدث أو ما قيمته؛ not_remembered نسيان المعلومة أو عدم تذكرها؛ declined اختيار صريح بعدم الإفصاح، وليس مجرد جواب بالنفي. النفي في amount/time/text يستخدم null، والنفي في binary فقط يستخدم false. "
+            "أمثلة تباينية عند pending_question_slot=deadline، وكل quote جزء حرفي من رسالة المثال: (1) «ما حدد مهلة» => message_goals=[answer_pending_question] وdeadline denied/null. (2) «ما بعرف إذا حدد مهلة» => answer_pending_question+unknown وdeadline unknown/null. (3) «ما بتذكر الموعد اللي حدده» => answer_pending_question+not_remembered وdeadline not_remembered/null. (4) «ما بدي أذكر الموعد» => answer_pending_question+decline_disclosure وdeadline declined/null. (5) «حدد الموعد بكرا» => answer_pending_question وdeadline reported بقيمة «بكرا». (6) «شو معنى المهلة؟» => ask_question فقط وfacts=[]؛ لا تختلق إجابة عن السؤال المعلّق أو واقعة. «لا، ما في تهديد» مع field=threat => denied بقيمة false. «ما دفعت» مع field=paid_amount => denied بقيمة null. "
+            "لحقول relation استخدم فقط same أو additional أو correction. سجّل goal=answer_pending_question إذا كانت الرسالة تجيب فعلًا عن الحقل المعلّق، حتى لو كان الجواب denied أو unknown أو not_remembered أو declined. لا تخلط النفي مع الامتناع، ولا تسجل decline_disclosure ما لم تقل الرسالة صراحة إن المستخدم لا يريد الإفصاح. "
+            "للمجهول الصريح استخدم status=unknown وvalue=null مع اقتباس الجملة التي تخص الحقل؛ لا تعمم الجهل على حقول أخرى. لا تستخدم unknown أو not_remembered أو declined لمجرد غياب المعلومة. لا تستخدم null أو نصًا فارغًا لقيمة reported. "
             "إذا أجاب المستخدم باختصار مثل نعم/لا عن السؤال المعلّق، أرفق question_ref المطابق لمعرف السؤال في السياق. لا تختلق معرفًا؛ عند غياب مرجع صالح لا تصدر الحقيقة المختصرة. "
             "استخدم context_refs وtarget_fact_id وtarget_event_id فقط لمراجع موجودة حرفيًا في السياق المسموح، وoperation=correct/same/add/support بحسب ما قاله المستخدم. لا تنقل قيمة أو اقتباسًا من حقيقة سابقة إلى اقتباس الرسالة الحالية. "
             "تحقق من نطاق النفي لكل جملة ومن هوية الحقل المقصود. لا تعتبر مجرد تشابه اسم أو صورة انتحالًا دون ادعاء هوية، ولا تستنتج اختراق الحساب الأصلي من القدرة على الدخول إليه. "
@@ -855,6 +917,7 @@ def generate_interview_extraction(text: str, pending_slot: str | None,
                            extraction_outcome=outcome,
                            status=status,
                            failure_code=failure_code,
+                           unsupported_message_goals=diag.get("unsupported_message_goals", []),
                            fact_fields=[item["field"] for item in facts] if facts is not None else [],
                            filtered_fact_count=len(filtered),
                            filtered_fact_fields=[item["field"] for item in filtered],

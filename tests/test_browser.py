@@ -167,6 +167,44 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
             await expect(self.page.locator("#runtime-detail")).to_contain_text("حالة التحقق: بنية صالحة")
             await expect(self.page.locator("#runtime-detail")).to_contain_text("الرجوع: إلى القواعد المحلية")
 
+    async def test_unsupported_decline_goal_is_shown_as_unapplied_interpretation(self):
+        from app.model import InterviewUnderstanding
+
+        config = {"provider": "ollama", "mode": "local_model", "model": "fixture:qwen",
+                  "configuration_complete": True, "configured": True, "local": True,
+                  "ollama_reasoning_effort": "none"}
+        trace = {"attempted": True, "status": "valid_empty", "extraction_outcome": "valid_empty",
+                 "response_valid": True, "result_accepted": False, "failure_code": "empty_extraction",
+                 "fact_fields": [], "filtered_fact_count": 0, "latency_ms": 98}
+        diagnostic = {"accepted": True, "raw_response": '{"message_goals":["decline_disclosure"],"facts":[]}',
+                      "filtered_facts": [], "unsupported_message_goals": ["decline_disclosure"],
+                      "message_plan": {"goals": [], "unsupported_goals": ["decline_disclosure"],
+                                       "guidance_question": None}}
+        understanding = InterviewUnderstanding([], diagnostic["message_plan"], diagnostic)
+
+        async def intercept(route):
+            if route.request.url.endswith("/api/provider/status"):
+                await route.fulfill(json={"config": config, "probe": {"configured": True,
+                    "service_reachable": True, "model_available": True, "models_count": 1,
+                    "failure_code": None}})
+            else:
+                await route.continue_()
+
+        await self.page.route("**/api/provider/status", intercept)
+        with patch("app.main.provider_config", return_value=config), \
+             patch("app.main.model_configured", return_value=True), \
+             patch("app.main.generate_interview_extraction", return_value=understanding), \
+             patch("app.main.last_call_trace", return_value=trace), \
+             patch("app.main.last_extraction_diagnostic", return_value=diagnostic):
+            await self.page.goto(self.base_url)
+            await self.page.locator("#start-case").click()
+            await self.page.locator("#message").fill("لا، ما حدد مهلة أو موعد للدفع.")
+            await self.page.locator("#model-consent").check()
+            await self.page.locator("#send").click()
+            await expect(self.page.locator("#runtime-detail")).to_contain_text("تفسير غير مدعوم لم يُطبّق")
+            await expect(self.page.locator("#runtime-detail")).to_contain_text("الامتناع عن الإفصاح")
+            self.assertNotIn("raw_response", await self.page.locator("#runtime-detail").inner_text())
+
     async def test_review_and_downloads_return_after_confirmed_case_is_resumed(self):
         await self.page.goto(self.base_url)
         await self.page.locator("#start-case").click()

@@ -274,7 +274,7 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
     local_qa = None
     external_answer = None
     model_facts = None
-    model_message_plan: dict[str, Any] = {"goals": [], "guidance_question": None}
+    model_message_plan: dict[str, Any] = {"goals": [], "unsupported_goals": [], "guidance_question": None}
     message_plan_applied = False
     extraction_context = None
     external_extraction_sent = False
@@ -302,7 +302,11 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
         if isinstance(candidate_plan, dict):
             plan_goals = candidate_plan.get("goals", [])
             if isinstance(plan_goals, list) and all(isinstance(goal, str) for goal in plan_goals):
+                unsupported_goals = candidate_plan.get("unsupported_goals", [])
+                if not isinstance(unsupported_goals, list) or not all(isinstance(goal, str) for goal in unsupported_goals):
+                    unsupported_goals = []
                 model_message_plan = {"goals": list(dict.fromkeys(plan_goals)),
+                                      "unsupported_goals": list(dict.fromkeys(unsupported_goals)),
                                       "guidance_question": candidate_plan.get("guidance_question")}
                 message_plan_applied = bool(model_message_plan["goals"])
                 message_interpretation = {**message_interpretation,
@@ -571,7 +575,9 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
                                                  if extraction_diagnostic else trace_response_valid)
                                                 if external_extraction_sent else None,
                            "accepted_fields": [fact.get("field") for fact in (model_facts or [])] if external_extraction_sent else [],
-                           "filtered_facts": filtered_diagnostics if external_extraction_sent else []},
+                           "filtered_facts": filtered_diagnostics if external_extraction_sent else [],
+                           "unsupported_message_goals": list((extraction_diagnostic or {}).get(
+                               "unsupported_message_goals", [])) if external_extraction_sent else []},
             "merge": {"performed": bool(last_model_merge_trace()),
                       "field_dispositions": last_model_merge_trace() if external_extraction_sent else []},
             "fallback": {"used": fallback_used, "to": fallback_to},

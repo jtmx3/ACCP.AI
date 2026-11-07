@@ -1,0 +1,127 @@
+{
+  "suite_id": "accp-extraction-contrastive-v1",
+  "edition": "1.0",
+  "synthetic": true,
+  "description_ar": "مجموعة اصطناعية ثابتة لاختبار فهم أهداف الرسالة وحالة الوقائع وقيمها، منفصلة عن تقييم المحادثة المتكاملة.",
+  "cases": [
+    {
+      "id": "D01-deadline-explicit-denial-original",
+      "pending_slot": "deadline",
+      "message": "لا، ما حدد مهلة أو موعد للدفع.",
+      "expected_goals": ["answer_pending_question"],
+      "expected_facts": [{"field": "deadline", "status": "denied", "value": null, "quote": "ما حدد مهلة أو موعد للدفع"}]
+    },
+    {
+      "id": "D02-deadline-explicit-denial-variant",
+      "pending_slot": "deadline",
+      "message": "ما في موعد نهائي للدفع.",
+      "expected_goals": ["answer_pending_question"],
+      "expected_facts": [{"field": "deadline", "status": "denied", "value": null, "quote": "ما في موعد نهائي للدفع"}]
+    },
+    {
+      "id": "U01-deadline-unknown-original",
+      "pending_slot": "deadline",
+      "message": "ما بعرف إذا حدد مهلة للدفع.",
+      "expected_goals": ["answer_pending_question", "unknown"],
+      "expected_facts": [{"field": "deadline", "status": "unknown", "value": null, "quote": "ما بعرف إذا حدد مهلة للدفع"}]
+    },
+    {
+      "id": "U02-deadline-unknown-variant",
+      "pending_slot": "deadline",
+      "message": "مش متأكد إذا أعطاني موعد نهائي.",
+      "expected_goals": ["answer_pending_question", "unknown"],
+      "expected_facts": [{"field": "deadline", "status": "unknown", "value": null, "quote": "مش متأكد إذا أعطاني موعد نهائي"}]
+    },
+    {
+      "id": "M01-deadline-not-remembered-original",
+      "pending_slot": "deadline",
+      "message": "ما بتذكر الموعد اللي حدده.",
+      "expected_goals": ["answer_pending_question", "not_remembered"],
+      "expected_facts": [{"field": "deadline", "status": "not_remembered", "value": null, "quote": "ما بتذكر الموعد اللي حدده"}]
+    },
+    {
+      "id": "M02-deadline-not-remembered-variant",
+      "pending_slot": "deadline",
+      "message": "نسيت موعد الدفع اللي حكالي عنه.",
+      "expected_goals": ["answer_pending_question", "not_remembered"],
+      "expected_facts": [{"field": "deadline", "status": "not_remembered", "value": null, "quote": "نسيت موعد الدفع اللي حكالي عنه"}]
+    },
+    {
+      "id": "R01-deadline-declined-original",
+      "pending_slot": "deadline",
+      "message": "ما بدي أذكر الموعد.",
+      "expected_goals": ["answer_pending_question", "decline_disclosure"],
+      "expected_facts": [{"field": "deadline", "status": "declined", "value": null, "quote": "ما بدي أذكر الموعد"}]
+    },
+    {
+      "id": "R02-deadline-declined-variant",
+      "pending_slot": "deadline",
+      "message": "أفضل عدم مشاركة مهلة الدفع.",
+      "expected_goals": ["answer_pending_question", "decline_disclosure"],
+      "expected_facts": [{"field": "deadline", "status": "declined", "value": null, "quote": "أفضل عدم مشاركة مهلة الدفع"}]
+    },
+    {
+      "id": "P01-deadline-reported-original",
+      "pending_slot": "deadline",
+      "message": "حدد الموعد بكرا.",
+      "expected_goals": ["answer_pending_question"],
+      "expected_facts": [{"field": "deadline", "status": "reported", "value": "بكرا", "quote": "حدد الموعد بكرا"}]
+    },
+    {
+      "id": "P02-deadline-reported-variant",
+      "pending_slot": "deadline",
+      "message": "قال ادفع قبل بكرا.",
+      "expected_goals": ["answer_pending_question"],
+      "expected_facts": [{"field": "deadline", "status": "reported", "value": "قبل بكرا", "quote": "قال ادفع قبل بكرا"}]
+    },
+    {
+      "id": "Q01-deadline-meaning-question",
+      "pending_slot": "deadline",
+      "message": "شو معنى المهلة؟",
+      "expected_goals": ["ask_question"],
+      "expected_facts": []
+    },
+    {
+      "id": "B01-binary-denial-published",
+      "pending_slot": "published",
+      "message": "لا، ما نشر الصور.",
+      "expected_goals": ["answer_pending_question"],
+      "expected_facts": [{"field": "published", "status": "denied", "value": false, "quote": "ما نشر الصور"}]
+    },
+    {
+      "id": "B02-binary-denial-threat",
+      "pending_slot": "threat",
+      "message": "ما في أي تهديد.",
+      "expected_goals": ["answer_pending_question"],
+      "expected_facts": [{"field": "threat", "status": "denied", "value": false, "quote": "ما في أي تهديد"}]
+    },
+    {
+      "id": "A01-amount-denial-paid",
+      "pending_slot": "paid_amount",
+      "message": "ما دفعت أي مبلغ.",
+      "expected_goals": ["answer_pending_question"],
+      "expected_facts": [{"field": "paid_amount", "status": "denied", "value": null, "quote": "ما دفعت أي مبلغ"}]
+    },
+    {
+      "id": "U03-amount-unknown-paid",
+      "pending_slot": "paid_amount",
+      "message": "ما بعرف إذا دفعت أي مبلغ.",
+      "expected_goals": ["answer_pending_question", "unknown"],
+      "expected_facts": [{"field": "paid_amount", "status": "unknown", "value": null, "quote": "ما بعرف إذا دفعت أي مبلغ"}]
+    },
+    {
+      "id": "M03-time-not-remembered-initial",
+      "pending_slot": "initial_time",
+      "message": "ما بتذكر وقت أول تواصل.",
+      "expected_goals": ["answer_pending_question", "not_remembered"],
+      "expected_facts": [{"field": "initial_time", "status": "not_remembered", "value": null, "quote": "ما بتذكر وقت أول تواصل"}]
+    },
+    {
+      "id": "R03-identity-declined",
+      "pending_slot": "identity",
+      "message": "ما بدي أذكر هويته.",
+      "expected_goals": ["answer_pending_question", "decline_disclosure"],
+      "expected_facts": [{"field": "identity", "status": "declined", "value": null, "quote": "ما بدي أذكر هويته"}]
+    }
+  ]
+}

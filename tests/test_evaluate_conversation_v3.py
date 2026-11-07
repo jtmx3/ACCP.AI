@@ -9,6 +9,13 @@ from scripts import evaluate_conversation_v3
 
 
 class ConversationV3EvaluatorTests(unittest.TestCase):
+    def test_platform_clarification_counts_as_guidance_response_without_claiming_a_source(self):
+        session = {"messages": [{"role": "assistant", "kind": "guidance_clarification",
+                                 "text": "لأي تطبيق تقصد؟", "citations": []}]}
+        checks = evaluate_conversation_v3._assert_turn(
+            session, {}, 0, {"assistant_answer": True, "no_citations": True, "answer_contains": "أي تطبيق"})
+        self.assertTrue(all(check["passed"] for check in checks), checks)
+
     def test_no_citations_expectation_detects_cross_platform_source_leak(self):
         leaking = {"messages": [{"role": "assistant", "kind": "answer", "text": "أي تطبيق؟",
                                  "citations": [{"id": "GLOBAL-IG-SECURITY-2026"}]}]}
@@ -37,7 +44,7 @@ class ConversationV3EvaluatorTests(unittest.TestCase):
             generation.assert_not_called()
             run_suite.assert_not_called()
             report = json.loads(output.read_text(encoding="utf-8"))
-            self.assertEqual(report["evaluation_version"], "conversation-v3-3")
+            self.assertEqual(report["evaluation_version"], "conversation-v3-3.1")
             self.assertEqual(report["model_run_status"], "not_run")
             self.assertEqual(report["provider_attempts"], 0)
             self.assertEqual(report["results"], [])
@@ -66,7 +73,7 @@ class ConversationV3EvaluatorTests(unittest.TestCase):
                  patch("app.main.last_call_trace", return_value=trace):
                 report = evaluate_conversation_v3.run_suite(suite_path, mode="model")
 
-        self.assertEqual(report["evaluation_version"], "conversation-v3-3")
+        self.assertEqual(report["evaluation_version"], "conversation-v3-3.1")
         self.assertEqual(report["model_eligible_turns"], 22)
         self.assertEqual(report["provider_attempts"], 22)
         self.assertEqual(report["provider_fallbacks"], 22)

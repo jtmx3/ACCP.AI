@@ -420,7 +420,7 @@ class OptionalModelTests(unittest.TestCase):
         text = "في شخص يهددني"
         raw = json.dumps({"facts": [{"field": "threat", "status": "reported", "value": True,
                                      "quote": "نص مخترع"}]}, ensure_ascii=False)
-        def fake_chat(_messages):
+        def fake_chat(_messages, **_kwargs):
             from app.model import _update_call_trace
             _update_call_trace(attempted=True, status="generated", result_accepted=False,
                                failure_code=None, latency_ms=1.0)

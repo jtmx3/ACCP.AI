@@ -164,7 +164,7 @@ class RoutedRealCorpusGuidanceTests(unittest.TestCase):
         text = "بدي نصيحة أحافظ فيها على حسابي."
         result = self.ask_with_simulated_goal_plan(text, text)
         response = next(message for message in reversed(result["session"]["messages"])
-                        if message.get("role") == "assistant" and message.get("kind") == "answer")
+                        if message.get("role") == "assistant" and message.get("kind") == "guidance_clarification")
         self.assertIn("أي تطبيق", response["text"])
         self.assertEqual(response["citations"], [])
         self.assertNotIn("GLOBAL-IG-SECURITY-2026", response["text"])

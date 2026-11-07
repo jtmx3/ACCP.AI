@@ -30,6 +30,7 @@ from app.store import Store
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SUITE = ROOT / "tests" / "conversation_v3_acceptance.json"
+EVALUATION_VERSION = "conversation-v3-3.1"
 TOPIC_IDS = {
     "account_security": {"GLOBAL-IG-SECURITY-2026"},
     "evidence": {"AU-ESAFETY-EVIDENCE-2026", "AU-ESAFETY-IMAGE-ABUSE-2026"},
@@ -109,7 +110,7 @@ def _assert_turn(session: dict[str, Any], previous: dict[str, Any], before_messa
 
     new_messages = session.get("messages", [])[before_message_count:]
     assistant = [m for m in new_messages if m.get("role") == "assistant"]
-    answers = [m for m in assistant if m.get("kind") == "answer"]
+    answers = [m for m in assistant if m.get("kind") in {"answer", "guidance_clarification"}]
     followups = [m for m in assistant if m.get("kind") in {"question", "clarification"}]
     if "assistant_answer" in expected:
         add("assistant_answer", bool(answers) == expected["assistant_answer"],
@@ -444,7 +445,7 @@ def run_suite(suite_path: Path, mode: str = "rules", with_context: bool = False)
         "turn_total_elapsed_p95_ms": _provider_percentile(total_turn_latencies, 0.95),
     }
     return {
-        "evaluation_version": "conversation-v3-3",
+        "evaluation_version": EVALUATION_VERSION,
         "mode": mode,
         "suite_id": suite["suite_id"],
         "suite_version": suite["version"],
@@ -516,7 +517,7 @@ def main() -> int:
     if args.mode == "model":
         preflight = probe_provider(timeout=max(0.1, args.preflight_timeout))
         if not preflight.get("configured") or not preflight.get("service_reachable") or not preflight.get("model_available"):
-            report = {"evaluation_version": "conversation-v3-3", "mode": "model", "model_run_status": "not_run",
+            report = {"evaluation_version": EVALUATION_VERSION, "mode": "model", "model_run_status": "not_run",
                       "provider_configured": bool(preflight.get("configured")), "provider": preflight,
                       "model_eligible_turns": 0, "provider_attempts": 0, "provider_fallback_rate": None,
                       "provider_accepted_responses": 0,
@@ -539,7 +540,7 @@ def main() -> int:
             return 2
         generation_test = test_provider_generation()
         if not generation_test.get("success"):
-            report = {"evaluation_version": "conversation-v3-3", "mode": "model", "model_run_status": "not_run",
+            report = {"evaluation_version": EVALUATION_VERSION, "mode": "model", "model_run_status": "not_run",
                       "provider_configured": True, "provider": preflight, "preflight_generation": generation_test,
                       "model_eligible_turns": 0, "provider_attempts": 0, "provider_fallback_rate": None,
                       "provider_accepted_responses": 0,

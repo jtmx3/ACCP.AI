@@ -319,11 +319,13 @@ def answer_question(query: str, jurisdiction: str | None, context_text: str = ""
     if platform_needed and platform_ambiguous:
         response = "ظهر أكثر من تطبيق أو تعارضت معلومات المنصة. أي تطبيق تقصد في هذا السؤال؟ سأقتصر على مصدره الرسمي."
         return {"text": response, "citations": [], "corpus_version": corpus["corpus_version"],
-                "resolved_platform": None, "resolved_topics": sorted(topics), "resolved_jurisdiction": effective_scope}
+                "resolved_platform": None, "resolved_topics": sorted(topics), "resolved_jurisdiction": effective_scope,
+                "clarification_required": "platform"}
     if platform_needed and platform is None:
         response = "لأي تطبيق تقصد؟ اذكر اسم التطبيق، مثل واتساب أو إنستغرام، لأعرض إرشادات موثقة تخصه فقط."
         return {"text": response, "citations": [], "corpus_version": corpus["corpus_version"],
-                "resolved_platform": None, "resolved_topics": sorted(topics), "resolved_jurisdiction": effective_scope}
+                "resolved_platform": None, "resolved_topics": sorted(topics), "resolved_jurisdiction": effective_scope,
+                "clarification_required": "platform"}
 
     sources = retrieve(current_topic_text, effective_scope, corpus=corpus, context_text=context_text,
                        allow_nonlocal_general=(allow_nonlocal_general or not _requires_jurisdiction(query)),
@@ -342,7 +344,8 @@ def answer_question(query: str, jurisdiction: str | None, context_text: str = ""
         else:
             response = "ما عندي مصدر موثوق أو مقتطف كافٍ يطابق موضوع السؤال ضمن النطاق المحدد؛ أمتنع عن الاستنتاج من تطابق لفظي ضعيف."
         return {"text": response, "citations": [], "corpus_version": corpus["corpus_version"],
-                "resolved_platform": platform, "resolved_topics": sorted(topics), "resolved_jurisdiction": effective_scope}
+                "resolved_platform": platform, "resolved_topics": sorted(topics), "resolved_jurisdiction": effective_scope,
+                "clarification_required": None}
 
     if effective_scope:
         lines = ["بحسب المقتطفات الموثقة؛ تظهر جهة المصدر ونطاقها بجوار كل مقتطف:"]
@@ -366,7 +369,8 @@ def answer_question(query: str, jurisdiction: str | None, context_text: str = ""
                           "scope_note": source.get("scope_note"), "content_version": source["content_version"], "excerpt": excerpt})
     lines.append("\nهذه مقتطفات من المصادر فقط؛ لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية. إذا لم يُجب المقتطف عن سؤالك، أمتنع عن إضافة استنتاج.")
     return {"text": "".join(lines), "citations": citations, "corpus_version": corpus["corpus_version"],
-            "resolved_platform": platform, "resolved_topics": sorted(topics), "resolved_jurisdiction": effective_scope}
+            "resolved_platform": platform, "resolved_topics": sorted(topics), "resolved_jurisdiction": effective_scope,
+            "clarification_required": None}
 
 
 if __name__ == "__main__":

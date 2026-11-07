@@ -520,7 +520,7 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
 
         self.page.on("request", capture_message_request)
 
-        def fake_chat(messages):
+        def fake_chat(messages, **_kwargs):
             from app.model import _update_call_trace
             _update_call_trace(attempted=True, status="generated", latency_ms=1.0, result_accepted=True)
             payload = json.loads(messages[1]["content"])

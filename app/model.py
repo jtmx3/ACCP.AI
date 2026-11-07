@@ -14,6 +14,7 @@ from app.fields import (ALLOWED_EXTRACTION_FIELDS, ALLOWED_STATUSES, BINARY_FIEL
                         ENGINE_OWNED_FIELDS, FIELD_ANCHORS, FIELD_SCHEMA, RELATION_VALUES)
 
 _CALL_TRACE: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar("accp_model_call_trace", default=None)
+_CALL_TRACES: contextvars.ContextVar[list[dict[str, Any]]] = contextvars.ContextVar("accp_model_call_traces", default=[])
 _EXTRACTION_DIAGNOSTIC: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar("accp_extraction_diagnostic", default=None)
 EXTRACTION_REQUEST_CHAR_BUDGET = 24_000
 EXTRACTION_OUTPUT_CHAR_RESERVE = 6_000
@@ -78,11 +79,17 @@ def model_configured() -> bool:
 
 def reset_call_trace() -> None:
     _CALL_TRACE.set(None)
+    _CALL_TRACES.set([])
 
 
 def last_call_trace() -> dict[str, Any] | None:
     trace = _CALL_TRACE.get()
     return dict(trace) if trace else None
+
+
+def call_trace_history() -> list[dict[str, Any]]:
+    """Return bounded per-request provider traces without prompts, responses, or credentials."""
+    return [dict(item) for item in _CALL_TRACES.get()]
 
 
 def last_extraction_diagnostic() -> dict[str, Any] | None:
@@ -95,6 +102,12 @@ def _update_call_trace(**values: Any) -> None:
     trace = dict(_CALL_TRACE.get() or {})
     trace.update(values)
     _CALL_TRACE.set(trace)
+    traces = list(_CALL_TRACES.get())
+    if traces:
+        traces[-1] = dict(trace)
+    else:
+        traces.append(dict(trace))
+    _CALL_TRACES.set(traces)
 
 
 def _base_url() -> str:
@@ -121,7 +134,12 @@ def _timeout_seconds() -> float:
         return 60.0
 
 
-def _chat(messages: list[dict[str, str]]) -> str | None:
+def _chat(messages: list[dict[str, str]], *, purpose: str = "unspecified") -> str | None:
+    trace = {"purpose": purpose}
+    _CALL_TRACE.set(trace)
+    traces = list(_CALL_TRACES.get())
+    traces.append(dict(trace))
+    _CALL_TRACES.set(traces)
     cfg = provider_config()
     if not cfg["configured"]:
         _update_call_trace(attempted=False, status="not_configured", result_accepted=False, latency_ms=None)
@@ -186,15 +204,18 @@ def _models_url(cfg: dict[str, Any]) -> str:
 
 def probe_provider(timeout: float = 5.0) -> dict[str, Any]:
     """Non-generative probe: configuration, service reachability, and selected model presence."""
+    started = time.perf_counter()
     cfg = provider_config()
     result = {
         "provider": cfg["provider"], "mode": cfg["mode"], "model": cfg["model"],
         "configured": cfg["configured"], "service_reachable": False,
         "model_available": False, "models_count": 0, "failure_code": None,
+        "probe_performed": False, "elapsed_ms": 0.0,
     }
     if not cfg["configured"]:
         result["failure_code"] = "not_configured"
         return result
+    result["probe_performed"] = True
     headers = {"Accept": "application/json"}
     if not cfg["local"]:
         headers["Authorization"] = f"Bearer {_api_key()}"
@@ -222,6 +243,7 @@ def probe_provider(timeout: float = 5.0) -> dict[str, Any]:
         result["failure_code"] = "timeout" if isinstance(reason, TimeoutError) or "timed out" in str(reason).lower() else "unreachable"
     except (ValueError, KeyError, TypeError):
         result["failure_code"] = "invalid_model_list"
+    result["elapsed_ms"] = round((time.perf_counter() - started) * 1000, 3)
     return result
 
 
@@ -233,7 +255,7 @@ def test_provider_generation() -> dict[str, Any]:
         {"role": "system", "content": "أعد JSON صالحًا فقط بالشكل {\"ok\":true}. لا تضف أي نص آخر."},
         {"role": "user", "content": "اختبار اتصال ثابت. أعد {\"ok\":true}."},
     ]
-    content = _chat(prompt)
+    content = _chat(prompt, purpose="provider_generation_test")
     success = False
     if content:
         try:
@@ -242,12 +264,12 @@ def test_provider_generation() -> dict[str, Any]:
             success = False
     trace = last_call_trace() or {}
     if trace.get("attempted"):
-        trace["generation_test_success"] = success
-        trace["status"] = "generation_succeeded" if success else "generation_rejected"
-        trace["result_accepted"] = success
+        _update_call_trace(generation_test_success=success,
+                           status="generation_succeeded" if success else "generation_rejected",
+                           result_accepted=success)
         if not success and not trace.get("failure_code"):
-            trace["failure_code"] = "invalid_test_json"
-        _CALL_TRACE.set(trace)
+            _update_call_trace(failure_code="invalid_test_json")
+        trace = last_call_trace() or trace
     return {
         "success": success,
         "attempted": bool(trace.get("attempted")),
@@ -298,7 +320,7 @@ def generate_grounded_answer(question: str, sources: list[dict[str, Any]]) -> di
         {"role": "system", "content": "أعد JSON فقط بالشكل {\"claims\":[{\"source_id\":\"...\",\"quote\":\"...\"}]}. اختر من المقتطفات اقتباسًا حرفيًا قصيرًا يدعم جواب السؤال. لا تكتب أي claim أو نص حر. يجب أن يكون quote سلسلة حرفية متصلة من مقتطف المصدر نفسه. إذا لم يوجد مقتطف يجيب السؤال، أعد {\"claims\":[]}. لا تستنتج أو تضف أي معلومات."},
         {"role": "user", "content": json.dumps({"question": question, "sources": evidence}, ensure_ascii=False)},
     ]
-    draft = _chat(messages)
+    draft = _chat(messages, purpose="grounded_answer")
     result = validate_extractive_claims(draft, sources) if draft else None
     if last_call_trace() and last_call_trace().get("attempted"):
         _update_call_trace(result_accepted=result is not None,
@@ -786,7 +808,7 @@ def generate_interview_extraction(text: str, pending_slot: str | None,
                            request_char_budget=EXTRACTION_REQUEST_CHAR_BUDGET,
                            context_sent=False, context_char_count=0)
         return None
-    payload = _chat(messages)
+    payload = _chat(messages, purpose="interview_extraction")
     _update_call_trace(prompt_char_count=prompt_char_count,
                        output_char_reserve=EXTRACTION_OUTPUT_CHAR_RESERVE,
                        request_char_budget=EXTRACTION_REQUEST_CHAR_BUDGET,

@@ -106,7 +106,7 @@ def new_state(session_id: str) -> dict[str, Any]:
     opening["question_plan"] = question_plan({"facts": {}, "money_events": []}, "narrative")
     return {"schema_version": SCHEMA_VERSION, "session_id": session_id, "stage": "interview", "revision": 0,
             "created_at": stamp, "updated_at": stamp, "messages": [opening], "facts": {}, "money_events": [],
-            "money_corrections": [],
+            "money_corrections": [], "pending_guidance": None,
             "pending_slot": "narrative", "clarifications": {}, "assessment": None,
             "confirmed": False, "confirmed_digest": None, "confirmation_history": [],
             "summary_version": 1, "last_response": opening["text"]}
@@ -248,7 +248,27 @@ def _record(state: dict[str, Any], key: str, status: str, value: Any, quote: str
         return True
     temporal_field = key in {"direct_danger", "repeated", "active_unauthorized_funds", "latest_time",
                              "initial_time", "discovery_time", "account_creation_time"}
-    if old and temporal_field and old.get("status") in TERMINAL and old.get("status") != "conflict" and (old.get("status") != status or old.get("value") != value):
+    if old and key in {"latest_time", "initial_time", "discovery_time", "account_creation_time"} \
+            and old.get("status") in TERMINAL and old.get("status") != "conflict" \
+            and (old.get("status") != status or old.get("value") != value):
+        explicit_correction = reason == "temporal_clarification" or any(
+            marker in normalize(quote) for marker in ("تصحيح", "قصدي", "اقصد", "المعلومة الصحيحة", "بدل"))
+        if not explicit_correction:
+            alternatives = old.get("alternatives", [{"status": old["status"], "value": old.get("value"),
+                "quote": old.get("quote"), "message_id": old.get("message_id"), "source": old.get("source", "rules")}])
+            alternatives.append({"status": status, "value": value, "quote": quote, "message_id": message_id,
+                                 "source": "model" if reason == "optional_model_extraction" else "rules", **reference_meta})
+            old.setdefault("history", []).append({"status": old["status"], "value": old.get("value"),
+                "quote": old.get("quote"), "message_id": old.get("message_id"), "at": now_iso(),
+                "reason": "conflicting_temporal_user_statement"})
+            old.update({"status": "conflict", "value": None, "alternatives": alternatives,
+                        "quote": quote, "message_id": message_id, "question_id": question_id,
+                        "updated_at": now_iso(), "source": "conflict"})
+            return True
+        old.setdefault("history", []).append({"status": old["status"], "value": old.get("value"), "quote": old.get("quote"),
+                                               "message_id": old.get("message_id"), "at": now_iso(),
+                                               "reason": "temporal_clarification"})
+    elif old and temporal_field and old.get("status") in TERMINAL and old.get("status") != "conflict" and (old.get("status") != status or old.get("value") != value):
         old.setdefault("history", []).append({"status": old["status"], "value": old.get("value"), "quote": old.get("quote"),
                                                "message_id": old.get("message_id"), "at": now_iso(),
                                                "reason": reason if reason != "user_statement" else "new_temporal_information"})
@@ -571,7 +591,8 @@ def _incident_detail_candidate(text: str) -> bool:
 
 
 _TIME_EXPRESSION_PATTERNS = (
-    r"(?<!\w)(?:اليوم|أمس|امس|البارحة|مبارح)(?!\w)",
+    r"(?<!\w)(?:اليوم|أمس|امس|البارحة|مبارح)(?:\s+(?:حوالي|تقريباً|تقريبا|نحو|قرابة))?(?:\s+(?:على\s+)?(?:الساعة\s*)?[0-9٠-٩]{1,2}(?::[0-9٠-٩]{2})?(?:\s*(?:المسا|مسا|مساء|الصبح|الصباح|صباحا|بالليل|ليلا))?)?(?!\w)",
+    r"(?<!\w)(?:الساعة\s*)?[0-9٠-٩]{1,2}:[0-9٠-٩]{2}(?!\w)",
     r"(?<!\w)(?:قبل|منذ)\s+(?:ساعتين|ساعة|ساعات|دقائق|دقيقة|يومين|أسبوعين|اسبوعين|أسبوع|اسبوع|شهرين|سنتين|[0-9٠-٩]+\s*(?:ثانية|دقيقة|ساعة|يوم|أيام|اسبوع|أسبوع|شهر|سنة)?)(?!\w)",
     r"(?<!\w)(?:الأسبوع|الاسبوع|الشهر|السنة)\s+(?:الماضي|الفائت)(?!\w)",
     r"(?<!\w)الساعة\s+[0-9٠-٩]{1,2}(?::[0-9٠-٩]{2})?(?!\w)",
@@ -589,7 +610,7 @@ def _time_expression(text: str) -> str | None:
 
 def _temporal_clauses(text: str) -> list[str]:
     return [part.strip() for part in re.split(
-        r"[,،؛.!?؟\n]+|\b(?:بس|لكن|غير أن|إلا أن)\b", text
+        r"[,،؛.!?؟\n]+|(?=\s+(?:أما|اما|لكن|بينما|بس|غير أن|إلا أن)\s+)", text
     ) if part.strip()]
 
 
@@ -598,6 +619,72 @@ def _is_discovery_clause(clause: str) -> bool:
     explicit = any(marker in normalized for marker in ("اكتشفت", "اكتشف", "انتبهت", "لاحظت"))
     found_profile = "لقيت" in normalized and any(marker in normalized for marker in ("حساب", "صفحه", "صفحة", "بروفايل"))
     return bool((explicit or found_profile) and _time_expression(clause))
+
+
+_CREATION_MARKERS = ("انشا", "انشاء", "انشئ", "انشي", "انعمل", "انعملت", "انشائه", "انشايه",
+                     "انشائها", "انشاءه", "created account")
+_INITIAL_EVENT_MARKERS = ("اول", "بدا", "بداية", "اول تواصل", "اول رسالة", "اول تهديد", "وصلني")
+_LATEST_EVENT_MARKERS = ("اخر", "احدث", "رجع", "كرر", "مرة ثانية", "مره ثانيه", "بعتلي", "ارسللي",
+                         "تواصل معي مجددا", "اليوم رجع")
+
+
+def _temporal_event_field(clause: str, pending: str | None = None) -> str | None:
+    normalized = normalize(clause)
+    if any(marker in normalized for marker in _CREATION_MARKERS):
+        return "account_creation_time"
+    if any(marker in normalized for marker in ("اكتشفت", "اكتشف", "انتبهت", "لاحظت")):
+        return "discovery_time"
+    if any(marker in normalized for marker in _LATEST_EVENT_MARKERS):
+        return "latest_time"
+    if any(marker in normalized for marker in _INITIAL_EVENT_MARKERS):
+        return "initial_time"
+    if pending in {"initial_time", "discovery_time", "account_creation_time", "latest_time"}:
+        return pending
+    return None
+
+
+def _temporal_signature(value: Any) -> tuple[Any, ...] | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    normalized = normalize(value).translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789"))
+    expression = _time_expression(normalized)
+    if expression:
+        normalized = normalize(expression).translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789"))
+    day = next((marker for marker in ("اليوم", "امس", "مبارح", "البارحه", "قبل", "منذ", "الاسبوع الماضي", "الشهر الماضي", "السنه الماضيه") if marker in normalized), None)
+    hour_match = re.search(r"(?:الساعه\s*)?(\d{1,2})(?::(\d{2}))?", normalized)
+    hour = (int(hour_match.group(1)), int(hour_match.group(2) or 0)) if hour_match else None
+    period = next((marker for marker in ("صباحا", "الصباح", "الصبح", "مسا", "المسا", "مساء", "بالليل", "ليلا") if marker in normalized), None)
+    approximate = any(marker in normalized for marker in ("حوالي", "تقريبا", "نحو", "قرابه"))
+    if day or hour or period:
+        return (day, hour, period, approximate)
+    return (re.sub(r"\s+", " ", normalized).strip(),)
+
+
+def _temporal_candidate_matches(key: str, candidate: dict[str, Any], text: str,
+                                pending: str | None, rule_fact: dict[str, Any] | None) -> tuple[bool, str]:
+    if candidate.get("status") != "reported":
+        return True, ""
+    quote = candidate.get("quote")
+    value = candidate.get("value")
+    if not isinstance(quote, str) or not quote or quote not in text:
+        return False, "temporal_quote_not_in_current_message"
+    source_clauses = [clause for clause in _temporal_clauses(text) if quote in clause]
+    if not source_clauses:
+        return False, "temporal_quote_event_not_identified"
+    fields = {_temporal_event_field(clause, pending) for clause in source_clauses}
+    fields.discard(None)
+    if fields != {key}:
+        return False, "temporal_quote_event_mismatch"
+    quoted_time = next((_time_expression(clause) for clause in source_clauses if _time_expression(clause)), None)
+    proposed_signature = _temporal_signature(value)
+    quoted_signature = _temporal_signature(quoted_time) if quoted_time else None
+    if proposed_signature is None or quoted_signature is None or proposed_signature != quoted_signature:
+        return False, "temporal_value_not_supported_by_quote"
+    if rule_fact and rule_fact.get("message_id") and rule_fact.get("quote"):
+        rule_quote = rule_fact.get("quote")
+        if rule_quote in text and _temporal_event_field(rule_quote, pending) != key:
+            return False, "temporal_rule_fact_event_mismatch"
+    return True, ""
 
 
 def _legacy_initial_time_is_discovery(fact: dict[str, Any] | None) -> bool:
@@ -618,35 +705,37 @@ def _extract_temporal_facts(state: dict[str, Any], text: str, mid: str, question
         time_value = _time_expression(clause)
         discovery_clause = _is_discovery_clause(clause)
         if discovery_clause:
-            _set_answer(state, "discovery_time", time_value, "reported", clause, mid, question_id, changed,
-                        reason="temporal_clarification")
+            _set_answer(state, "discovery_time", time_value, "reported", clause, mid, question_id, changed)
             if _legacy_initial_time_is_discovery(state["facts"].get("initial_time")):
                 _set_answer(state, "initial_time", None, "unknown", clause, mid, question_id, changed,
                             reason="temporal_clarification")
 
-        creation_clause = any(marker in normalized for marker in ("انشا", "انشاء", "انشئ", "انشي", "انعمل", "انعملت", "انشائه", "انشايه", "انشائها", "انشاءه", "موعد انشائه", "created account"))
+        creation_clause = any(marker in normalized for marker in _CREATION_MARKERS)
         creation_unknown = creation_clause and _is_unknown(clause) and any(marker in normalized for marker in ("متى", "متي", "وقت", "تاريخ", "موعد"))
         if creation_unknown:
-            _set_answer(state, "account_creation_time", None, "unknown", clause, mid, question_id, changed,
-                        reason="temporal_clarification")
+            quote_clause = re.sub(r"^\s*(?:لكن|بس)\s+", "", clause)
+            _set_answer(state, "account_creation_time", None, "unknown", quote_clause, mid, question_id, changed)
             if "initial_time" not in changed and _legacy_initial_time_is_discovery(state["facts"].get("initial_time")):
-                _set_answer(state, "initial_time", None, "unknown", clause, mid, question_id, changed,
+                _set_answer(state, "initial_time", None, "unknown", quote_clause, mid, question_id, changed,
                             reason="temporal_clarification")
         elif creation_clause and time_value:
-            _set_answer(state, "account_creation_time", time_value, "reported", clause, mid, question_id, changed,
-                        reason="temporal_clarification")
+            _set_answer(state, "account_creation_time", time_value, "reported", clause, mid, question_id, changed)
 
         if pending == "account_creation_time" and not creation_clause and not discovery_clause:
             if _unknown_status_for_pending(clause, "account_creation_time"):
-                _set_answer(state, "account_creation_time", None, "unknown", clause, mid, question_id, changed,
-                            reason="temporal_clarification")
+                _set_answer(state, "account_creation_time", None, "unknown", clause, mid, question_id, changed)
             elif time_value:
-                _set_answer(state, "account_creation_time", time_value, "reported", clause, mid, question_id, changed,
-                            reason="temporal_clarification")
+                _set_answer(state, "account_creation_time", time_value, "reported", clause, mid, question_id, changed)
 
-        if pending == "initial_time" and time_value and not discovery_clause:
-            _set_answer(state, "initial_time", clause, "reported", clause, mid, question_id, changed,
-                        reason="temporal_clarification")
+        if time_value:
+            event_field = _temporal_event_field(clause, pending)
+            if event_field in {"initial_time", "discovery_time", "account_creation_time", "latest_time"}:
+                if event_field == "initial_time" and discovery_clause:
+                    continue
+                if event_field == "latest_time":
+                    _set_answer(state, "latest_time", time_value, "reported", clause, mid, question_id, changed)
+                elif event_field == "initial_time" and not creation_clause and not discovery_clause:
+                    _set_answer(state, "initial_time", time_value, "reported", clause, mid, question_id, changed)
 
 
 def _discovery_is_only_known_time(text: str) -> bool:
@@ -716,17 +805,6 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
         _set_answer(state, "narrative", text, "reported", text, mid, question_id, changed)
     if pending == "unclassified_details" and _narrative_has_description(text) and impersonation_polarity is not True:
         _set_answer(state, "unclassified_details", text, "reported", text, mid, question_id, changed)
-
-    # Independently extract facts volunteered before their question.
-    has_time_reference = any(_time_expression(clause) for clause in _temporal_clauses(text))
-    if has_time_reference:
-        for clause in _temporal_clauses(text):
-            clause_norm = normalize(clause)
-            if (any(k in clause_norm for k in ("اول", "بدا", "وصلني", "بداية", "اول تهديد"))
-                    and not any(marker in clause_norm for marker in ("اكتشفت", "اكتشف"))):
-                _set_answer(state, "initial_time", clause, "reported", clause, mid, question_id, changed)
-        if any(k in t for k in ("اخر تواصل", "اخر مره", "رجع", "كرر", "مرة ثانية", "مره ثانيه", "بعتلي", "ارسللي", "تواصل معي مجددا")):
-            _set_answer(state, "latest_time", text, "reported", text, mid, question_id, changed)
 
     if any(term in t for term in ("بلاحقني", "ملاحقة", "بضايقني", "تعرضت لمضايقة", "عم بتعرض لمضايقة", "تحرش بي", "بتحرش فيني")) and not any(term in t for term in ("ما في مضايقة", "مش مضايقة", "ما بتحرش")):
         _set_answer(state, "harassment", True, "reported", text, mid, question_id, changed)
@@ -970,8 +1048,6 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
     # Generic terminal answer states, with provenance tied to the asked slot.
     if pending in QUESTIONS and pending not in changed and pending_unknown_status and pending not in ("narrative", "details"):
         _set_answer(state, pending, None, pending_unknown_status, text, mid, question_id, changed)
-    if pending == "initial_time" and not state["facts"].get("initial_time") and any(k in t for k in ("أمس", "امس", "اليوم", "البارحة", "مبارح", "الساعة", "صباح", "مسا")):
-        _set_answer(state, "initial_time", text, "reported", text, mid, question_id, changed)
     if pending == "details" and not state["facts"].get("details") and _incident_detail_candidate(text) and unknown_status is None:
         _set_answer(state, "details", text, "reported", text, mid, question_id, changed)
     if pending == "direct_danger" and not state["facts"].get("direct_danger") and pending_unknown_status:
@@ -983,7 +1059,10 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
 
 def _user_intent(text: str) -> str | None:
     t = normalize(text)
-    if any(normalize(w) in t for w in ("ليش الأولوية", "ليش الدرجة", "لماذا الدرجة", "كيف احتسبت الأولوية", "سبب التصنيف")):
+    assessment_terms = ("اولوية", "الاولويه", "الدرجه", "التصنيف", "التصنيف", "الفرز", "التقييم")
+    why_terms = ("ليش", "لماذا", "كيف احتسب", "سبب")
+    if (any(normalize(w) in t for w in ("ليش الأولوية", "ليش الدرجة", "لماذا الدرجة", "كيف احتسبت الأولوية", "سبب التصنيف"))
+            or (any(term in t for term in why_terms) and any(term in t for term in assessment_terms))):
         return "assessment_why"
     if any(normalize(w) in t for w in ("ليش بتسأل", "ليش بدك تعرف", "لماذا تسأل", "ليش السؤال")):
         return "why"
@@ -1603,6 +1682,10 @@ def question_plan(state: dict[str, Any], slot: str | None) -> dict[str, str] | N
     if not slot or slot not in QUESTIONS:
         return None
     reason, condition = QUESTION_RATIONALES.get(slot, ("لاستكمال المعلومة ذات الصلة", "المعلومة غير محسومة"))
+    fact = state.get("facts", {}).get(slot, {})
+    if fact.get("status") == "conflict" and slot in {"initial_time", "latest_time", "discovery_time", "account_creation_time"}:
+        reason = "توجد إفادتان زمنيتان مختلفتان لهذا الحدث، ولا أختار إحداهما نيابةً عنك"
+        condition = "وقت الحدث غير محسوم بين البدائل المسجلة"
     plan = {"slot": slot, "field_label": LABELS.get(slot, slot), "reason": reason, "condition": condition}
     unresolved = _unresolved_money_relation(state) if slot in {"requested_amount_relation", "paid_amount_relation"} else None
     if unresolved:
@@ -1612,6 +1695,12 @@ def question_plan(state: dict[str, Any], slot: str | None) -> dict[str, str] | N
 
 def _add_question_message(state: dict[str, Any], slot: str, text: str | None = None,
                           kind: str = "question") -> dict[str, Any]:
+    fact = state.get("facts", {}).get(slot, {})
+    if text is None and fact.get("status") == "conflict" and slot in {"initial_time", "latest_time", "discovery_time", "account_creation_time"}:
+        alternatives = fact.get("alternatives", [])
+        values = [str(item.get("value")) for item in alternatives if item.get("status") == "reported" and item.get("value")]
+        choices = " أو ".join(dict.fromkeys(values))
+        text = f"وصلتني أوقات مختلفة ل{LABELS.get(slot, 'هذا الحدث')}: {choices}. أي وقت تقصد؟ هذا اختلاف بين التفسيرات المسجلة، وليس حكمًا بأن إفادتك غير صحيحة."
     message = _add_message(state, "assistant", text if text is not None else QUESTIONS[slot], kind)
     message["question_plan"] = question_plan(state, slot)
     return message
@@ -1669,11 +1758,29 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
     question_id = state["messages"][-2]["id"] if len(state["messages"]) >= 2 and state["messages"][-2]["role"] == "assistant" else None
     for candidate in model_facts or []:
         key = candidate.get("field")
+        if key in {"initial_time", "latest_time", "discovery_time", "account_creation_time"}:
+            if key == "initial_time" and _discovery_is_only_known_time(text):
+                _trace_model_merge(key, "ignored", "discovery_time_is_not_event_start")
+                continue
+            rule_fact = state["facts"].get(key)
+            supported, rejection_reason = _temporal_candidate_matches(key, candidate, text, pending, rule_fact)
+            if not supported:
+                _trace_model_merge(key, "ignored", rejection_reason,
+                                   merge_rejection_code="temporal_event_or_value_mismatch")
+                continue
+            if key in changed and rule_fact:
+                same_semantics = (rule_fact.get("status") == candidate.get("status")
+                                  and _temporal_signature(rule_fact.get("value"))
+                                  == _temporal_signature(candidate.get("value")))
+                if same_semantics:
+                    _trace_model_merge(key, "agrees_with_rules", "same_turn_temporal_meaning_matches_rule_extraction",
+                                       rule_extraction_agrees=True, rule_extraction_outcome="semantic_agreement")
+                else:
+                    _trace_model_merge(key, "ignored", "same_turn_temporal_interpretation_differs_from_supported_rule_fact",
+                                       merge_rejection_code="temporal_interpretation_mismatch")
+                continue
         if key in {"direct_danger", "priority_score", "confirmed", "stage"}:
             _trace_model_merge(key, "ignored", "engine_owned_safety_or_decision_field")
-            continue
-        if key == "initial_time" and _discovery_is_only_known_time(text):
-            _trace_model_merge(key, "ignored", "discovery_time_is_not_event_start")
             continue
         # Amount facts must pass through the money-event relation parser below; otherwise
         # a model proposal can overwrite the initial request before clarification.
@@ -1737,6 +1844,12 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
                             and not (new_relation_this_turn and pending not in {"requested_amount_relation", "paid_amount_relation"})
                             and pending in _relevant_slots(state) and not _has(state, pending))
     if pending_still_needed and intent is None:
+        if changed - {pending}:
+            _finalize_changed_facts(state, changed)
+            state["pending_slot"] = pending
+            prompt = "سجلت المعلومات التي أجابت عن حقول أخرى. بقي عندي هذا السؤال للتوضيح: " + QUESTIONS[pending]
+            _add_question_message(state, pending, prompt, "clarification")
+            return state
         # Do not let an unrelated useful fact move the conversation past its unresolved active question.
         attempts = state["clarifications"].get(pending, 0)
         if attempts < 1:
@@ -1781,11 +1894,16 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
         state["pending_slot"] = next_slot
         response_kind = "clarification" if next_slot == pending and next_slot in {"narrative", "unclassified_details"} else "question"
         unresolved_money = _unresolved_money_relation(state)
-        question_text = QUESTIONS[next_slot]
+        temporal_conflict = (state.get("facts", {}).get(next_slot, {}).get("status") == "conflict"
+                             and next_slot in {"initial_time", "latest_time", "discovery_time", "account_creation_time"})
+        question_text = None if temporal_conflict else QUESTIONS[next_slot]
         if unresolved_money and unresolved_money[0].get("correction_target_ambiguous"):
             kind_label = "مبلغًا مطلوبًا" if unresolved_money[0].get("kind") == "requested" else "دفعة"
             question_text = f"ذكرت أكثر من {kind_label}. أي مبلغ سابق تقصد تصحيحه؟ اذكر المبلغ أو ترتيبه، من دون إعادة إرسال معلومات غير لازمة."
-        _add_question_message(state, next_slot, (why_reply + "\n\n" if why_reply else "") + question_text, response_kind)
+        if temporal_conflict:
+            _add_question_message(state, next_slot, None, response_kind)
+        else:
+            _add_question_message(state, next_slot, (why_reply + "\n\n" if why_reply else "") + question_text, response_kind)
         return state
     state["pending_slot"] = None
     state["stage"] = "review"
@@ -1798,6 +1916,11 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
 def resume_state(state: dict[str, Any]) -> dict[str, Any]:
     if state["stage"] == "paused":
         state["stage"] = "interview"
+        pending_guidance = state.get("pending_guidance")
+        if isinstance(pending_guidance, dict) and pending_guidance.get("status") == "awaiting_platform":
+            prompt = pending_guidance.get("clarification_text") or "لأي تطبيق تقصد؟ اذكر اسم التطبيق لأعرض مصدره الرسمي فقط."
+            _add_message(state, "assistant", prompt, "guidance_clarification")
+            return state
         slot = state.get("pending_slot") or _next_slot(state)
         state["pending_slot"] = slot
         text = QUESTIONS.get(slot, "تقدر تراجع الملخص أو تضيف معلومة جديدة.")

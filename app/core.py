@@ -189,7 +189,12 @@ def _yes_no(text: str) -> bool | None:
 def _amount_matches(text: str) -> list[tuple[int, int, str]]:
     pattern = r"(?<!\d)(\d[\d,٫٬]*(?:\.\d+)?|[٠-٩][٠-٩,٫٬]*(?:\.[٠-٩]+)?)(?!\d)\s*(?:دينار|دنانير|د\.ا|شيكل|دولار|ريال|ليرة)?"
     results = []
+    temporal_spans = []
+    for time_pattern in globals().get("_TIME_EXPRESSION_PATTERNS", ()):
+        temporal_spans.extend((item.start(), item.end()) for item in re.finditer(time_pattern, text))
     for match in re.finditer(pattern, text):
+        if any(match.start() < end and match.end() > start for start, end in temporal_spans):
+            continue
         amount = re.sub(r"\s+", " ", match.group(0).strip())
         amount = amount.translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789"))
         results.append((match.start(), match.end(), amount))
@@ -221,6 +226,41 @@ def _fact_value(state: dict[str, Any], key: str) -> dict[str, Any] | None:
     return state["facts"].get(key)
 
 
+def _message_calendar_date(state: dict[str, Any], message_id: str | None) -> str | None:
+    if not message_id:
+        return None
+    message = next((item for item in state.get("messages", []) if item.get("id") == message_id), None)
+    if not message or not message.get("created_at"):
+        return None
+    try:
+        return datetime.fromisoformat(str(message["created_at"]).replace("Z", "+00:00")).date().isoformat()
+    except (TypeError, ValueError):
+        return None
+
+
+def _has_relative_temporal_anchor(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    normalized = normalize(value)
+    return any(marker in normalized for marker in (
+        "اليوم", "امس", "مبارح", "البارحه", "قبل", "منذ", "الاسبوع الماضي", "الشهر الماضي", "السنه الماضيه",
+    ))
+
+
+def _temporal_values_equivalent(state: dict[str, Any], old: dict[str, Any], value: Any,
+                               message_id: str | None) -> bool:
+    old_value = old.get("value")
+    old_signature = _temporal_signature(old_value)
+    new_signature = _temporal_signature(value)
+    if old_signature is None or old_signature != new_signature:
+        return False
+    if _has_relative_temporal_anchor(old_value) or _has_relative_temporal_anchor(value):
+        old_date = _message_calendar_date(state, old.get("message_id"))
+        new_date = _message_calendar_date(state, message_id)
+        return old_date is not None and old_date == new_date
+    return True
+
+
 def _record(state: dict[str, Any], key: str, status: str, value: Any, quote: str,
             message_id: str, question_id: str | None, reason: str = "user_statement",
             reference: dict[str, Any] | None = None) -> bool:
@@ -230,6 +270,12 @@ def _record(state: dict[str, Any], key: str, status: str, value: Any, quote: str
     reference_meta = {name: reference[name] for name in
                       ("operation", "target_fact_id", "target_event_id", "context_refs")
                       if reference and name in reference}
+    temporal_keys = {"initial_time", "latest_time", "discovery_time", "account_creation_time"}
+    if (old and key in temporal_keys and old.get("status") == status == "reported"
+            and old.get("value") != value and _temporal_values_equivalent(state, old, value, message_id)):
+        # Preserve the original wording/value and let the normal same-value path
+        # attach this message as supporting evidence.
+        value = old.get("value")
     if (old and old.get("status") != "conflict" and old.get("message_id") == message_id
             and reason == "optional_model_extraction"
             and (old.get("status") != status or old.get("value") != value)):
@@ -605,6 +651,9 @@ def _time_expression(text: str) -> str | None:
         match = re.search(pattern, text)
         if match:
             return match.group(0)
+    stripped = text.lstrip()
+    if stripped.startswith("و") and len(stripped) > 1:
+        return _time_expression(stripped[1:])
     return None
 
 
@@ -634,10 +683,10 @@ def _temporal_event_field(clause: str, pending: str | None = None) -> str | None
         return "account_creation_time"
     if any(marker in normalized for marker in ("اكتشفت", "اكتشف", "انتبهت", "لاحظت")):
         return "discovery_time"
-    if any(marker in normalized for marker in _LATEST_EVENT_MARKERS):
-        return "latest_time"
     if any(marker in normalized for marker in _INITIAL_EVENT_MARKERS):
         return "initial_time"
+    if any(marker in normalized for marker in _LATEST_EVENT_MARKERS):
+        return "latest_time"
     if pending in {"initial_time", "discovery_time", "account_creation_time", "latest_time"}:
         return pending
     return None
@@ -650,7 +699,13 @@ def _temporal_signature(value: Any) -> tuple[Any, ...] | None:
     expression = _time_expression(normalized)
     if expression:
         normalized = normalize(expression).translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789"))
-    day = next((marker for marker in ("اليوم", "امس", "مبارح", "البارحه", "قبل", "منذ", "الاسبوع الماضي", "الشهر الماضي", "السنه الماضيه") if marker in normalized), None)
+    normalized = normalized.replace("البارحه", "امس").replace("مبارح", "امس")
+    for spelling in ("المسا", "مسا", "مساء"):
+        normalized = normalized.replace(spelling, "مساء")
+    duration = re.search(r"\b(قبل|منذ)\s+(.+)", normalized)
+    if duration:
+        return ("relative_duration", duration.group(1), re.sub(r"\s+", " ", duration.group(2)).strip())
+    day = next((marker for marker in ("اليوم", "امس", "الاسبوع الماضي", "الشهر الماضي", "السنه الماضيه") if marker in normalized), None)
     hour_match = re.search(r"(?:الساعه\s*)?(\d{1,2})(?::(\d{2}))?", normalized)
     hour = (int(hour_match.group(1)), int(hour_match.group(2) or 0)) if hour_match else None
     period = next((marker for marker in ("صباحا", "الصباح", "الصبح", "مسا", "المسا", "مساء", "بالليل", "ليلا") if marker in normalized), None)
@@ -1840,6 +1895,15 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
             changed.add("additional_details")
     new_relation = _unresolved_money_relation(state)
     new_relation_this_turn = bool(new_relation and new_relation[0].get("message_id") == user_msg["id"])
+    temporal_conflict_slot = next((key for key, fact in state.get("facts", {}).items()
+                                   if fact.get("status") == "conflict"
+                                   and key in {"initial_time", "latest_time", "discovery_time", "account_creation_time"}), None)
+    if temporal_conflict_slot and intent is None:
+        _finalize_changed_facts(state, changed)
+        state["stage"] = "interview"
+        state["pending_slot"] = temporal_conflict_slot
+        _add_question_message(state, temporal_conflict_slot, None, "clarification")
+        return state
     pending_still_needed = (pending in QUESTIONS and pending not in {"narrative", "unclassified_details"}
                             and not (new_relation_this_turn and pending not in {"requested_amount_relation", "paid_amount_relation"})
                             and pending in _relevant_slots(state) and not _has(state, pending))

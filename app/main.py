@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import re
 import time
 from pathlib import Path
 
@@ -12,7 +13,7 @@ from pydantic import BaseModel, Field
 from app.core import (
     QUESTIONS, _add_message, _assessment, _explain_why, _why_target_slot, explain_assessment,
     _finalize_changed_facts, _next_slot, _record, _unresolved_money_relation,
-    _user_intent, classify_current_danger, confirmation_is_current, handle_turn, now_iso, render_report,
+    _user_intent, classify_current_danger, confirmation_is_current, handle_turn, now_iso, normalize, render_report,
     report_data, resume_state, screen_current_danger, summary_digest, is_clear_user_question, question_plan,
     last_model_merge_trace,
 )
@@ -84,6 +85,29 @@ def _saved_platform_for_guidance(state: dict) -> tuple[str | None, bool]:
     if fact.get("status") == "reported" and isinstance(fact.get("value"), str):
         return fact["value"], False
     return None, False
+
+
+_GUIDANCE_PLATFORM_PREFIX = re.compile(
+    r"^\s*(?:واتساب|whatsapp|إنستغرام|انستغرام|انستجرام|instagram|فيسبوك|facebook|سناب\s*شات|سناب|تيك\s*توك|tiktok)"
+    r"\s*(?:[,،;؛.!?؟]\s*|$)", re.IGNORECASE,
+)
+
+
+def _fact_text_after_guidance_platform(text: str) -> str:
+    """Remove only a leading app name used to answer the pending guidance scope question."""
+    match = _GUIDANCE_PLATFORM_PREFIX.match(text)
+    if not match:
+        return text.strip()
+    return text[match.end():].strip(" \t\r\n,،;؛.!?؟")
+
+
+def _cancels_pending_guidance(text: str) -> bool:
+    normalized = normalize(text)
+    declines = ("ما بدي نصيحة", "مش بدي نصيحة", "ما بدي نصيحه", "مش بدي نصيحه",
+                "ما بدي ارشاد", "مش بدي ارشاد", "مش حابب نصيحة", "مش حابة نصيحة")
+    resumes = ("نكمل الإفادة", "نكمل الافادة", "نكمل الافاده", "نكمل المقابلة", "نكمل المقابله",
+               "نرجع للمقابلة", "نرجع للمقابله", "تابع المقابلة", "تابع المقابله")
+    return any(marker in normalized for marker in declines) or any(marker in normalized for marker in resumes)
 
 
 def _mutate(session_id: str, token: str, rev: int, event: str, fn):
@@ -212,19 +236,41 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
     pending_guidance = snapshot.get("pending_guidance")
     resolving_pending_guidance = bool(isinstance(pending_guidance, dict)
                                       and pending_guidance.get("status") == "awaiting_platform")
+    urgent = classify_current_danger(text, pending) is True
+    pending_guidance_cancelled = False
+    mixed_pending_guidance = False
+    guidance_fact_text = ""
     understanding_started = time.perf_counter()
-    message_interpretation = ({"goals": ["ask_guidance"],
-                               "guidance_question": pending_guidance.get("query"), "fact_text": ""}
-                              if resolving_pending_guidance else interpret_message(text, pending))
     intent = _user_intent(text)
-    if resolving_pending_guidance and intent == "pause":
+    if resolving_pending_guidance and not urgent and intent == "pause":
         resolving_pending_guidance = False
+        message_interpretation = interpret_message(text, pending)
+    elif resolving_pending_guidance and not urgent and _cancels_pending_guidance(text):
+        pending_guidance_cancelled = True
+        resolving_pending_guidance = False
+        message_interpretation = interpret_message("", pending)
+    elif resolving_pending_guidance and not urgent:
+        guidance_fact_text = _fact_text_after_guidance_platform(text)
+        candidate_interpretation = interpret_message(guidance_fact_text, pending)
+        explicit_fact_goals = {"add_fact", "correct_prior_fact", "unknown", "not_remembered",
+                               "decline_disclosure", "confirm_or_reference_prior_fact"}
+        if guidance_fact_text and explicit_fact_goals.intersection(candidate_interpretation.get("goals", [])):
+            resolving_pending_guidance = False
+            mixed_pending_guidance = True
+            message_interpretation = candidate_interpretation
+            message_interpretation["fact_text"] = guidance_fact_text
+        else:
+            message_interpretation = {"goals": ["ask_guidance"],
+                                      "guidance_question": pending_guidance.get("query"), "fact_text": ""}
+    elif resolving_pending_guidance:
+        message_interpretation = {"goals": ["ask_guidance"],
+                                  "guidance_question": pending_guidance.get("query"), "fact_text": ""}
+    else:
         message_interpretation = interpret_message(text, pending)
     if intent is None and "ask_why" in message_interpretation["goals"]:
         intent = "why"
     if intent is None and "ask_assessment_reason" in message_interpretation["goals"]:
         intent = "assessment_why"
-    urgent = classify_current_danger(text, pending) is True
     local_qa = None
     external_answer = None
     model_facts = None
@@ -237,17 +283,21 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
 
     # Extract role goals and current-turn facts in one call. Plan fields come only
     # from the model validator, and all routing/safety outcomes remain application-owned.
-    initial_actionable_fact = False if resolving_pending_guidance else has_actionable_fact_goal(text, pending)
+    fact_candidate = message_interpretation.get("fact_text", text)
+    initial_actionable_fact = (False if resolving_pending_guidance or pending_guidance_cancelled
+                               else has_actionable_fact_goal(fact_candidate, pending))
     initial_auto_question = (not resolving_pending_guidance and body.kind == "answer"
                              and is_clear_user_question(text) and not initial_actionable_fact)
+    extraction_text = guidance_fact_text if mixed_pending_guidance else text
     if (body.kind == "answer" and not initial_auto_question and body.allow_external_extraction
             and model_configured() and not urgent and intent is None and not resolving_pending_guidance):
         external_extraction_sent = True
         if body.allow_context_extraction:
-            extraction_context = build_bounded_context(snapshot, text, pending)
-            model_facts = generate_interview_extraction(text, pending, extraction_context, message_interpretation)
+            extraction_context = build_bounded_context(snapshot, extraction_text, pending)
+            model_facts = generate_interview_extraction(extraction_text, pending, extraction_context,
+                                                        message_interpretation)
         else:
-            model_facts = generate_interview_extraction(text, pending)
+            model_facts = generate_interview_extraction(extraction_text, pending)
         candidate_plan = getattr(model_facts, "message_plan", None)
         if isinstance(candidate_plan, dict):
             plan_goals = candidate_plan.get("goals", [])
@@ -259,8 +309,8 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
                     "goals": list(dict.fromkeys(message_interpretation.get("goals", []) + plan_goals)),
                     "guidance_question": model_message_plan.get("guidance_question") or message_interpretation.get("guidance_question"),
                 }
-                message_interpretation["fact_text"] = extract_fact_text(
-                    text, message_interpretation.get("guidance_question"))
+                message_interpretation["fact_text"] = (guidance_fact_text if mixed_pending_guidance else
+                    extract_fact_text(text, message_interpretation.get("guidance_question")))
         if intent is None and "ask_why" in model_message_plan["goals"]:
             intent = "why"
         if intent is None and "ask_assessment_reason" in model_message_plan["goals"]:
@@ -277,7 +327,8 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
         fact_text = message_interpretation.get("fact_text")
         has_actionable_fact = bool(model_facts or (isinstance(fact_text, str) and fact_text.strip()))
     mixed_why = intent in {"why", "assessment_why"} and has_actionable_fact
-    mixed_guidance = "ask_guidance" in message_interpretation["goals"] and has_actionable_fact
+    mixed_guidance = (("ask_guidance" in message_interpretation["goals"] and has_actionable_fact)
+                      or mixed_pending_guidance)
     mixed_fact_question = mixed_why or mixed_guidance
     auto_question = (body.kind == "answer" and (is_clear_user_question(text) or model_question_goal)
                      and not mixed_fact_question and not resolving_pending_guidance)
@@ -288,7 +339,8 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
     if body.kind == "question" and intent not in {"why", "assessment_why"}:
         intent = None
 
-    guidance_question = (pending_guidance.get("query") if resolving_pending_guidance else
+    pending_guidance_turn = resolving_pending_guidance or mixed_pending_guidance
+    guidance_question = (pending_guidance.get("query") if pending_guidance_turn else
                          message_interpretation.get("guidance_question")
                          or extract_guidance_question(text) or text)
     local_guidance_context = ""
@@ -312,11 +364,11 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
                                    scope_query=(pending_guidance.get("scope_query", pending_guidance.get("query", text))
                                                 if resolving_pending_guidance else text),
                                    topic_query=(pending_guidance.get("topic_query", pending_guidance.get("query", text))
-                                                if resolving_pending_guidance else text))
+                                                if pending_guidance_turn else text))
         retrieval_ms = round((time.perf_counter() - retrieval_started) * 1000, 3)
     answer_generation_ms = 0.0
     if (question_mode or mixed_guidance) and not urgent and intent not in {"why", "assessment_why"}:
-        if body.allow_external and model_configured() and local_qa["citations"]:
+        if body.allow_external and model_configured() and local_qa and local_qa.get("citations"):
             external_question_sent = True
             corpus = load_corpus()
             source_map = {item["id"]: item for item in corpus["sources"]}
@@ -330,6 +382,26 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
             answer_generation_ms = round((time.perf_counter() - answer_started) * 1000, 3)
 
     def mutate(state):
+        if urgent:
+            user_msg = _add_message(state, "user", text, "answer")
+            state["updated_at"] = user_msg["created_at"]
+            state["pending_guidance"] = None
+            screen_current_danger(state, text, user_msg, pending)
+            state["assessment"] = _assessment(state)
+            return
+        if pending_guidance_cancelled:
+            user_msg = _add_message(state, "user", text, "guidance_clarification")
+            state["updated_at"] = user_msg["created_at"]
+            state["pending_guidance"] = None
+            if state.get("stage") == "interview" and pending in QUESTIONS:
+                state["pending_slot"] = pending
+                resumed = _add_message(
+                    state, "assistant", "حسنًا، ألغيت طلب الإرشاد. نكمل من السؤال الحالي: " + QUESTIONS[pending], "question")
+                resumed["question_plan"] = question_plan(state, pending)
+            else:
+                _add_message(state, "assistant", "حسنًا، ألغيت طلب الإرشاد.", "status")
+            state["assessment"] = _assessment(state)
+            return
         if resolving_pending_guidance:
             _add_message(state, "user", text, "guidance_clarification")
             if local_qa and local_qa.get("clarification_required") == "platform":
@@ -347,7 +419,7 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
                 answer_text += "\n\nصيغ الرد من مقتطفات حرفية موثقة، ولم يُرسل سجل المقابلة. راجع المصدر ولا تعتبره نصيحة قانونية."
             answer = _add_message(state, "assistant", answer_text, "answer")
             used_ids = set(external_answer["source_ids"]) if external_answer else set()
-            answer["citations"] = [citation for citation in local_qa.get("citations", [])
+            answer["citations"] = [citation for citation in (local_qa or {}).get("citations", [])
                                     if not used_ids or citation["id"] in used_ids]
             answer["external_model_used"] = bool(external_answer)
             if state.get("stage") == "interview" and pending in QUESTIONS:
@@ -355,6 +427,8 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
                 resumed["question_plan"] = question_plan(state, pending)
             state["assessment"] = _assessment(state)
             return
+        if mixed_pending_guidance:
+            state["pending_guidance"] = None
         if question_mode:
             user_msg = _add_message(state, "user", text, "question")
             state["updated_at"] = user_msg["created_at"]

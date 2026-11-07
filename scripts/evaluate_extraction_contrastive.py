@@ -97,6 +97,7 @@ def score_case(case: dict[str, Any], accepted_facts: list[dict[str, Any]],
                       "value": item.get("value"), "filter_code": item.get("filter_code"),
                       "filter_detail": item.get("filter_detail")}
                      for item in filtered_facts if isinstance(item, dict)]
+    provider_response_received = bool(diagnostic.get("raw_response")) or trace.get("status") == "empty_response"
     outcome = trace.get("extraction_outcome") or (
         "extracted" if accepted else "all_facts_filtered" if filtered_facts else
         "valid_empty" if diagnostic.get("accepted") else "provider_failed")
@@ -104,7 +105,7 @@ def score_case(case: dict[str, Any], accepted_facts: list[dict[str, Any]],
         "case_id": case["id"], "pending_slot": case.get("pending_slot"),
         "message": case["message"], "outcome": outcome,
         "provider_attempted": bool(trace.get("attempted")),
-        "provider_response_received": bool(diagnostic.get("raw_response")),
+        "provider_response_received": provider_response_received,
         "json_valid": diagnostic.get("json_valid"),
         "schema_valid": diagnostic.get("schema_valid"),
         "response_valid": response_valid,

@@ -37,6 +37,15 @@ class ContrastiveEvaluatorTests(unittest.TestCase):
         self.assertEqual(result["facts"]["filtered_expected_fields"], [])
         self.assertEqual(result["facts"]["filtered_count"], 0)
 
+    def test_empty_provider_content_is_still_a_received_provider_response(self):
+        result = evaluator.score_case(
+            self.case, [], [], {}, {"accepted": False, "raw_response": None},
+            {"attempted": True, "status": "empty_response", "failure_code": "empty_response",
+             "latency_ms": 12}, 14)
+        self.assertTrue(result["provider_attempted"])
+        self.assertTrue(result["provider_response_received"])
+        self.assertFalse(result["response_valid"])
+
     def test_rejected_response_is_not_scored_as_goal_miss_or_fact_omission(self):
         result = evaluator.score_case(
             self.case, [], [], {}, {"accepted": False, "rejection_code": "invalid_json"},

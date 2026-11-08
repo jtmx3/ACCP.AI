@@ -150,6 +150,57 @@ class OptionalModelTests(unittest.TestCase):
                 self.assertEqual(diagnostic["facts"], [])
                 self.assertEqual(diagnostic["filtered_facts"][0]["filter_code"], "value_inconsistent")
 
+    def test_reported_negations_and_unknown_paid_amount_are_field_scoped(self):
+        cases = [
+            ("ما حصل نشر لصور الحساب.", "published", "reported", True, False),
+            ("ما حصل نشر لصور الحساب.", "published", "denied", False, True),
+            ("نشر صور الحساب بالفعل.", "published", "reported", True, True),
+            ("ما صار أي تهديد مباشر.", "threat", "reported", True, False),
+            ("ما صار أي تهديد مباشر.", "threat", "denied", False, True),
+            ("هددني برسالة مباشرة.", "threat", "reported", True, True),
+            ("ما دفعت أي مبلغ.", "paid_amount", "unknown", None, False),
+            ("ما دفعت أي مبلغ.", "paid_amount", "denied", None, True),
+            ("ما بعرف إذا دفعت أي مبلغ.", "paid_amount", "unknown", None, True),
+            ("ما دفعت أي مبلغ، لكن نشر صور الحساب.", "published", "reported", True, True),
+        ]
+        for text, field, status, value, should_accept in cases:
+            with self.subTest(text=text, field=field, status=status):
+                fact = {"field": field, "status": status, "value": value, "quote": text}
+                result = validate_interview_facts_diagnostic(
+                    text, json.dumps({"facts": [fact]}, ensure_ascii=False),
+                    pending_slot=field)
+                self.assertTrue(result["accepted"])
+                self.assertEqual(bool(result["facts"]), should_accept)
+                if not should_accept:
+                    self.assertEqual(len(result["filtered_facts"]), 1)
+                    self.assertIn(result["filtered_facts"][0]["filter_code"],
+                                  {"value_inconsistent", "unsupported_status_evidence"})
+
+    def test_mixed_unknown_and_negation_do_not_leak_between_fields_or_clauses(self):
+        text = "ما بعرف إذا حصل نشر للصور، لكن دفعت 40 دينار."
+        facts = [
+            {"field": "published", "status": "unknown", "value": None,
+             "quote": "ما بعرف إذا حصل نشر للصور"},
+            {"field": "paid_amount", "status": "reported", "value": "40 دينار",
+             "quote": "دفعت 40 دينار"},
+        ]
+        result = validate_interview_facts_diagnostic(
+            text, json.dumps({"facts": facts}, ensure_ascii=False), pending_slot="paid_amount")
+        self.assertEqual([item["field"] for item in result["facts"]], ["published", "paid_amount"])
+        self.assertEqual(result["filtered_facts"], [])
+
+        mixed = "ما حصل نشر للصور، لكنه هددني مباشرة."
+        facts = [
+            {"field": "published", "status": "denied", "value": False,
+             "quote": "ما حصل نشر للصور"},
+            {"field": "threat", "status": "reported", "value": True,
+             "quote": "هددني مباشرة"},
+        ]
+        result = validate_interview_facts_diagnostic(
+            mixed, json.dumps({"facts": facts}, ensure_ascii=False), pending_slot="threat")
+        self.assertEqual([item["field"] for item in result["facts"]], ["published", "threat"])
+        self.assertEqual(result["filtered_facts"], [])
+
     def test_evidence_positive_claim_cannot_quote_explicit_evidence_absence(self):
         text = "ما عندي نسخ ولا لقطات محفوظة من الرسائل."
         payload = {"facts": [{"field": "evidence", "status": "reported", "value": text, "quote": text}]}
@@ -246,13 +297,18 @@ class OptionalModelTests(unittest.TestCase):
             self.assertEqual(body["reasoning_effort"], "none")
             self.assertNotIn("reasoning", body)
             system_prompt = body["messages"][0]["content"]
-            self.assertIn("reported الثنائية true", system_prompt)
-            self.assertIn("الحقول الثنائية value=false", system_prompt)
-            self.assertIn("الحقول النصية/الزمنية/المبالغ value=null", system_prompt)
+            self.assertIn("reported binary=true", system_prompt)
+            self.assertIn("denied: binary value=false", system_prompt)
+            self.assertIn("text/time/amount value=null", system_prompt)
             self.assertIn("narrative", system_prompt)
             self.assertIn("current_quote", system_prompt)
             self.assertIn("لا تضع operation في الإجابة المباشرة", system_prompt)
             self.assertIn("operation=same أو support أو correct", system_prompt)
+            self.assertIn("لا تستنتج unknown من غياب رقم", system_prompt)
+            self.assertIn("before tomorrow", system_prompt)
+            self.assertIn("كيف أحمي حسابي؟", system_prompt)
+            self.assertIn("ما حصل نشر لصور الحساب", system_prompt)
+            self.assertIn('"answer_pending_question","ask_guidance"', system_prompt)
             request_text = body["messages"][1]["content"]
             self.assertEqual(json.loads(request_text)["current_user_message"], text)
 
@@ -325,7 +381,7 @@ class OptionalModelTests(unittest.TestCase):
         self.assertNotIn("session_id", json.dumps(sent, ensure_ascii=False))
         self.assertNotIn("case_token", json.dumps(sent, ensure_ascii=False))
         system = chat.call_args.args[0][0]["content"]
-        self.assertIn("تلميحات الأهداف غير موثوقة", system)
+        self.assertIn("التلميحات غير موثوقة", system)
         self.assertIn("ask_question", system)
 
     def test_contextual_yes_is_valid_only_for_the_referenced_pending_question(self):
@@ -464,6 +520,45 @@ class OptionalModelTests(unittest.TestCase):
                 if not should_accept:
                     self.assertEqual(result["filtered_facts"][0]["filter_code"], "value_inconsistent")
                     self.assertIn("clock precision/daypart", result["filtered_facts"][0]["filter_detail"])
+
+    def test_deadline_values_must_be_source_language_spans(self):
+        text = "حدد موعد الدفع قبل بكرا."
+        for value, should_accept in [("before tomorrow", False), ("قبل بكرا", True)]:
+            with self.subTest(value=value):
+                fact = {"field": "deadline", "status": "reported", "value": value,
+                        "quote": "موعد الدفع قبل بكرا"}
+                result = validate_interview_facts_diagnostic(
+                    text, json.dumps({"facts": [fact]}, ensure_ascii=False), "deadline")
+                self.assertTrue(result["accepted"])
+                self.assertEqual(bool(result["facts"]), should_accept)
+                if not should_accept:
+                    self.assertEqual(result["filtered_facts"][0]["filter_code"], "value_inconsistent")
+                    self.assertIn("source-language span", result["filtered_facts"][0]["filter_detail"])
+
+    def test_guidance_question_must_be_a_verbatim_requested_span(self):
+        text = "كيف أحمي حسابي؟"
+        exact = {"message_goals": ["ask_guidance"], "guidance_question": text, "facts": []}
+        accepted = validate_interview_facts_diagnostic(text, json.dumps(exact, ensure_ascii=False))
+        self.assertTrue(accepted["accepted"])
+        self.assertEqual(accepted["message_plan"]["guidance_question"], text)
+
+        paraphrased = {"message_goals": ["ask_guidance"],
+                       "guidance_question": "كيف أحافظ على حسابي؟", "facts": []}
+        rejected = validate_interview_facts_diagnostic(text, json.dumps(paraphrased, ensure_ascii=False))
+        self.assertFalse(rejected["accepted"])
+        self.assertEqual(rejected["rejection_code"], "quote_mismatch")
+
+    def test_answer_pending_question_can_coexist_with_other_goals(self):
+        text = "ما دفعت أي مبلغ، كيف أحمي حسابي؟"
+        payload = {"message_goals": ["answer_pending_question", "ask_guidance"],
+                   "guidance_question": "كيف أحمي حسابي؟",
+                   "facts": [{"field": "paid_amount", "status": "denied", "value": None,
+                              "current_quote": "ما دفعت أي مبلغ"}]}
+        result = validate_interview_facts_diagnostic(text, json.dumps(payload, ensure_ascii=False),
+                                                     pending_slot="paid_amount")
+        self.assertTrue(result["accepted"])
+        self.assertEqual(result["message_plan"]["goals"], ["answer_pending_question", "ask_guidance"])
+        self.assertEqual(result["facts"][0]["status"], "denied")
 
     def test_prompt_simplification_reduces_request_size_without_extra_calls(self):
         text = "شو معنى المهلة؟"

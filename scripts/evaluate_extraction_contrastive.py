@@ -21,7 +21,7 @@ if str(ROOT) not in sys.path:
 from app.fields import ALLOWED_EXTRACTION_FIELDS
 from app.model import (generate_interview_extraction, last_call_trace,
                        last_extraction_diagnostic, probe_provider, provider_config,
-                       reset_call_trace)
+                       reset_call_trace, validate_interview_facts_diagnostic)
 
 LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
 DEFAULT_SUITE = ROOT / "tests" / "extraction_contrastive_v1.json"
@@ -76,6 +76,8 @@ def _model_output_snapshot(raw_response: Any) -> dict[str, Any]:
                 continue
             row = {}
             for key in keys:
+                if key not in item:
+                    continue
                 value = item.get(key)
                 if isinstance(value, str):
                     row[key] = value[:500]
@@ -90,6 +92,29 @@ def _model_output_snapshot(raw_response: Any) -> dict[str, Any]:
     return snapshot
 
 
+def _quote_grounding(case: dict[str, Any], proposal: dict[str, Any] | None) -> dict[str, Any]:
+    """Score literal source-span and field/status/value support independently of fixture wording."""
+    if not isinstance(proposal, dict):
+        return {"proposal_present": False, "quote_present": False, "quote_is_literal_span": False,
+                "quote_supports_field_status_value": False}
+    quote = proposal.get("quote", proposal.get("current_quote"))
+    quote_present = isinstance(quote, str) and bool(quote)
+    literal_span = quote_present and quote in case.get("message", "")
+    grounded = False
+    if literal_span:
+        fact = dict(proposal)
+        fact.pop("current_quote", None)
+        fact["quote"] = quote
+        payload = json.dumps({"facts": [fact]}, ensure_ascii=False)
+        checked = validate_interview_facts_diagnostic(
+            case["message"], payload, pending_slot=case.get("pending_slot"),
+            bounded_context=case.get("bounded_context"))
+        grounded = bool(checked.get("accepted") and checked.get("facts"))
+    return {"proposal_present": True, "quote_present": quote_present,
+            "quote_is_literal_span": literal_span,
+            "quote_supports_field_status_value": grounded}
+
+
 def score_case(case: dict[str, Any], accepted_facts: list[dict[str, Any]],
                filtered_facts: list[dict[str, Any]], message_plan: dict[str, Any],
                diagnostic: dict[str, Any], trace: dict[str, Any], elapsed_ms: float) -> dict[str, Any]:
@@ -98,9 +123,14 @@ def score_case(case: dict[str, Any], accepted_facts: list[dict[str, Any]],
     supported_goals = set(message_plan.get("goals", [])) if response_valid else set()
     unsupported_goals = set(message_plan.get("unsupported_goals", [])) if response_valid else set()
     model_goals = supported_goals | unsupported_goals
+    raw_model_output = _model_output_snapshot(diagnostic.get("raw_response"))
+    raw_goal_values = raw_model_output.get("message_goals")
+    raw_goals_scored = isinstance(raw_goal_values, list) and all(isinstance(goal, str) for goal in raw_goal_values)
+    raw_model_goals = set(raw_goal_values) if raw_goals_scored else set()
     expected_facts = _fact_maps(case.get("expected_facts", []))
     accepted = _fact_maps(accepted_facts)
     filtered = _fact_maps(filtered_facts)
+    raw_proposals = _fact_maps(raw_model_output.get("fact_proposals", []))
 
     fact_rows = []
     omitted_fields = []
@@ -108,6 +138,14 @@ def score_case(case: dict[str, Any], accepted_facts: list[dict[str, Any]],
     for field, expected in expected_facts.items():
         actual = accepted.get(field)
         rejected = filtered.get(field)
+        proposal = raw_proposals.get(field)
+        quote_source = actual or rejected or proposal
+        actual_quote = actual.get("quote") if actual else None
+        fixture_quote_match = actual_quote == expected.get("quote") if actual else False
+        proposal_quote = (quote_source.get("quote", quote_source.get("current_quote"))
+                          if quote_source else None)
+        quote_quality = _quote_grounding(case, proposal or quote_source)
+        quote_fixture_exact = proposal_quote == expected.get("quote") if isinstance(proposal_quote, str) else False
         if actual is None:
             if rejected is not None:
                 disposition = "filtered"
@@ -127,8 +165,14 @@ def score_case(case: dict[str, Any], accepted_facts: list[dict[str, Any]],
                           "expected_quote": expected.get("quote"),
                           "actual_status": actual.get("status") if actual else None,
                           "actual_value": actual.get("value") if actual else None,
-                          "actual_quote": actual.get("quote") if actual else None,
-                          "quote_match": actual.get("quote") == expected.get("quote") if actual else False,
+                          "actual_quote": actual_quote,
+                          "quote_match": fixture_quote_match,
+                          "proposed_quote": proposal_quote,
+                          "fact_proposal_present": quote_quality["proposal_present"],
+                          "quote_proposal_present": quote_quality["quote_present"],
+                          "fixture_quote_exact_match": quote_fixture_exact,
+                          "quote_is_literal_span": quote_quality["quote_is_literal_span"],
+                          "quote_supports_field_status_value": quote_quality["quote_supports_field_status_value"],
                           "disposition": disposition,
                           "filter_code": rejected.get("filter_code") if rejected else None,
                           "filter_detail": rejected.get("filter_detail") if rejected else None})
@@ -147,7 +191,6 @@ def score_case(case: dict[str, Any], accepted_facts: list[dict[str, Any]],
                       "filter_detail": item.get("filter_detail")}
                      for item in filtered_facts if isinstance(item, dict)]
     provider_response_received = bool(diagnostic.get("raw_response")) or trace.get("status") == "empty_response"
-    raw_model_output = _model_output_snapshot(diagnostic.get("raw_response"))
     outcome = trace.get("extraction_outcome") or (
         "extracted" if accepted else "all_facts_filtered" if filtered_facts else
         "valid_empty" if diagnostic.get("accepted") else "provider_failed")
@@ -173,7 +216,15 @@ def score_case(case: dict[str, Any], accepted_facts: list[dict[str, Any]],
                   "exact_match": model_goals == expected_goals if response_valid else None,
                   "true_positive": sorted(expected_goals & model_goals) if response_valid else None,
                   "false_positive": sorted(model_goals - expected_goals) if response_valid else None,
-                  "false_negative": sorted(expected_goals - model_goals) if response_valid else None},
+                  "false_negative": sorted(expected_goals - model_goals) if response_valid else None,
+                  "raw_model_output": raw_goal_values,
+                  "raw_scored": raw_goals_scored,
+                  "raw_exact_match": raw_model_goals == expected_goals if raw_goals_scored else None,
+                  "raw_true_positive": sorted(expected_goals & raw_model_goals) if raw_goals_scored else None,
+                  "raw_false_positive": sorted(raw_model_goals - expected_goals) if raw_goals_scored else None,
+                  "raw_false_negative": sorted(expected_goals - raw_model_goals) if raw_goals_scored else None,
+                  "validator_accepted_goals": sorted(supported_goals) if response_valid else None,
+                  "validator_unsupported_goals": sorted(unsupported_goals) if response_valid else None},
         "facts": {"expected_count": len(expected_facts), "accepted_count": len(accepted_facts),
                   "filtered_count": len(filtered_facts), "omitted_fields": omitted_fields,
                   "filtered_expected_fields": filtered_expected_fields,
@@ -218,8 +269,8 @@ def evaluate_suite(suite_path: Path = DEFAULT_SUITE, *, probe_timeout: float = 5
     probe = probe_provider(timeout=probe_timeout)
     output: dict[str, Any] = {
         "evaluation_type": "model_extraction_only_contrastive",
-        "evaluation_version": suite.get("edition"), "scoring_version": "2.0",
-        "prompt_contract_version": "minimal-reference-ops-v2", "suite_id": suite.get("suite_id"),
+        "evaluation_version": suite.get("edition"), "scoring_version": "3.0",
+        "prompt_contract_version": "scoped-status-multigoal-source-span-v3", "suite_id": suite.get("suite_id"),
         "synthetic": True, "provider": "ollama", "model": config.get("model"),
         "reasoning_effort": config.get("ollama_reasoning_effort"),
         "service_reachable": bool(probe.get("service_reachable")),
@@ -230,6 +281,12 @@ def evaluate_suite(suite_path: Path = DEFAULT_SUITE, *, probe_timeout: float = 5
         "integrated_system_evaluation": False, "rule_merge_performed": False,
         "fallback_performed": False, "raw_provider_responses_saved": False,
         "raw_model_proposals_saved": True,
+        "quote_scoring_definitions": {
+            "fixture_exact": "proposal quote equals the fixture's expected quote string byte-for-byte",
+            "literal_span": "proposal quote is a non-empty exact substring of the current user message",
+            "grounded_fact": "the real validator accepts that proposal's field/status/value/quote in isolation",
+            "legacy_fact_quote_accuracy": "retained for historical comparison; it measures exact fixture-string equality on validator-accepted facts",
+        },
         "case_count": len(suite["cases"]), "cases": [],
     }
     if not probe.get("service_reachable") or not probe.get("model_available"):
@@ -268,14 +325,20 @@ def evaluate_suite(suite_path: Path = DEFAULT_SUITE, *, probe_timeout: float = 5
                             "validation_rejection_code": diagnostic.get("rejection_code")})
 
     scored_cases = [item for item in results if item.get("goals", {}).get("scored")]
+    raw_goal_scored_cases = [item for item in results if item.get("goals", {}).get("raw_scored")]
     scored_case_ids = {item["case_id"] for item in scored_cases}
     expected_goal_count = sum(len(case.get("expected_goals", [])) for case in suite["cases"]
                               if case["id"] in scored_case_ids)
+    raw_expected_goal_count = sum(len(case.get("expected_goals", [])) for case in suite["cases"]
+                                  if case["id"] in {item["case_id"] for item in raw_goal_scored_cases})
     unscored_goal_count = sum(len(case.get("expected_goals", [])) for case in suite["cases"]
                               if case["id"] not in scored_case_ids)
     all_goal_tp = sum(len(item.get("goals", {}).get("true_positive") or []) for item in results)
     all_goal_fp = sum(len(item.get("goals", {}).get("false_positive") or []) for item in results)
     all_goal_fn = sum(len(item.get("goals", {}).get("false_negative") or []) for item in results)
+    raw_goal_tp = sum(len(item.get("goals", {}).get("raw_true_positive") or []) for item in results)
+    raw_goal_fp = sum(len(item.get("goals", {}).get("raw_false_positive") or []) for item in results)
+    raw_goal_fn = sum(len(item.get("goals", {}).get("raw_false_negative") or []) for item in results)
     expected_fact_count = sum(len(case.get("expected_facts", [])) for case in suite["cases"])
     fact_rows = [row for item in results for row in item.get("facts", {}).get("field_results", [])]
     scored_expected_fact_count = sum(item.get("facts", {}).get("expected_count", 0)
@@ -301,6 +364,14 @@ def evaluate_suite(suite_path: Path = DEFAULT_SUITE, *, probe_timeout: float = 5
     unexpected_accepted_count = sum(len(item.get("facts", {}).get("unexpected_accepted_fields", []))
                                     for item in results)
     quote_match_count = sum(bool(row.get("quote_match")) for row in fact_rows)
+    fact_proposal_count = sum(bool(row.get("fact_proposal_present")) for row in fact_rows)
+    quote_proposal_count = sum(bool(row.get("quote_proposal_present")) for row in fact_rows)
+    fixture_exact_quote_count = sum(bool(row.get("fixture_quote_exact_match")) for row in fact_rows)
+    literal_quote_span_count = sum(bool(row.get("quote_is_literal_span")) for row in fact_rows)
+    grounded_quote_fact_count = sum(bool(row.get("quote_supports_field_status_value")) for row in fact_rows)
+    accepted_expected_fact_count = sum(row.get("disposition", "").startswith("accepted") for row in fact_rows)
+    accepted_grounded_match_count = sum(row.get("disposition") == "accepted_match"
+                                        and row.get("quote_supports_field_status_value") for row in fact_rows)
     response_bytes = [item["model_raw_output"]["response_bytes"] for item in results
                       if item.get("model_raw_output", {}).get("response_bytes")]
     request_sizes = [item["request_body_bytes"] for item in results
@@ -326,6 +397,15 @@ def evaluate_suite(suite_path: Path = DEFAULT_SUITE, *, probe_timeout: float = 5
         "goal_precision": _ratio(all_goal_tp, all_goal_tp + all_goal_fp),
         "goal_recall": _ratio(all_goal_tp, all_goal_tp + all_goal_fn),
         "expected_goal_count": expected_goal_count,
+        "raw_goal_scored_cases": len(raw_goal_scored_cases),
+        "raw_goal_unscored_cases": len(results) - len(raw_goal_scored_cases),
+        "raw_expected_goal_count": raw_expected_goal_count,
+        "raw_goal_exact_case_matches": sum(item.get("goals", {}).get("raw_exact_match") is True
+                                            for item in raw_goal_scored_cases),
+        "raw_goal_true_positive": raw_goal_tp, "raw_goal_false_positive": raw_goal_fp,
+        "raw_goal_false_negative": raw_goal_fn,
+        "raw_goal_precision": _ratio(raw_goal_tp, raw_goal_tp + raw_goal_fp),
+        "raw_goal_recall": _ratio(raw_goal_tp, raw_goal_tp + raw_goal_fn),
         "expected_fact_count": expected_fact_count,
         "scored_expected_fact_count": scored_expected_fact_count,
         "unscored_expected_fact_count": unscored_expected_fact_count,
@@ -340,6 +420,18 @@ def evaluate_suite(suite_path: Path = DEFAULT_SUITE, *, probe_timeout: float = 5
         "fact_field_status_value_end_to_end_coverage": _ratio(exact_fact_match_count, expected_fact_count),
         "fact_quote_matches": quote_match_count,
         "fact_quote_accuracy": _ratio(quote_match_count, scored_expected_fact_count),
+        "proposed_expected_fact_count": fact_proposal_count,
+        "proposed_expected_quote_count": quote_proposal_count,
+        "fixture_exact_quote_match_count": fixture_exact_quote_count,
+        "fixture_exact_quote_coverage": _ratio(fixture_exact_quote_count, expected_fact_count),
+        "literal_source_span_count": literal_quote_span_count,
+        "literal_source_span_coverage": _ratio(literal_quote_span_count, expected_fact_count),
+        "grounded_quote_field_status_value_count": grounded_quote_fact_count,
+        "grounded_quote_field_status_value_coverage": _ratio(grounded_quote_fact_count, expected_fact_count),
+        "grounded_quote_proposal_precision": _ratio(grounded_quote_fact_count, quote_proposal_count),
+        "accepted_expected_fact_count": accepted_expected_fact_count,
+        "accepted_expected_fact_grounded_precision": _ratio(accepted_grounded_match_count,
+                                                             accepted_expected_fact_count),
         "fact_field_full_status_value_quote_matches": exact_fact_and_quote_match_count,
         "fact_field_full_status_value_quote_coverage": _ratio(exact_fact_and_quote_match_count,
                                                               expected_fact_count),
@@ -392,14 +484,15 @@ def evaluation_passes(summary: dict[str, Any], case_count: int) -> bool:
         summary.get("attempted_cases") == case_count
         and summary.get("provider_responses_valid") == case_count
         and summary.get("goal_scored_cases") == case_count
-        and summary.get("goal_exact_case_matches") == case_count
-        and summary.get("goal_false_positive") == 0
-        and summary.get("goal_false_negative") == 0
+        and summary.get("raw_goal_scored_cases") == case_count
+        and summary.get("raw_goal_exact_case_matches") == case_count
+        and summary.get("raw_goal_false_positive") == 0
+        and summary.get("raw_goal_false_negative") == 0
         and summary.get("unscored_expected_fact_count") == 0
         and summary.get("fact_field_status_value_end_to_end_coverage") == 1.0
-        and summary.get("fact_quote_accuracy") == 1.0
+        and summary.get("grounded_quote_field_status_value_coverage") == 1.0
         and summary.get("accepted_fact_exact_match_precision") == 1.0
-        and summary.get("accepted_fact_full_match_precision") == 1.0
+        and summary.get("accepted_expected_fact_grounded_precision") == 1.0
         and summary.get("unexpected_accepted_field_count") == 0
     )
 

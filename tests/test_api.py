@@ -1,3 +1,5 @@
+import io
+import json
 import tempfile
 import os
 import threading
@@ -138,6 +140,56 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertFalse(detail["raw_response_included"])
         self.assertNotIn("private", response.text)
         self.assertNotIn("اقتباس خاص", response.text)
+
+    def test_negated_or_unknown_model_proposals_are_filtered_before_state_and_report(self):
+        cases = [
+            ("ما حصل نشر لصور الحساب.", "published", "reported", True, "value_inconsistent"),
+            ("ما صار أي تهديد مباشر.", "threat", "reported", True, "value_inconsistent"),
+            ("ما دفعت أي مبلغ.", "paid_amount", "unknown", None, "unsupported_status_evidence"),
+        ]
+        env = {"MODEL_PROVIDER": "ollama", "MODEL_BASE_URL": "http://127.0.0.1:11434/v1",
+               "MODEL_NAME": "synthetic-test:latest", "OLLAMA_REASONING_EFFORT": "none"}
+        for text, field, status, value, expected_code in cases:
+            with self.subTest(field=field):
+                created = self.client.post("/api/sessions", json={}).json()
+                session_id = created["session"]["session_id"]
+                token = created["token"]
+                revision = created["session"]["revision"]
+                model_payload = {"message_goals": [], "guidance_question": None,
+                                 "facts": [{"field": field, "status": status, "value": value,
+                                            "current_quote": text}]}
+                provider_payload = {"choices": [{"message": {"content": json.dumps(
+                    model_payload, ensure_ascii=False)}}]}
+                calls = []
+
+                def fake_urlopen(request, timeout):
+                    calls.append(request)
+                    return io.BytesIO(json.dumps(provider_payload, ensure_ascii=False).encode("utf-8"))
+
+                with patch.dict(os.environ, env, clear=True), \
+                     patch("app.main.model_configured", return_value=True), \
+                     patch("app.main.provider_config", return_value={"provider": "ollama",
+                           "model": "synthetic-test:latest", "mode": "local_model"}), \
+                     patch("app.model.urllib.request.urlopen", side_effect=fake_urlopen):
+                    response = self.client.post(
+                        f"/api/sessions/{session_id}/messages", headers={"X-Case-Token": token},
+                        json={"expected_revision": revision, "text": text, "kind": "answer",
+                              "allow_external_extraction": True})
+
+                self.assertEqual(response.status_code, 200, response.text)
+                result = response.json()
+                self.assertEqual(len(calls), 1)
+                self.assertFalse(result["external_model_result_accepted"])
+                self.assertTrue(result["extraction_fallback_used"])
+                self.assertEqual(result["fallback_to"], "rules")
+                validation = result["model_diagnostics"]["validation"]
+                self.assertEqual(validation["accepted_fields"], [])
+                self.assertEqual(validation["filtered_facts"][0]["field"], field)
+                self.assertEqual(validation["filtered_facts"][0]["code"], expected_code)
+                self.assertFalse(result["model_diagnostics"]["merge"]["performed"])
+                for facts in (result["session"].get("facts", {}), result["report"].get("facts", {})):
+                    stored = facts.get(field)
+                    self.assertFalse(stored and stored.get("status") == status and stored.get("value") == value)
 
     def test_unsupported_decline_goal_is_diagnostic_only_and_rules_handle_deadline_denial(self):
         from app.model import InterviewUnderstanding

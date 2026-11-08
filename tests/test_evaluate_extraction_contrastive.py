@@ -56,6 +56,55 @@ class ContrastiveEvaluatorTests(unittest.TestCase):
         self.assertEqual(result["facts"]["omitted_fields"], [])
         self.assertEqual(result["facts"]["field_results"][0]["disposition"], "response_rejected")
 
+    def test_raw_model_goals_remain_visible_and_scored_when_response_is_rejected(self):
+        raw = json.dumps({"message_goals": ["ask_question"], "guidance_question": None,
+                          "facts": []}, ensure_ascii=False)
+        result = evaluator.score_case(
+            {"id": "synthetic-rejected-goal", "pending_slot": "paid_amount",
+             "message": "ما دفعت أي مبلغ.", "expected_goals": ["answer_pending_question"],
+             "expected_facts": []}, [], [], {},
+            {"accepted": False, "raw_response": raw, "rejection_code": "other_validation"},
+            {"attempted": True, "status": "response_rejected"}, 1)
+        self.assertFalse(result["goals"]["scored"])
+        self.assertTrue(result["goals"]["raw_scored"])
+        self.assertEqual(result["goals"]["raw_model_output"], ["ask_question"])
+        self.assertEqual(result["goals"]["raw_false_negative"], ["answer_pending_question"])
+        self.assertIsNone(result["goals"]["validator_accepted_goals"])
+
+    def test_literal_grounded_quote_is_not_a_fixture_string_mismatch(self):
+        message = "حدد الموعد بكرا."
+        quote = "حدد الموعد بكرا."
+        raw = json.dumps({"message_goals": ["answer_pending_question"],
+                          "facts": [{"field": "deadline", "status": "reported",
+                                     "value": "بكرا", "current_quote": quote}]}, ensure_ascii=False)
+        result = evaluator.score_case(
+            {"id": "synthetic-punctuation-span", "pending_slot": "deadline", "message": message,
+             "expected_goals": ["answer_pending_question"],
+             "expected_facts": [{"field": "deadline", "status": "reported", "value": "بكرا",
+                                  "quote": "حدد الموعد بكرا"}]},
+            [{"field": "deadline", "status": "reported", "value": "بكرا", "quote": quote}], [],
+            {"goals": ["answer_pending_question"], "unsupported_goals": []},
+            {"accepted": True, "raw_response": raw}, {"attempted": True}, 1)
+        row = result["facts"]["field_results"][0]
+        self.assertFalse(row["fixture_quote_exact_match"])
+        self.assertTrue(row["quote_is_literal_span"])
+        self.assertTrue(row["quote_supports_field_status_value"])
+
+    def test_fact_proposal_without_quote_is_not_in_quote_precision_denominator(self):
+        raw = json.dumps({"facts": [{"field": "deadline", "status": "reported",
+                                     "value": "قبل بكرا"}]}, ensure_ascii=False)
+        result = evaluator.score_case(
+            {"id": "synthetic-no-quote", "pending_slot": "deadline",
+             "message": "حدد موعد الدفع قبل بكرا.", "expected_goals": [],
+             "expected_facts": [{"field": "deadline", "status": "reported",
+                                  "value": "قبل بكرا", "quote": "موعد الدفع قبل بكرا"}]},
+            [], [], {}, {"accepted": False, "raw_response": raw},
+            {"attempted": True, "status": "response_rejected"}, 1)
+        row = result["facts"]["field_results"][0]
+        self.assertTrue(row["fact_proposal_present"])
+        self.assertFalse(row["quote_proposal_present"])
+        self.assertFalse(row["quote_is_literal_span"])
+
     def test_correct_goal_and_fact_are_scored_as_exact_matches(self):
         expected = {"id": "synthetic-correct", "pending_slot": "deadline",
                     "message": "حدد الموعد بكرا.", "expected_goals": ["answer_pending_question"],
@@ -115,11 +164,14 @@ class ContrastiveEvaluatorTests(unittest.TestCase):
         complete = {"attempted_cases": 17, "provider_responses_valid": 17,
                     "goal_scored_cases": 17, "goal_exact_case_matches": 17,
                     "goal_false_positive": 0, "goal_false_negative": 0,
+                    "raw_goal_scored_cases": 17, "raw_goal_exact_case_matches": 17,
+                    "raw_goal_false_positive": 0, "raw_goal_false_negative": 0,
                     "unscored_expected_fact_count": 0,
                     "fact_field_status_value_end_to_end_coverage": 1.0,
-                    "fact_quote_accuracy": 1.0,
+                    "fact_quote_accuracy": 0.75,
+                    "grounded_quote_field_status_value_coverage": 1.0,
                     "accepted_fact_exact_match_precision": 1.0,
-                    "accepted_fact_full_match_precision": 1.0,
+                    "accepted_expected_fact_grounded_precision": 1.0,
                     "unexpected_accepted_field_count": 0}
         self.assertTrue(evaluator.evaluation_passes(complete, 17))
         incomplete = dict(complete, goal_unscored_cases=1, unscored_expected_fact_count=1)

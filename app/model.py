@@ -363,6 +363,18 @@ def _publication_threat_quote_supported(normalized_quote: str) -> bool:
 
 def _reported_binary_conflicts_with_clear_negation(field: str, normalized_quote: str) -> bool:
     clauses = _status_evidence_clauses(normalized_quote)
+    if field in _BINARY_PREDICATE_SCOPE_FIELDS:
+        clause_polarities = [_binary_predicate_polarities(field, clause) for clause in clauses]
+        if any(polarity is True for polarities in clause_polarities for polarity in polarities):
+            return True
+        unresolved_clauses = {i for i, polarities in enumerate(clause_polarities)
+                              if any(polarity is None for polarity in polarities)}
+        independent_positive = any(
+            i not in unresolved_clauses and any(polarity is False for polarity in polarities)
+            for i, polarities in enumerate(clause_polarities)
+        )
+        if unresolved_clauses and not independent_positive:
+            return True
     for clause in clauses:
         if _denied_status_has_support(field, clause):
             return True
@@ -414,6 +426,7 @@ _NEGATED_PREDICATE_TAIL_RE = re.compile(
 _PUBLICATION_INTENT_TAIL_RE = re.compile(
     r"(?:^|\s)(?:ب|قبل|رح|راح|سوف|س|سي|سين|سيتم|سوف\s+يتم|ان|انه|بان|بانه|لن)\s*$"
 )
+_PUBLICATION_ACTION_CUES = ("انتشرت", "نشر", "ينشر", "نزل", "ينزل", "رفع", "يرفع", "بعت الصور", "حاط")
 
 
 def _status_evidence_clauses(normalized_quote: str) -> list[str]:
@@ -443,7 +456,7 @@ def _binary_predicate_polarities(field: str, normalized_quote: str) -> list[bool
     for start, _, cue in matches:
         prefix = normalized_quote[max(0, start - 40):start]
         # "هددني بنشرها" is a threat to publish, not evidence that publication occurred.
-        if (field == "published" and cue in {"نشر", "ينشر"}
+        if (field == "published" and cue in _PUBLICATION_ACTION_CUES
                 and _PUBLICATION_INTENT_TAIL_RE.search(prefix)):
             continue
         if _NEGATED_PREDICATE_TAIL_RE.search(prefix):
@@ -467,9 +480,8 @@ def _binary_predicate_polarities(field: str, normalized_quote: str) -> list[bool
 
 def _quote_supports_actual_publication(normalized_quote: str) -> bool:
     """Require an actual publication verb, not a negation, plan, or threat complement."""
-    cues = ("انتشرت", "نشر", "ينشر", "نزل", "ينزل", "رفع", "يرفع", "بعت الصور", "حاط")
     matches: list[tuple[int, int, str]] = []
-    for cue in sorted(cues, key=len, reverse=True):
+    for cue in sorted(_PUBLICATION_ACTION_CUES, key=len, reverse=True):
         for match in re.finditer(re.escape(cue), normalized_quote):
             start, end = match.span()
             if any(start < old_end and end > old_start for old_start, old_end, _ in matches):
@@ -477,7 +489,7 @@ def _quote_supports_actual_publication(normalized_quote: str) -> bool:
             matches.append((start, end, cue))
     for start, _, cue in sorted(matches, key=lambda item: item[0]):
         prefix = normalized_quote[max(0, start - 40):start]
-        if cue in {"نشر", "ينشر"} and _PUBLICATION_INTENT_TAIL_RE.search(prefix):
+        if cue in _PUBLICATION_ACTION_CUES and _PUBLICATION_INTENT_TAIL_RE.search(prefix):
             continue
         return True
     return False

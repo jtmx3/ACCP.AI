@@ -10,6 +10,8 @@ from app.model import (
     generate_interview_extraction,
     last_call_trace,
     last_extraction_diagnostic,
+    _binary_predicate_polarities,
+    _normalize_arabic,
     validate_extractive_claims,
     validate_interview_facts,
     validate_interview_facts_diagnostic,
@@ -59,6 +61,39 @@ class OptionalModelTests(unittest.TestCase):
                 self.assertEqual(accepted, case["accepted"])
                 if not case["accepted"]:
                     self.assertEqual(result["filtered_facts"][0]["filter_code"], case["filter_code"])
+
+    def test_followup_polarity_and_publication_matrix(self):
+        matrix_path = Path(__file__).with_name("negation_predicate_scope_followup_v1.json")
+        matrix = json.loads(matrix_path.read_text(encoding="utf-8"))
+        self.assertEqual(matrix["edition"], "1.0")
+        for case in matrix["cases"]:
+            with self.subTest(case=case["id"]):
+                proposal = {"field": case["field"], "status": case["status"],
+                            "value": case["value"], "quote": case["quote"]}
+                result = validate_interview_facts_diagnostic(
+                    case["message"], json.dumps({"facts": [proposal]}, ensure_ascii=False))
+                accepted = any(fact.get("field") == case["field"]
+                               and fact.get("status") == case["status"]
+                               and fact.get("value") == case["value"]
+                               for fact in result["facts"])
+                self.assertEqual(accepted, case["accepted"])
+                if not case["accepted"]:
+                    self.assertEqual(result["filtered_facts"][0]["filter_code"], case["filter_code"])
+
+    def test_unresolved_binary_polarity_is_not_positive_or_negative_evidence(self):
+        normalized = _normalize_arabic("ما صار معي تهديد.")
+        self.assertEqual(_binary_predicate_polarities("threat", normalized), [None])
+        for status, value, code in (
+            ("reported", True, "value_inconsistent"),
+            ("denied", False, "unsupported_status_evidence"),
+        ):
+            with self.subTest(status=status):
+                fact = {"facts": [{"field": "threat", "status": status,
+                                   "value": value, "quote": "ما صار معي تهديد."}]}
+                result = validate_interview_facts_diagnostic(
+                    "ما صار معي تهديد.", json.dumps(fact, ensure_ascii=False))
+                self.assertEqual(result["facts"], [])
+                self.assertEqual(result["filtered_facts"][0]["filter_code"], code)
 
     def test_publication_intent_is_not_an_actual_published_event(self):
         for text in (

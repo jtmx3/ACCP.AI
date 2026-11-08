@@ -408,8 +408,11 @@ _NEGATION_MARKERS = ("ما في", "مافي", "لا يوجد", "ليس هناك"
 _STATUS_CLAUSE_SPLIT_RE = re.compile(r"[.!?؟؛;،,]+|\s+(?:لكن|ولكن|بس|بينما|مع ذلك)\s+")
 _BINARY_PREDICATE_SCOPE_FIELDS = {"threat", "published"}
 _NEGATED_PREDICATE_TAIL_RE = re.compile(
-    r"(?:^|\s)(?:ما\s+في|مافي|ما|لم|لا|مش|ليس|بدون|ولا|ولم)\s+"
-    r"(?:(?:صار|حصل|كان|في|يوجد|اي|مباشر|فعلي)\s+){0,4}$"
+    r"(?:^|\s)(?:وما|ما\s+في|مافي|ما|ولم|لم|ولا|لا|مش|ليس|بدون)\s+"
+    r"(?:(?:حدا|حد|احد|شخص|عم|صار|حصل|كان|في|يوجد|اي|مباشر|فعلي)\s+){0,4}$"
+)
+_PUBLICATION_INTENT_TAIL_RE = re.compile(
+    r"(?:^|\s)(?:ب|قبل|رح|راح|سوف|س|سي|سين|سيتم|سوف\s+يتم|ان|انه|بان|بانه|لن)\s*$"
 )
 
 
@@ -422,8 +425,8 @@ def _field_status_cues(field: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(_normalize_arabic(cue) for cue in cues))
 
 
-def _binary_predicate_polarities(field: str, normalized_quote: str) -> list[bool]:
-    """Return local polarity for occurrences of this field's own predicates."""
+def _binary_predicate_polarities(field: str, normalized_quote: str) -> list[bool | None]:
+    """Return local polarity (negative/positive/unresolved) for this field's predicates."""
     cues = sorted(_field_status_cues(field), key=len, reverse=True)
     matches: list[tuple[int, int, str]] = []
     for cue in cues:
@@ -436,15 +439,48 @@ def _binary_predicate_polarities(field: str, normalized_quote: str) -> list[bool
             matches.append((start, end, cue))
     matches.sort(key=lambda item: item[0])
 
-    polarities = []
+    polarities: list[bool | None] = []
     for start, _, cue in matches:
         prefix = normalized_quote[max(0, start - 40):start]
         # "هددني بنشرها" is a threat to publish, not evidence that publication occurred.
         if (field == "published" and cue in {"نشر", "ينشر"}
-                and re.search(r"(?:هدد\w*|يهدد\w*|توعد\w*)\s+ب$", prefix)):
+                and _PUBLICATION_INTENT_TAIL_RE.search(prefix)):
             continue
-        polarities.append(bool(_NEGATED_PREDICATE_TAIL_RE.search(prefix)))
+        if _NEGATED_PREDICATE_TAIL_RE.search(prefix):
+            polarities.append(True)
+        elif (field in _BINARY_PREDICATE_SCOPE_FIELDS
+              and re.search(r"(?:^|\s)(?:ما بعرف|لا اعرف|مش عارف|مش متاكد|غير متاكد|ما عندي فكرة)\s+(?:مين|من)\s*$",
+                            prefix)):
+            # Unknown actor identity does not make the event itself uncertain.
+            polarities.append(False)
+        elif (re.search(r"(?:^|\s)و$", prefix)
+              and any(marker in prefix for marker in _NEGATION_MARKERS)):
+            # An affirmative predicate coordinated with "و" starts a new polarity scope.
+            polarities.append(False)
+        elif any(marker in prefix for marker in _NEGATION_MARKERS + _NONREPORTED_STATUS_MARKERS["unknown"]):
+            # A failed narrow negation match is unresolved, not evidence of a positive event.
+            polarities.append(None)
+        else:
+            polarities.append(False)
     return polarities
+
+
+def _quote_supports_actual_publication(normalized_quote: str) -> bool:
+    """Require an actual publication verb, not a negation, plan, or threat complement."""
+    cues = ("انتشرت", "نشر", "ينشر", "نزل", "ينزل", "رفع", "يرفع", "بعت الصور", "حاط")
+    matches: list[tuple[int, int, str]] = []
+    for cue in sorted(cues, key=len, reverse=True):
+        for match in re.finditer(re.escape(cue), normalized_quote):
+            start, end = match.span()
+            if any(start < old_end and end > old_start for old_start, old_end, _ in matches):
+                continue
+            matches.append((start, end, cue))
+    for start, _, cue in sorted(matches, key=lambda item: item[0]):
+        prefix = normalized_quote[max(0, start - 40):start]
+        if cue in {"نشر", "ينشر"} and _PUBLICATION_INTENT_TAIL_RE.search(prefix):
+            continue
+        return True
+    return False
 
 
 def _unknown_refers_to_actor_not_event(field: str, clause: str) -> bool:
@@ -865,8 +901,10 @@ def validate_interview_facts_diagnostic(text: str, payload: str,
             if field in BINARY_FIELDS:
                 if value is not True:
                     reason = ("value_inconsistent", f"Reported binary field {field!r} must have value true.")
+                elif field == "published" and not _quote_supports_actual_publication(normalized_quote):
+                    reason = ("value_inconsistent", "A threat, plan, or infinitive mention of publishing does not establish that publication actually occurred.")
                 elif _reported_binary_conflicts_with_clear_negation(field, normalized_quote):
-                    reason = ("value_inconsistent", f"Reported {field!r} conflicts with explicit negation in its quote.")
+                    reason = ("value_inconsistent", f"Reported {field!r} is contradicted or left uncertain by the polarity of its quoted predicate.")
             elif not isinstance(value, str) or not value.strip():
                 reason = ("value_inconsistent", f"Reported text field {field!r} must have a non-empty string value.")
             elif _reported_text_conflicts_with_clear_negation(field, normalized_quote):

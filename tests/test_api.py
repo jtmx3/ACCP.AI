@@ -148,6 +148,7 @@ class ApiIntegrationTests(unittest.TestCase):
             ("ما دفعت أي مبلغ.", "paid_amount", "unknown", None, "unsupported_status_evidence"),
             ("ما نشر الصور وهددني بنشرها.", "threat", "denied", False,
              "unsupported_status_evidence"),
+            ("هددني بنشر الصور.", "published", "reported", True, "value_inconsistent"),
         ]
         env = {"MODEL_PROVIDER": "ollama", "MODEL_BASE_URL": "http://127.0.0.1:11434/v1",
                "MODEL_NAME": "synthetic-test:latest", "OLLAMA_REASONING_EFFORT": "none"}

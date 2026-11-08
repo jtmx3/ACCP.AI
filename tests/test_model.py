@@ -2,6 +2,7 @@ import io
 import json
 import os
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from app.model import (
@@ -39,6 +40,48 @@ class OptionalModelTests(unittest.TestCase):
     def test_provider_timeout_returns_none_for_local_fallback(self):
         with patch("app.model.urllib.request.urlopen", side_effect=TimeoutError("synthetic timeout")):
             self.assertIsNone(generate_grounded_answer("كيف أحفظ الأدلة؟", self.sources))
+
+    def test_frozen_negation_predicate_scope_matrix_v1(self):
+        matrix_path = Path(__file__).with_name("negation_predicate_scope_v1.json")
+        matrix = json.loads(matrix_path.read_text(encoding="utf-8"))
+        self.assertEqual(matrix["edition"], "1.0")
+        for case in matrix["cases"]:
+            with self.subTest(case=case["id"]):
+                proposal = {"field": case["field"], "status": case["status"],
+                            "value": case["value"], "quote": case["quote"]}
+                result = validate_interview_facts_diagnostic(
+                    case["message"], json.dumps({"facts": [proposal]}, ensure_ascii=False),
+                    pending_slot=case["field"] if case["status"] == "unknown" else None)
+                accepted = any(fact.get("field") == case["field"]
+                               and fact.get("status") == case["status"]
+                               and fact.get("value") == case["value"]
+                               for fact in result["facts"])
+                self.assertEqual(accepted, case["accepted"])
+                if not case["accepted"]:
+                    self.assertEqual(result["filtered_facts"][0]["filter_code"], case["filter_code"])
+
+    def test_publication_intent_is_not_an_actual_published_event(self):
+        for text in (
+            "هددني بنشر الصور.",
+            "هددني إنه رح ينشر الصور.",
+            "هددني بأنه سينشر الصور.",
+            "رح ينشر الصور إذا ما دفعت.",
+        ):
+            with self.subTest(text=text):
+                proposal = {"facts": [{"field": "published", "status": "reported",
+                                       "value": True, "quote": text}]}
+                result = validate_interview_facts_diagnostic(
+                    text, json.dumps(proposal, ensure_ascii=False))
+                self.assertEqual(result["facts"], [])
+                self.assertEqual(result["filtered_facts"][0]["filter_code"], "value_inconsistent")
+
+        actual_text = "هددني ثم نشر الصور فعلًا."
+        actual = {"facts": [{"field": "published", "status": "reported",
+                             "value": True, "quote": "نشر الصور فعلًا"}]}
+        result = validate_interview_facts_diagnostic(
+            actual_text, json.dumps(actual, ensure_ascii=False))
+        self.assertEqual([fact["field"] for fact in result["facts"]], ["published"])
+        self.assertEqual(result["filtered_facts"], [])
 
     def test_grounded_answer_shows_only_an_exact_source_excerpt(self):
         payload = {"claims": [{"source_id": "AU-TEST", "quote": "Preserve relevant records."}]}

@@ -287,3 +287,56 @@ $env:MODEL_PROVIDER='ollama'; $env:MODEL_BASE_URL='http://127.0.0.1:11434/v1'; $
 أُعيد تقييم مجموعتي v3.3.1 المجمدتين دون تعديل التوقعات. بقيت نتيجة الأصل **12/18 حالة و69/76 تحققًا**، والنسخة المنفصلة ذات نطاق المنصة **14/18 و73/78**؛ تطابق أيضًا تعداد الإخفاقات مع التقارير السابقة، مع صفر محاولات مزود وصفر fallback. حفظت التشغيلات الجديدة في [تقرير الأصل بعد متابعة التباين](../reports/evaluation/conversation-v3-3-1-original-post-contrastive-2026-11-08.json) و[تقرير النطاق بعد متابعة التباين](../reports/evaluation/conversation-v3-3-1-guidance-scoped-post-contrastive-2026-11-08.json). أعاد كل أمر رمز إخفاق لأن معايير هذه المجموعات المجمدة تتضمن إخفاقات قائمة، لا بسبب خطأ تشغيل.
 
 فُحص Ollama المحدد محليًا دون إرسال الحالات: لا يوجد تنفيذ `ollama` في PATH، واتصال `127.0.0.1:11434` رُفض. أعاد مشغل التقييم `not_run` بالسبب `unreachable`، وتحقق من **0/17 محاولة**؛ سجل الفحص هو [تقرير عدم تشغيل التقييم الحي](../reports/evaluation/extraction-contrastive-not-run-linux-2026-11-08.json). لم يُجرَ اختبار Ollama حي أو اختبار Windows هنا. يلزم تشغيل أمر PowerShell أعلاه على Windows؛ لا تثبت الاختبارات أو نتائج القواعد تحسن النموذج الحي، ولا تعلن هذه المجموعة الاصطناعية جاهزية لاستخدام واقعي.
+
+
+## متابعة v3.4.1 — تبسيط عقد الاستخراج ومقارنة Windows
+
+### نتائج Windows السابقة وقيود المراجعة
+
+أبلغ صاحب المشروع أن تشغيل Windows السابق على المجموعة المجمدة `extraction_contrastive_v1.json` بإصدارها `1.0`، مع `qwen3.5:4b-q4_K_M` و`reasoning_effort=none`، أعاد **17/17 استجابة صالحة بنيويًا**، وأصاب الأهداف في **12/17** حالة، وطابق الحالة والقيمة في **8/16** حقيقة متوقعة. لم يحدث دمج أو رجوع للقواعد في ذلك القياس. هذه أرقام التقرير التي زوّدني بها صاحب المشروع، وليست تشغيلًا نفذته هنا. لم يكن ملف التقرير الحي التفصيلي موجودًا ضمن نسخة المستودع/بيئة العمل التي راجعتها؛ لذلك أبقيت إصدار المجموعة `1.0` والتقرير التاريخي كما هما، ولم أخمّن نص operation الذي ظهر في R02 أو رموز تصفيته.
+
+### أسباب التغييرات
+
+كانت صيغة الإخراج السابقة تعرض قائمة operations طويلة وتدعو النموذج لاختيار `same` حتى في جواب مباشر بلا هدف مرجعي؛ لذلك جرى تبسيط العقد: الجواب المباشر لا يحمل `operation`، وتُعبّر `status` عن النفي والجهل والنسيان والامتناع. لا تقبل عمليات الإحالة `same` و`support` و`correct` إلا عند وجود هدف محدد ومخوّل في السياق، وإشارة صريحة في الرسالة الحالية، وقيمة متوافقة؛ أما `same` بلا هدف فيُرفض ولا يُحوّل إلى عملية أخرى. تظهر الأسباب الجديدة بأكواد آمنة مثل `operation_unsupported` و`operation_target_missing` و`operation_reference_not_authorized` و`operation_reference_unsupported`، من دون إعادة قيمة operation المرفوضة في تفاصيل المدقق. لا يستنتج هذا تشخيص R02 السابق؛ نص العملية هناك لم يُحفظ.
+
+فُصلت حالة النفي عن نوع الحقل في البرومبت: نفي الحقل الثنائي `false`، ونفي النص/الوقت/المبلغ `null`، مع إبقاء `unknown` و`not_remembered` و`declined` حالات مستقلة. أضيفت صيغ متابعة مختلفة وثابتة قبل تعديل البرومبت في [`extraction_contrastive_followup_v1.json`](../tests/extraction_contrastive_followup_v1.json): 14 حالة اصطناعية تشمل اختلاف الصياغة، ووجود سياق إحالة مصرح به، والسؤال الذي يجب أن يبقى `facts=[]`. ملف v1 الأساسي لم يتغير. التحقق يقبل الآن القيد الزمني في قيمة الموعد فقط إذا لم يُحذف معنى `قبل/بعد/خلال` المتصل بتعبير زمني؛ فاختصار «قبل بكرا» إلى «بكرا» يُصفّى كـ`value_inconsistent` بدل قبوله كقيمة مكافئة.
+
+### تعريف المقاييس وإصدارها
+
+ملف السيناريوهات الأصلي ثابت عند الإصدار `1.0`، بينما إصدار حساب المؤشرات الجديدة هو `scoring_version=2.0` وعقد البرومبت `minimal-reference-ops-v2`؛ لا تُخلط هذه الإصدارات بتقرير Windows السابق.
+
+- `goal_exact_case_matches / goal_scored_cases`: نسبة الحالات المطابقة تمامًا للأهداف، ومقامها الاستجابات التي قبلها المدقق فقط. `goal_precision = TP/(TP+FP)` و`goal_recall = TP/(TP+FN)` على الأهداف في هذه الاستجابات. الاستجابة المرفوضة غير مقاسة في هذا المقام، وتظهر منفصلة عن الإغفال.
+- `fact_field_status_value_accuracy`: عدد الحقول المقبولة الصحيحة في الحالة والقيمة على `scored_expected_fact_count`، أي الحقائق المتوقعة في الاستجابات المقبولة بنيويًا. `fact_field_status_value_end_to_end_coverage` يقسم المطابقات نفسها على **كل** الحقائق المتوقعة، بما فيها حالات الرد المرفوض أو عدم الاستجابة؛ ويبقى `unscored_expected_fact_count` ظاهرًا لتفسير ذلك.
+- `fact_quote_accuracy`: الاقتباسات المطابقة حرفيًا على الحقائق المتوقعة القابلة للتقييم. `fact_field_full_status_value_quote_coverage` يطلب مطابقة الحالة والقيمة والاقتباس معًا، ومقامه كل الحقائق المتوقعة. `accepted_fact_exact_match_precision` يقيس دقة الحالة والقيمة بين الحقائق التي اجتازت المدقق؛ و`accepted_fact_full_match_precision` يضيف تطابق الاقتباس.
+- الإغفال (`omitted_fields`)، والتصفية (`filtered_expected_fields` و`filtered_proposals_by_code`)، والحقائق الإضافية المقبولة، والاستجابة المرفوضة، والاستجابة الصالحة بلا حقائق (`valid_empty`) حالات منفصلة؛ لا يُملأ أي منها من القواعد.
+- `model_raw_output` يحفظ بصمة استجابة المزود وحجمها والمقترحات المنظمة كما صدرت قبل التحقق، منفصلة عن `validator_accepted_facts` و`validator_filtered_proposals`. لا يحفظ جسم الرد الخام الكامل. `application_normalizations` فارغ في هذا الاختبار؛ لا يجري إصلاح أو دمج في المشغل.
+- `request_body_bytes` و`prompt_char_count` و`model_response_bytes` أحجام منفصلة. `provider_latency_ms` زمن استدعاء النموذج، و`total_elapsed_ms` يشمل التحقق المحلي. `provider_attempt_count` عدد استدعاءات استخراج النموذج، مع زمن الفحص المسبق منفصلًا؛ المقام المتوقع في تشغيل كامل دون إعادة محاولة هو محاولة واحدة لكل حالة. لا تعد المقاييس fallback أو نجاح المحادثة المتكاملة نجاحًا للنموذج.
+
+### تقليل حجم الطلب والاختبارات
+
+قيس جسم طلب الاستخراج قبل التغيير وبعده برسالة واحدة وموائم HTTP اصطناعي، لا بخدمة Ollama: انخفض من **8030 إلى 5564 بايتًا** (توفير 2466 بايتًا، **30.71%**)؛ وانخفضت محارف الطلب المحسوبة من **6146 إلى 4047** (توفير 2099، **34.15%**). بقي عدد الاستدعاءات في هذا القياس **واحدًا قبل التعديل وواحدًا بعده**. هذه مقارنة لحجم payload فقط وليست قياسًا لزمن توليد نموذج حي أو تحسن دقته.
+
+نجحت مجموعة الانحدار كاملة على Linux/Python 3.12.3 بالأمر `python -W error::ResourceWarning -m unittest discover -s tests -v`: **223/223 اختبارًا خلال 26.051 ثانية**. شملت اختبارات العملية المباشرة والمرجعية، العمليات غير المدعومة، الفصل بين الحالات، قيد `قبل/بعد/خلال`، المجموعة المجمدة v1.0، مجموعة المتابعة ذات 14 حالة، ومقاييس المشغل وفصل المقترحات عن نتيجة المدقق. نجحت أيضًا `node --check static/app.js` و`python -m compileall -q app scripts tests` والتحقق من ملفات JSON و`git diff --check`.
+
+أُعيدت التقييمات السابقة دون تعديل توقعاتها. مجموعة القواعد `evaluation_scenarios.json` بقيت **21/21** بلا محاولة نموذج في [التقرير الجديد](../reports/evaluation/evaluation-scenarios-rules-post-ops-v2-2026-11-08.json). على مجموعة v3.3.1 الأصلية بقيت النتيجة **12/18**، وإخفاقاتها Q01 وQ06 وQ10 وQ12 وQ14 وQ15 في [التقرير الجديد](../reports/evaluation/conversation-v3-3-1-original-post-ops-v2-2026-11-08.json). وفي المجموعة المنفصلة ذات نطاق المنصة بقيت **14/18**، والإخفاقات Q06 وQ10 وQ14 وQ15 في [التقرير الجديد](../reports/evaluation/conversation-v3-3-1-guidance-scoped-post-ops-v2-2026-11-08.json). أعاد الأمران رمز 1 لأن الإخفاقات المجمدة ما زالت متوقعة في معايير المجموعتين؛ لم تُغيّر التوقعات لإخفائها.
+
+### تقييم Windows الحي المطلوب
+
+لم يوجد Ollama في PATH هنا، واتصال `127.0.0.1:11434` رُفض. لم يُرسل أي سيناريو إلى نموذج. حفظت حالتي `not_run` جديدتين، كلتاهما بصفر محاولات، دون استبدال تقرير سابق: [المجموعة الأساسية v1.0](../reports/evaluation/extraction-contrastive-v1-ops-v2-not-run-linux-2026-11-08.json) و[المتابعة الجديدة](../reports/evaluation/extraction-contrastive-followup-v1-ops-v2-not-run-linux-2026-11-08.json). لذلك **لم يُقَس التحسن الحي**، ولا تثبت اختبارات المزود الوهمي أو مرور المدقق صحة استجابة `qwen3.5:4b-q4_K_M` على Windows.
+
+للمقارنة على Windows، شغّل Ollama والنموذج الحالي، ثم نفّذ من جذر المستودع. ينشئ الأمر تقريرًا جديدًا لكل مجموعة ولكل تشغيل، ويواصل الثانية حتى إذا انتهت الأولى بالرمز 1 بسبب معيار جودة أو `not_run`؛ راجع ملخص كل ملف ولا تستبدل تقرير القياس القديم:
+
+```powershell
+$env:MODEL_PROVIDER='ollama'; $env:MODEL_BASE_URL='http://127.0.0.1:11434/v1'; $env:MODEL_NAME='qwen3.5:4b-q4_K_M'; $env:MODEL_TIMEOUT_SECONDS='120'; $env:OLLAMA_REASONING_EFFORT='none'
+$py = '.\.venv\Scripts\python.exe'
+$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+$baseOut = "reports/evaluation/extraction-contrastive-v1-ops-v2-$stamp.json"
+$followOut = "reports/evaluation/extraction-contrastive-followup-v1-ops-v2-$stamp.json"
+& $py -W error::ResourceWarning -m scripts.evaluate_extraction_contrastive --suite tests/extraction_contrastive_v1.json --output $baseOut
+$baseExit = $LASTEXITCODE
+& $py -W error::ResourceWarning -m scripts.evaluate_extraction_contrastive --suite tests/extraction_contrastive_followup_v1.json --output $followOut
+$followExit = $LASTEXITCODE
+Write-Host "Base exit=$baseExit report=$baseOut; Follow-up exit=$followExit report=$followOut"
+```
+
+قارن `goal_exact_case_matches` مع **12/17**، و`fact_field_status_value_matches` مع **8/16** في سجل Windows السابق، ثم راجع المقامات والأهداف والاقتباس وسبب التصفية والزمن وحجم كل طلب وعدد استدعاءات استخراج النموذج. نتيجة الأساس السابقة من صاحب المشروع لم تُرفق هنا بصيغتها التفصيلية، ولذلك يجب الاحتفاظ بها عنده لمقارنة الحالات. لا يُعد رمز الخروج 1 فشل اتصال بالضرورة: قد يعني تقييمًا حيًا مكتملًا لم يحقق كل الشروط، أو حالة `not_run`؛ يحسم ذلك ملف JSON نفسه.

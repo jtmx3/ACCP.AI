@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import statistics
@@ -43,6 +44,52 @@ def _fact_maps(items: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             and isinstance(item.get("field"), str)}
 
 
+def _model_output_snapshot(raw_response: Any) -> dict[str, Any]:
+    """Keep structured model proposals separate from validator output, without storing the raw response body."""
+    if not isinstance(raw_response, str):
+        return {"json_parsed": False, "response_sha256": None, "response_bytes": 0,
+                "message_goals": None, "fact_proposals": []}
+    encoded = raw_response.encode("utf-8", "replace")
+    snapshot: dict[str, Any] = {"json_parsed": False,
+                                "response_sha256": hashlib.sha256(encoded).hexdigest(),
+                                "response_bytes": len(encoded), "message_goals": None,
+                                "guidance_question": None, "fact_proposals": []}
+    try:
+        parsed = json.loads(raw_response)
+    except (TypeError, ValueError):
+        return snapshot
+    if not isinstance(parsed, dict):
+        return snapshot
+    snapshot["json_parsed"] = True
+    goals = parsed.get("message_goals")
+    snapshot["message_goals"] = goals[:32] if isinstance(goals, list) else None
+    guidance = parsed.get("guidance_question")
+    snapshot["guidance_question"] = guidance[:400] if isinstance(guidance, str) else None
+    proposals = parsed.get("facts")
+    if isinstance(proposals, list):
+        keys = ("field", "status", "value", "quote", "current_quote", "operation",
+                "question_ref", "context_refs", "target_fact_id", "target_event_id")
+        clean = []
+        for item in proposals[:24]:
+            if not isinstance(item, dict):
+                clean.append({"proposal_type": type(item).__name__})
+                continue
+            row = {}
+            for key in keys:
+                value = item.get(key)
+                if isinstance(value, str):
+                    row[key] = value[:500]
+                elif isinstance(value, list):
+                    row[key] = [part[:160] if isinstance(part, str) else None for part in value[:12]]
+                elif value is None or isinstance(value, (bool, int, float)):
+                    row[key] = value
+                elif key in item:
+                    row[key] = {"unsupported_value_type": type(value).__name__}
+            clean.append(row)
+        snapshot["fact_proposals"] = clean
+    return snapshot
+
+
 def score_case(case: dict[str, Any], accepted_facts: list[dict[str, Any]],
                filtered_facts: list[dict[str, Any]], message_plan: dict[str, Any],
                diagnostic: dict[str, Any], trace: dict[str, Any], elapsed_ms: float) -> dict[str, Any]:
@@ -77,9 +124,11 @@ def score_case(case: dict[str, Any], accepted_facts: list[dict[str, Any]],
             disposition = "accepted_match" if exact else "accepted_mismatch"
         fact_rows.append({"field": field, "expected_status": expected.get("status"),
                           "expected_value": expected.get("value"),
+                          "expected_quote": expected.get("quote"),
                           "actual_status": actual.get("status") if actual else None,
                           "actual_value": actual.get("value") if actual else None,
                           "actual_quote": actual.get("quote") if actual else None,
+                          "quote_match": actual.get("quote") == expected.get("quote") if actual else False,
                           "disposition": disposition,
                           "filter_code": rejected.get("filter_code") if rejected else None,
                           "filter_detail": rejected.get("filter_detail") if rejected else None})
@@ -98,6 +147,7 @@ def score_case(case: dict[str, Any], accepted_facts: list[dict[str, Any]],
                       "filter_detail": item.get("filter_detail")}
                      for item in filtered_facts if isinstance(item, dict)]
     provider_response_received = bool(diagnostic.get("raw_response")) or trace.get("status") == "empty_response"
+    raw_model_output = _model_output_snapshot(diagnostic.get("raw_response"))
     outcome = trace.get("extraction_outcome") or (
         "extracted" if accepted else "all_facts_filtered" if filtered_facts else
         "valid_empty" if diagnostic.get("accepted") else "provider_failed")
@@ -110,6 +160,13 @@ def score_case(case: dict[str, Any], accepted_facts: list[dict[str, Any]],
         "schema_valid": diagnostic.get("schema_valid"),
         "response_valid": response_valid,
         "provider_latency_ms": trace.get("latency_ms"), "total_elapsed_ms": round(elapsed_ms, 3),
+        "request_body_bytes": trace.get("request_body_bytes"),
+        "prompt_char_count": trace.get("prompt_char_count"),
+        "provider_attempt_count": trace.get("provider_attempt_count", int(bool(trace.get("attempted")))),
+        "model_raw_output": raw_model_output,
+        "validator_accepted_facts": accepted_facts,
+        "validator_filtered_proposals": filtered_rows,
+        "application_normalizations": [],
         "goals": {"scored": response_valid, "expected": sorted(expected_goals),
                   "model_output": sorted(model_goals) if response_valid else None,
                   "supported": sorted(supported_goals), "unsupported": sorted(unsupported_goals),
@@ -161,7 +218,8 @@ def evaluate_suite(suite_path: Path = DEFAULT_SUITE, *, probe_timeout: float = 5
     probe = probe_provider(timeout=probe_timeout)
     output: dict[str, Any] = {
         "evaluation_type": "model_extraction_only_contrastive",
-        "evaluation_version": suite.get("edition"), "suite_id": suite.get("suite_id"),
+        "evaluation_version": suite.get("edition"), "scoring_version": "2.0",
+        "prompt_contract_version": "minimal-reference-ops-v2", "suite_id": suite.get("suite_id"),
         "synthetic": True, "provider": "ollama", "model": config.get("model"),
         "reasoning_effort": config.get("ollama_reasoning_effort"),
         "service_reachable": bool(probe.get("service_reachable")),
@@ -171,6 +229,7 @@ def evaluate_suite(suite_path: Path = DEFAULT_SUITE, *, probe_timeout: float = 5
         "validator_source": "app.model.validate_interview_facts_diagnostic",
         "integrated_system_evaluation": False, "rule_merge_performed": False,
         "fallback_performed": False, "raw_provider_responses_saved": False,
+        "raw_model_proposals_saved": True,
         "case_count": len(suite["cases"]), "cases": [],
     }
     if not probe.get("service_reachable") or not probe.get("model_available"):
@@ -185,7 +244,8 @@ def evaluate_suite(suite_path: Path = DEFAULT_SUITE, *, probe_timeout: float = 5
         reset_call_trace()
         started = time.perf_counter()
         try:
-            result = generate_interview_extraction(case["message"], case["pending_slot"])
+            result = generate_interview_extraction(case["message"], case["pending_slot"],
+                                                   case.get("bounded_context"))
             elapsed_ms = (time.perf_counter() - started) * 1000
             diagnostic = last_extraction_diagnostic() or {}
             trace = last_call_trace() or {}
@@ -236,12 +296,24 @@ def evaluate_suite(suite_path: Path = DEFAULT_SUITE, *, probe_timeout: float = 5
             rejection_code_counts[code] = rejection_code_counts.get(code, 0) + 1
     accepted_fact_count = sum(item.get("facts", {}).get("accepted_count", 0) for item in results)
     exact_fact_match_count = sum(row.get("disposition") == "accepted_match" for row in fact_rows)
+    exact_fact_and_quote_match_count = sum(row.get("disposition") == "accepted_match" and row.get("quote_match")
+                                           for row in fact_rows)
     unexpected_accepted_count = sum(len(item.get("facts", {}).get("unexpected_accepted_fields", []))
                                     for item in results)
+    quote_match_count = sum(bool(row.get("quote_match")) for row in fact_rows)
+    response_bytes = [item["model_raw_output"]["response_bytes"] for item in results
+                      if item.get("model_raw_output", {}).get("response_bytes")]
+    request_sizes = [item["request_body_bytes"] for item in results
+                     if isinstance(item.get("request_body_bytes"), int)]
+    request_prompt_chars = [item["prompt_char_count"] for item in results
+                            if isinstance(item.get("prompt_char_count"), int)]
+    call_attempts = sum(item.get("provider_attempt_count", 0) for item in results)
     output["cases"] = results
     output["run_status"] = "completed"
     output["summary"] = {
         "attempted_cases": sum(bool(item.get("provider_attempted")) for item in results),
+        "provider_attempt_count": call_attempts,
+        "provider_attempts_per_case": _ratio(call_attempts, len(results)),
         "provider_responses_received": sum(bool(item.get("provider_response_received")) for item in results),
         "json_valid_responses": sum(item.get("json_valid") is True for item in results),
         "schema_valid_responses": sum(item.get("schema_valid") is True for item in results),
@@ -266,8 +338,14 @@ def evaluate_suite(suite_path: Path = DEFAULT_SUITE, *, probe_timeout: float = 5
         "fact_field_status_value_accuracy": _ratio(sum(row.get("disposition") == "accepted_match" for row in fact_rows),
                                                     scored_expected_fact_count),
         "fact_field_status_value_end_to_end_coverage": _ratio(exact_fact_match_count, expected_fact_count),
+        "fact_quote_matches": quote_match_count,
+        "fact_quote_accuracy": _ratio(quote_match_count, scored_expected_fact_count),
+        "fact_field_full_status_value_quote_matches": exact_fact_and_quote_match_count,
+        "fact_field_full_status_value_quote_coverage": _ratio(exact_fact_and_quote_match_count,
+                                                              expected_fact_count),
         "accepted_fact_count": accepted_fact_count,
         "accepted_fact_exact_match_precision": _ratio(exact_fact_match_count, accepted_fact_count),
+        "accepted_fact_full_match_precision": _ratio(exact_fact_and_quote_match_count, accepted_fact_count),
         "unexpected_accepted_field_count": unexpected_accepted_count,
         "omitted_expected_fact_count": sum(len(item.get("facts", {}).get("omitted_fields", [])) for item in results),
         "filtered_expected_fact_count": sum(len(item.get("facts", {}).get("filtered_expected_fields", [])) for item in results),
@@ -282,8 +360,15 @@ def evaluate_suite(suite_path: Path = DEFAULT_SUITE, *, probe_timeout: float = 5
         "cases_with_accepted_facts": sum(item.get("facts", {}).get("accepted_count", 0) > 0 for item in results),
         "provider_latency_ms_median": round(statistics.median(latencies), 3) if latencies else None,
         "provider_latency_ms_p95": _percentile(latencies, 0.95),
+        "request_body_bytes_total": sum(request_sizes),
+        "request_body_bytes_median": round(statistics.median(request_sizes), 3) if request_sizes else None,
+        "request_body_bytes_p95": _percentile(request_sizes, 0.95),
+        "prompt_char_count_median": round(statistics.median(request_prompt_chars), 3) if request_prompt_chars else None,
+        "model_response_bytes_total": sum(response_bytes),
+        "model_response_bytes_median": round(statistics.median(response_bytes), 3) if response_bytes else None,
         "integrated_system_metrics_included": False,
         "rules_fallback_success_counted_as_model_success": False,
+        "application_normalization_or_repair_count": 0,
     }
     return output
 
@@ -312,7 +397,9 @@ def evaluation_passes(summary: dict[str, Any], case_count: int) -> bool:
         and summary.get("goal_false_negative") == 0
         and summary.get("unscored_expected_fact_count") == 0
         and summary.get("fact_field_status_value_end_to_end_coverage") == 1.0
+        and summary.get("fact_quote_accuracy") == 1.0
         and summary.get("accepted_fact_exact_match_precision") == 1.0
+        and summary.get("accepted_fact_full_match_precision") == 1.0
         and summary.get("unexpected_accepted_field_count") == 0
     )
 

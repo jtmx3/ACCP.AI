@@ -372,3 +372,31 @@ Write-Host "Frozen v1 exit=$baseExit report=$baseReport; Follow-up exit=$followu
 ```
 
 قارن مجموعة v1.0 مع التقرير الحي السابق الذي أبلغ به صاحب المشروع: **12/17** في مطابقة الأهداف و**8/16** في مطابقة الحالة والقيمة. احتفظ بالمقامات التي يسجلها التقرير الجديد، وراجع كذلك الحقول الصحيحة المغفلة، والحقائق المصفاة وسببها، والاستجابة/الاقتباس، وحجم الطلب، وعدد المحاولات، وزمن المزود. التقرير الجديد للمجموعة الأساسية لا يستبدل التقرير السابق، ومجموعة المتابعة لا تمثل خط أساسًا حيًا سابقًا. لم يُشغّل Ollama في بيئة هذا التحديث؛ لذلك لا توجد نتيجة حية أو ادعاء بتحسن Qwen بعد إصلاح المدقق.
+
+
+## متابعة v3.4.3 — حفظ دقة الساعة في deadline
+
+بعد إصلاح `18f84c6` أظهرت اختبارات المدقق الاصطناعية أن `6:30` و`6:45` و`6` و`6 صباحًا/مساءً` أمكن اختزالها إلى توقيع واحد. السبب أن تنظيف علامات الترقيم كان يحذف النقطتين، ونمط الساعة كان يتوقع `ساعه` بينما النص المطبّع يبقي التاء المربوطة في «الساعة»؛ لذلك كان التحليل يلتقط رقم الساعة وحده.
+
+أصبح التطبيع يحول الأرقام العربية إلى الغربية ويحافظ على `:`، ويطابق «الساعة/الساعه» مع الساعة والدقائق وفترة اليوم كعبارة زمنية كاملة. يرفض الحد النهائي للمطابقة الجزئية التقاط الساعة فقط إذا تبعها `:` لم يُحلل؛ وعند تعذر إثبات التعبير كاملًا يصفّي الاقتراح. سبب التصفية الآمن `value_inconsistent` وتفصيله يذكر صراحة دقة الساعة/فترة اليوم والاتجاه والإزاحة. لا يجري التطبيق إصلاحًا أو تطبيعًا صامتًا للقيمة المقبولة.
+
+أضيفت إلى اختبار `deadline` حالات رفض `6:30→6:45`، و`6:30→6`، و`6 مساءً→6 صباحًا`؛ وحالات قبول الوقت الكامل المطابق، والساعة دون دقائق عندما يخلو المصدر نفسه من الدقائق، ومطابقة أرقام عربية مع المقابل الغربي بعد التطبيع. بقيت حالات الاتجاهات المتعددة، والإزاحة، واقتطاع المقطع الصحيح من جملة أطول ضمن الاختبار نفسه، دون تغيير توقعات `extraction_contrastive_v1.json`.
+
+على Linux/Python 3.12.3 نجح الاكتشاف الكامل **224/224** مع `ResourceWarning` كأخطاء، كما شملت الاختبارات المركزة نموذج المشروع وv1.0 ومجموعة المتابعة. هذه اختبارات مدقق بمدخلات اصطناعية ولا تختبر توليد Qwen. لم يُنفذ تقييم Ollama حي هنا؛ المقارنة الحية للمجموعتين ما زالت على جهاز Windows.
+
+أعد تشغيل المجموعتين بعد تشغيل Ollama والنموذج المحدد، من PowerShell في جذر المشروع. كل أمر يحفظ تقريرًا جديدًا ولا يكتب فوق التقرير السابق:
+
+```powershell
+$env:MODEL_PROVIDER='ollama'; $env:MODEL_BASE_URL='http://127.0.0.1:11434/v1'; $env:MODEL_NAME='qwen3.5:4b-q4_K_M'; $env:MODEL_TIMEOUT_SECONDS='120'; $env:OLLAMA_REASONING_EFFORT='none'
+$py = '.\.venv\Scripts\python.exe'
+$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+$baseReport = "reports/evaluation/extraction-contrastive-v1-deadline-clock-v343-$stamp.json"
+$followupReport = "reports/evaluation/extraction-contrastive-followup-v1-deadline-clock-v343-$stamp.json"
+& $py -W error::ResourceWarning -m scripts.evaluate_extraction_contrastive --suite tests/extraction_contrastive_v1.json --output $baseReport
+$baseExit = $LASTEXITCODE
+& $py -W error::ResourceWarning -m scripts.evaluate_extraction_contrastive --suite tests/extraction_contrastive_followup_v1.json --output $followupReport
+$followupExit = $LASTEXITCODE
+Write-Host "Frozen v1 exit=$baseExit report=$baseReport; Follow-up exit=$followupExit report=$followupReport"
+```
+
+قارن تقرير v1 بنتيجة Windows السابقة التي أبلغ بها صاحب المشروع (**12/17** للأهداف و**8/16** للحالة والقيمة)، وافحص أيضًا الإغفال والتصفية والأزمنة. نتيجة مجموعة المتابعة منفصلة ولا تقارن بخط أساس حي سابق. لا تُنسب اختبارات المدقق أو موائمات المزود الوهمية إلى دقة النموذج.

@@ -439,6 +439,13 @@ class OptionalModelTests(unittest.TestCase):
             ("موعد السداد قبل نهاية الأسبوع بيوم.", "قبل نهاية الأسبوع بيوم", True),
             ("موعد السداد قبل نهاية الأسبوع بيوم واحد.", "قبل نهاية الأسبوع بيوم واحد", True),
             ("موعد السداد قبل نهاية الأسبوع بيوم واحد.", "قبل نهاية الأسبوع بيوم", False),
+            ("الموعد قبل الساعة 6:30.", "قبل الساعة 6:45", False),
+            ("الموعد قبل الساعة 6:30.", "قبل الساعة 6", False),
+            ("الموعد قبل الساعة 6:30.", "قبل الساعة 6:30", True),
+            ("الموعد قبل الساعة 6.", "قبل الساعة 6", True),
+            ("الموعد قبل الساعة 6 مساءً.", "قبل الساعة 6 صباحًا", False),
+            ("الموعد قبل الساعة 6 مساءً.", "قبل الساعة 6 مساءً", True),
+            ("الموعد قبل الساعة ٦:٣٠.", "قبل الساعة 6:30", True),
             ("الموعد قبل بكرا وبعد الساعة 6.", "قبل الساعة 6 وبعد بكرا", False),
             ("الموعد قبل بكرا وبعد الساعة 6.", "قبل بكرا وبعد الساعة 6", True),
             ("الموعد قبل بكرا وبعد الساعة 6.", "قبل بكرا", False),
@@ -456,6 +463,7 @@ class OptionalModelTests(unittest.TestCase):
                 self.assertEqual(bool(result["facts"]), should_accept)
                 if not should_accept:
                     self.assertEqual(result["filtered_facts"][0]["filter_code"], "value_inconsistent")
+                    self.assertIn("clock precision/daypart", result["filtered_facts"][0]["filter_detail"])
 
     def test_prompt_simplification_reduces_request_size_without_extra_calls(self):
         text = "شو معنى المهلة؟"

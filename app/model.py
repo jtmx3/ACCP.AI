@@ -524,20 +524,23 @@ _DEADLINE_EXPRESSION_RE = re.compile(
     r"(?:يومين|يوم|ايام|اسبوعين|اسبوع|اسابيع|شهرين|شهر|شهور|ساعتين|ساعه|ساعات)"
     r"(?:\s+(?:واحد|واحده|اثنين|ثنتين|ثلاثه|ثلاثة|اربعه|اربع))?)?"
     r"|(?:بعد\s+)?(?:بكرا|غدا|اليوم|امس|مبارح)"
-    r"|(?:ال)?ساعه\s*\d+(?:\s*(?:صباحا|مساء))?"
+    r"|(?:ال)?ساع(?:ة|ه)\s*\d{1,2}(?::\d{2})?(?:\s*(?:صباحا|مساء))?"
+    r"|\d{1,2}:\d{2}(?:\s*(?:صباحا|مساء))?"
+    r"|\d{1,2}\s+(?:صباحا|مساء)"
     r"|(?:يوم\s+)?(?:الاحد|الاثنين|الثلاثاء|الاربعاء|الخميس|الجمعه|السبت)"
     r"|(?:يومين|اسبوعين|شهرين|ساعتين)"
     r"|(?:\d+|واحد|واحده|اثنين|ثلاثه|اربعه)\s+"
     r"(?:يوم|ايام|اسبوع|اسابيع|شهر|شهور|ساعه|ساعات)"
     r"|\d+"
-    r")(?!\w)"
+    r")(?![\w:])"
 )
 
 
 def _deadline_constraint_signatures(text: str) -> list[tuple[str, str]] | None:
     """Extract ordered (direction, time-expression) pairs; None means unparsed constraint."""
-    normalized = _normalize_arabic(text)
-    normalized = re.sub(r"[^\w\s]", " ", normalized)
+    normalized = _normalized_digits(_normalize_arabic(text))
+    # Keep colons: they are semantic separators inside clock expressions.
+    normalized = re.sub(r"[^\w\s:]", " ", normalized)
     normalized = re.sub(r"\s+", " ", normalized).strip()
     operators = list(_DEADLINE_OPERATOR_RE.finditer(normalized))
     signatures: list[tuple[str, str]] = []
@@ -813,7 +816,7 @@ def validate_interview_facts_diagnostic(text: str, payload: str,
                 reason = ("value_inconsistent", f"Reported {field!r} conflicts with explicit absence in its quote.")
             if (reason is None and field == "deadline"
                     and not _deadline_value_preserves_temporal_qualifiers(value, quote)):
-                reason = ("value_inconsistent", "Reported deadline value does not preserve the quoted direction-to-time association or its offset.")
+                reason = ("value_inconsistent", "Reported deadline value does not preserve the complete quoted temporal constraint, including direction, clock precision/daypart, and offset.")
             if reason is None and field == "narrative" and value != quote:
                 reason = ("value_inconsistent", "The narrative value must be exactly the quoted span.")
             if reason is None and field == "identity" and not reference_operation_supported:

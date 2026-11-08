@@ -516,33 +516,53 @@ def _amount_is_exactly_supported(value: str, quote: str) -> bool:
     return True
 
 
-def _deadline_temporal_qualifiers(text: str) -> set[str]:
-    """Return temporal direction/constraint words attached to a time expression."""
+_DEADLINE_OPERATOR_RE = re.compile(r"(?<!\w)و?(بحد\s+اقصى|قبل|بعد|خلال|غضون|اقصى|الاكثر)(?!\w)")
+_DEADLINE_EXPRESSION_RE = re.compile(
+    r"(?<!\w)("
+    r"(?:نهاي(?:ة|ه)|اخر)\s+(?:ال)?(?:اسبوع|شهر|سنه)"
+    r"(?:\s+ب\s*(?:(?:\d+|واحد|واحده|اثنين|ثنتين|ثلاثه|ثلاثة|اربعه|اربع)\s*)?"
+    r"(?:يومين|يوم|ايام|اسبوعين|اسبوع|اسابيع|شهرين|شهر|شهور|ساعتين|ساعه|ساعات)"
+    r"(?:\s+(?:واحد|واحده|اثنين|ثنتين|ثلاثه|ثلاثة|اربعه|اربع))?)?"
+    r"|(?:بعد\s+)?(?:بكرا|غدا|اليوم|امس|مبارح)"
+    r"|(?:ال)?ساعه\s*\d+(?:\s*(?:صباحا|مساء))?"
+    r"|(?:يوم\s+)?(?:الاحد|الاثنين|الثلاثاء|الاربعاء|الخميس|الجمعه|السبت)"
+    r"|(?:يومين|اسبوعين|شهرين|ساعتين)"
+    r"|(?:\d+|واحد|واحده|اثنين|ثلاثه|اربعه)\s+"
+    r"(?:يوم|ايام|اسبوع|اسابيع|شهر|شهور|ساعه|ساعات)"
+    r"|\d+"
+    r")(?!\w)"
+)
+
+
+def _deadline_constraint_signatures(text: str) -> list[tuple[str, str]] | None:
+    """Extract ordered (direction, time-expression) pairs; None means unparsed constraint."""
     normalized = _normalize_arabic(text)
-    time_markers = ("بكرا", "غدا", "اليوم", "يوم", "اسبوع", "شهر", "ساعه", "ساعات",
-                    "نهايه", "الخميس", "الجمعه", "السبت", "الاحد", "الاثنين", "الثلاثاء",
-                    "الاربعاء", "الجمعة", "السبت", "الصباح", "المساء", "التاريخ", "موعد")
-    qualifiers = {"قبل", "بعد", "خلال", "غضون", "اقصى", "الاكثر"}
-    found: set[str] = set()
-    words = normalized.split()
-    for index, word in enumerate(words):
-        if word not in qualifiers:
-            continue
-        following = words[index + 1:index + 7]
-        has_time = any(marker in part for part in following for marker in time_markers)
-        has_number = any(re.search(r"\d", _normalized_digits(part)) for part in following)
-        if has_time or has_number:
-            found.add(word)
-    # Compound wording such as "بحد أقصى" includes the final qualifier token.
-    if "بحد" in words and "اقصى" in words:
-        found.add("اقصى")
-    return found
+    normalized = re.sub(r"[^\w\s]", " ", normalized)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    operators = list(_DEADLINE_OPERATOR_RE.finditer(normalized))
+    signatures: list[tuple[str, str]] = []
+    for index, operator in enumerate(operators):
+        end = operators[index + 1].start() if index + 1 < len(operators) else len(normalized)
+        clause = normalized[operator.end():end].strip()
+        # A later coordinated constraint may begin with the conjunction "و".
+        clause = re.sub(r"^و\s+", "", clause)
+        expression = _DEADLINE_EXPRESSION_RE.search(clause)
+        if not expression:
+            return None
+        direction = "maximum" if operator.group(1) in {"بحد اقصى", "اقصى", "الاكثر"} else operator.group(1)
+        signatures.append((direction, expression.group(1)))
+    return signatures
 
 
 def _deadline_value_preserves_temporal_qualifiers(value: str, quote: str) -> bool:
-    required = _deadline_temporal_qualifiers(quote)
-    provided = _deadline_temporal_qualifiers(value)
-    return required.issubset(provided)
+    quoted_constraints = _deadline_constraint_signatures(quote)
+    proposed_constraints = _deadline_constraint_signatures(value)
+    if quoted_constraints is None or proposed_constraints is None:
+        return False
+    # Preserve multiplicity and association: "before tomorrow, after six" is
+    # not equivalent to "before six, after tomorrow" even though both contain
+    # the same directions and expressions.
+    return quoted_constraints == proposed_constraints
 
 
 def _same_full_money_value(left: Any, right: Any) -> bool:
@@ -793,7 +813,7 @@ def validate_interview_facts_diagnostic(text: str, payload: str,
                 reason = ("value_inconsistent", f"Reported {field!r} conflicts with explicit absence in its quote.")
             if (reason is None and field == "deadline"
                     and not _deadline_value_preserves_temporal_qualifiers(value, quote)):
-                reason = ("value_inconsistent", "Reported deadline value omits a temporal direction or limit expressed in its quote.")
+                reason = ("value_inconsistent", "Reported deadline value does not preserve the quoted direction-to-time association or its offset.")
             if reason is None and field == "narrative" and value != quote:
                 reason = ("value_inconsistent", "The narrative value must be exactly the quoted span.")
             if reason is None and field == "identity" and not reference_operation_supported:

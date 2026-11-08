@@ -433,6 +433,30 @@ class OptionalModelTests(unittest.TestCase):
                 if not should_accept:
                     self.assertEqual(result["filtered_facts"][0]["filter_code"], "value_inconsistent")
 
+    def test_deadline_constraints_keep_direction_target_and_offset_associated(self):
+        cases = [
+            ("موعد السداد قبل نهاية الأسبوع بيوم.", "قبل نهاية الأسبوع", False),
+            ("موعد السداد قبل نهاية الأسبوع بيوم.", "قبل نهاية الأسبوع بيوم", True),
+            ("موعد السداد قبل نهاية الأسبوع بيوم واحد.", "قبل نهاية الأسبوع بيوم واحد", True),
+            ("موعد السداد قبل نهاية الأسبوع بيوم واحد.", "قبل نهاية الأسبوع بيوم", False),
+            ("الموعد قبل بكرا وبعد الساعة 6.", "قبل الساعة 6 وبعد بكرا", False),
+            ("الموعد قبل بكرا وبعد الساعة 6.", "قبل بكرا وبعد الساعة 6", True),
+            ("الموعد قبل بكرا وبعد الساعة 6.", "قبل بكرا", False),
+            ("موعد السداد قبل العيد.", "قبل العيد", False),
+            ("بعثلي وقال موعد السداد قبل نهاية الأسبوع بيوم وأنا كنت مرتبك.",
+             "قبل نهاية الأسبوع بيوم", True),
+            ("موعد السداد قبل نهاية الأسبوع بيوم.", "قبل نهاية الأسبوع بيومين", False),
+        ]
+        for text, value, should_accept in cases:
+            with self.subTest(text=text, value=value):
+                fact = {"field": "deadline", "status": "reported", "value": value, "quote": text}
+                result = validate_interview_facts_diagnostic(
+                    text, json.dumps({"facts": [fact]}, ensure_ascii=False), "deadline")
+                self.assertTrue(result["accepted"])
+                self.assertEqual(bool(result["facts"]), should_accept)
+                if not should_accept:
+                    self.assertEqual(result["filtered_facts"][0]["filter_code"], "value_inconsistent")
+
     def test_prompt_simplification_reduces_request_size_without_extra_calls(self):
         text = "شو معنى المهلة؟"
         response = {"message_goals": ["ask_question"], "guidance_question": text, "facts": []}

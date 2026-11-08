@@ -201,6 +201,87 @@ class OptionalModelTests(unittest.TestCase):
         self.assertEqual([item["field"] for item in result["facts"]], ["published", "threat"])
         self.assertEqual(result["filtered_facts"], [])
 
+    def test_negation_attaches_to_predicate_not_every_field_in_a_conjoined_sentence(self):
+        text = "ما نشر الصور وهددني بنشرها."
+        facts = [
+            {"field": "published", "status": "denied", "value": False, "quote": text},
+            {"field": "threat", "status": "reported", "value": True, "quote": text},
+        ]
+        result = validate_interview_facts_diagnostic(
+            text, json.dumps({"facts": facts}, ensure_ascii=False))
+        self.assertEqual([(f["field"], f["status"], f["value"]) for f in result["facts"]],
+                         [("published", "denied", False), ("threat", "reported", True)])
+        self.assertEqual(result["filtered_facts"], [])
+
+        wrong_threat_denial = {"facts": [{"field": "threat", "status": "denied",
+                                           "value": False, "quote": text}]}
+        rejected = validate_interview_facts_diagnostic(
+            text, json.dumps(wrong_threat_denial, ensure_ascii=False))
+        self.assertEqual(rejected["facts"], [])
+        self.assertEqual(rejected["filtered_facts"][0]["filter_code"], "unsupported_status_evidence")
+
+        wrong_publication_claim = {"facts": [{"field": "published", "status": "reported",
+                                                "value": True, "quote": text}]}
+        rejected = validate_interview_facts_diagnostic(
+            text, json.dumps(wrong_publication_claim, ensure_ascii=False))
+        self.assertEqual(rejected["facts"], [])
+        self.assertEqual(rejected["filtered_facts"][0]["filter_code"], "value_inconsistent")
+
+        excerpt_facts = {"facts": [
+            {"field": "published", "status": "denied", "value": False, "quote": "ما نشر الصور"},
+            {"field": "threat", "status": "reported", "value": True, "quote": "هددني بنشرها"},
+        ]}
+        excerpt_result = validate_interview_facts_diagnostic(
+            text, json.dumps(excerpt_facts, ensure_ascii=False))
+        self.assertEqual([fact["field"] for fact in excerpt_result["facts"]], ["published", "threat"])
+        self.assertEqual(excerpt_result["filtered_facts"], [])
+
+    def test_unknown_actor_identity_does_not_make_the_threat_unknown(self):
+        text = "ما بعرف مين هددني."
+        facts = {"facts": [
+            {"field": "identity", "status": "unknown", "value": None, "quote": text},
+            {"field": "threat", "status": "reported", "value": True, "quote": text},
+        ]}
+        result = validate_interview_facts_diagnostic(text, json.dumps(facts, ensure_ascii=False))
+        self.assertEqual([fact["field"] for fact in result["facts"]], ["identity", "threat"])
+        self.assertEqual(result["filtered_facts"], [])
+
+        unknown_threat = {"facts": [{"field": "threat", "status": "unknown",
+                                      "value": None, "quote": text}]}
+        rejected = validate_interview_facts_diagnostic(
+            text, json.dumps(unknown_threat, ensure_ascii=False))
+        self.assertEqual(rejected["facts"], [])
+        self.assertEqual(rejected["filtered_facts"][0]["filter_code"], "unsupported_status_evidence")
+
+    def test_unknown_whether_threat_happened_and_negated_conjoined_actions_remain_distinct(self):
+        unknown_text = "ما بعرف إذا هددني."
+        unknown_fact = {"facts": [{"field": "threat", "status": "unknown",
+                                    "value": None, "quote": unknown_text}]}
+        accepted = validate_interview_facts_diagnostic(
+            unknown_text, json.dumps(unknown_fact, ensure_ascii=False), pending_slot="threat")
+        self.assertEqual([(f["status"], f["value"]) for f in accepted["facts"]], [("unknown", None)])
+        for status, value in (("reported", True), ("denied", False)):
+            rejected = validate_interview_facts_diagnostic(
+                unknown_text, json.dumps({"facts": [{"field": "threat", "status": status,
+                                                       "value": value, "quote": unknown_text}]},
+                                         ensure_ascii=False), pending_slot="threat")
+            self.assertEqual(rejected["facts"], [])
+
+        denied_text = "ما هددني ولا نشر الصور."
+        denials = {"facts": [
+            {"field": "threat", "status": "denied", "value": False, "quote": denied_text},
+            {"field": "published", "status": "denied", "value": False, "quote": denied_text},
+        ]}
+        accepted = validate_interview_facts_diagnostic(
+            denied_text, json.dumps(denials, ensure_ascii=False))
+        self.assertEqual([fact["field"] for fact in accepted["facts"]], ["threat", "published"])
+        for field in ("threat", "published"):
+            rejected = validate_interview_facts_diagnostic(
+                denied_text, json.dumps({"facts": [{"field": field, "status": "reported",
+                                                     "value": True, "quote": denied_text}]},
+                                         ensure_ascii=False))
+            self.assertEqual(rejected["facts"], [])
+
     def test_evidence_positive_claim_cannot_quote_explicit_evidence_absence(self):
         text = "ما عندي نسخ ولا لقطات محفوظة من الرسائل."
         payload = {"facts": [{"field": "evidence", "status": "reported", "value": text, "quote": text}]}

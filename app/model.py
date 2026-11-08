@@ -406,6 +406,11 @@ _FIELD_STATUS_CUES = {
 }
 _NEGATION_MARKERS = ("ما في", "مافي", "لا يوجد", "ليس هناك", "لم ", "ما ", "مش ", "ليس ", "لا ", "بدون ")
 _STATUS_CLAUSE_SPLIT_RE = re.compile(r"[.!?؟؛;،,]+|\s+(?:لكن|ولكن|بس|بينما|مع ذلك)\s+")
+_BINARY_PREDICATE_SCOPE_FIELDS = {"threat", "published"}
+_NEGATED_PREDICATE_TAIL_RE = re.compile(
+    r"(?:^|\s)(?:ما\s+في|مافي|ما|لم|لا|مش|ليس|بدون|ولا|ولم)\s+"
+    r"(?:(?:صار|حصل|كان|في|يوجد|اي|مباشر|فعلي)\s+){0,4}$"
+)
 
 
 def _status_evidence_clauses(normalized_quote: str) -> list[str]:
@@ -415,6 +420,41 @@ def _status_evidence_clauses(normalized_quote: str) -> list[str]:
 def _field_status_cues(field: str) -> tuple[str, ...]:
     cues = (*FIELD_ANCHORS.get(field, ()), *_FIELD_STATUS_CUES.get(field, ()))
     return tuple(dict.fromkeys(_normalize_arabic(cue) for cue in cues))
+
+
+def _binary_predicate_polarities(field: str, normalized_quote: str) -> list[bool]:
+    """Return local polarity for occurrences of this field's own predicates."""
+    cues = sorted(_field_status_cues(field), key=len, reverse=True)
+    matches: list[tuple[int, int, str]] = []
+    for cue in cues:
+        if not cue:
+            continue
+        for match in re.finditer(re.escape(cue), normalized_quote):
+            start, end = match.span()
+            if any(start < old_end and end > old_start for old_start, old_end, _ in matches):
+                continue
+            matches.append((start, end, cue))
+    matches.sort(key=lambda item: item[0])
+
+    polarities = []
+    for start, _, cue in matches:
+        prefix = normalized_quote[max(0, start - 40):start]
+        # "هددني بنشرها" is a threat to publish, not evidence that publication occurred.
+        if (field == "published" and cue in {"نشر", "ينشر"}
+                and re.search(r"(?:هدد\w*|يهدد\w*|توعد\w*)\s+ب$", prefix)):
+            continue
+        polarities.append(bool(_NEGATED_PREDICATE_TAIL_RE.search(prefix)))
+    return polarities
+
+
+def _unknown_refers_to_actor_not_event(field: str, clause: str) -> bool:
+    if field not in _BINARY_PREDICATE_SCOPE_FIELDS:
+        return False
+    actor_unknown = re.search(
+        r"(?:^|\s)(?:ما بعرف|لا اعرف|مش عارف|مش متاكد|غير متاكد|ما عندي فكرة)\s+(?:مين|من)(?:\s|$)",
+        clause,
+    )
+    return bool(actor_unknown and any(cue in clause for cue in _field_status_cues(field)))
 
 
 def _nonreported_status_has_support(field: str, status: str, normalized_quote: str,
@@ -432,12 +472,18 @@ def _nonreported_status_has_support(field: str, status: str, normalized_quote: s
         has_marker = any(marker in clause for marker in markers)
         has_field_cue = any(cue in clause for cue in cues)
         if has_marker and has_field_cue:
+            if status == "unknown" and _unknown_refers_to_actor_not_event(field, clause):
+                continue
             return True
     return False
 
 
 def _denied_status_has_support(field: str, normalized_quote: str) -> bool:
     """Require explicit field-scoped negation; uncertainty or refusal is not denial."""
+    if field in _BINARY_PREDICATE_SCOPE_FIELDS:
+        polarities = _binary_predicate_polarities(field, normalized_quote)
+        if polarities:
+            return any(polarities)
     anchors = _field_status_cues(field)
     nonreported_markers = tuple(marker for markers in _NONREPORTED_STATUS_MARKERS.values() for marker in markers)
     for clause in _status_evidence_clauses(normalized_quote):

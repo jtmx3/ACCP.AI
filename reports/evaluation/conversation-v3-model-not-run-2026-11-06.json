@@ -1,0 +1,23 @@
+{
+  "evaluation_version": "conversation-v3-1",
+  "mode": "model",
+  "model_run_status": "not_run",
+  "provider_configured": false,
+  "provider": {
+    "provider": "rules",
+    "mode": "rules",
+    "model": null,
+    "configured": false,
+    "service_reachable": false,
+    "model_available": false,
+    "models_count": 0,
+    "failure_code": "not_configured"
+  },
+  "provider_attempts": 0,
+  "provider_accepted_responses": 0,
+  "provider_rejected_responses": 0,
+  "provider_fallbacks": 0,
+  "results": [],
+  "reason": "not_configured",
+  "note": "No conversation extraction call was made; no model result is claimed."
+}

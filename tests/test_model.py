@@ -2,6 +2,7 @@ import io
 import json
 import os
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from app.model import (
@@ -9,6 +10,8 @@ from app.model import (
     generate_interview_extraction,
     last_call_trace,
     last_extraction_diagnostic,
+    _binary_predicate_polarities,
+    _normalize_arabic,
     validate_extractive_claims,
     validate_interview_facts,
     validate_interview_facts_diagnostic,
@@ -39,6 +42,81 @@ class OptionalModelTests(unittest.TestCase):
     def test_provider_timeout_returns_none_for_local_fallback(self):
         with patch("app.model.urllib.request.urlopen", side_effect=TimeoutError("synthetic timeout")):
             self.assertIsNone(generate_grounded_answer("كيف أحفظ الأدلة؟", self.sources))
+
+    def test_frozen_negation_predicate_scope_matrix_v1(self):
+        matrix_path = Path(__file__).with_name("negation_predicate_scope_v1.json")
+        matrix = json.loads(matrix_path.read_text(encoding="utf-8"))
+        self.assertEqual(matrix["edition"], "1.0")
+        for case in matrix["cases"]:
+            with self.subTest(case=case["id"]):
+                proposal = {"field": case["field"], "status": case["status"],
+                            "value": case["value"], "quote": case["quote"]}
+                result = validate_interview_facts_diagnostic(
+                    case["message"], json.dumps({"facts": [proposal]}, ensure_ascii=False),
+                    pending_slot=case["field"] if case["status"] == "unknown" else None)
+                accepted = any(fact.get("field") == case["field"]
+                               and fact.get("status") == case["status"]
+                               and fact.get("value") == case["value"]
+                               for fact in result["facts"])
+                self.assertEqual(accepted, case["accepted"])
+                if not case["accepted"]:
+                    self.assertEqual(result["filtered_facts"][0]["filter_code"], case["filter_code"])
+
+    def test_followup_polarity_and_publication_matrix(self):
+        matrix_path = Path(__file__).with_name("negation_predicate_scope_followup_v1.json")
+        matrix = json.loads(matrix_path.read_text(encoding="utf-8"))
+        self.assertEqual(matrix["edition"], "1.0")
+        for case in matrix["cases"]:
+            with self.subTest(case=case["id"]):
+                proposal = {"field": case["field"], "status": case["status"],
+                            "value": case["value"], "quote": case["quote"]}
+                result = validate_interview_facts_diagnostic(
+                    case["message"], json.dumps({"facts": [proposal]}, ensure_ascii=False))
+                accepted = any(fact.get("field") == case["field"]
+                               and fact.get("status") == case["status"]
+                               and fact.get("value") == case["value"]
+                               for fact in result["facts"])
+                self.assertEqual(accepted, case["accepted"])
+                if not case["accepted"]:
+                    self.assertEqual(result["filtered_facts"][0]["filter_code"], case["filter_code"])
+
+    def test_unresolved_binary_polarity_is_not_positive_or_negative_evidence(self):
+        normalized = _normalize_arabic("ما صار معي تهديد.")
+        self.assertEqual(_binary_predicate_polarities("threat", normalized), [None])
+        for status, value, code in (
+            ("reported", True, "value_inconsistent"),
+            ("denied", False, "unsupported_status_evidence"),
+        ):
+            with self.subTest(status=status):
+                fact = {"facts": [{"field": "threat", "status": status,
+                                   "value": value, "quote": "ما صار معي تهديد."}]}
+                result = validate_interview_facts_diagnostic(
+                    "ما صار معي تهديد.", json.dumps(fact, ensure_ascii=False))
+                self.assertEqual(result["facts"], [])
+                self.assertEqual(result["filtered_facts"][0]["filter_code"], code)
+
+    def test_publication_intent_is_not_an_actual_published_event(self):
+        for text in (
+            "هددني بنشر الصور.",
+            "هددني إنه رح ينشر الصور.",
+            "هددني بأنه سينشر الصور.",
+            "رح ينشر الصور إذا ما دفعت.",
+        ):
+            with self.subTest(text=text):
+                proposal = {"facts": [{"field": "published", "status": "reported",
+                                       "value": True, "quote": text}]}
+                result = validate_interview_facts_diagnostic(
+                    text, json.dumps(proposal, ensure_ascii=False))
+                self.assertEqual(result["facts"], [])
+                self.assertEqual(result["filtered_facts"][0]["filter_code"], "value_inconsistent")
+
+        actual_text = "هددني ثم نشر الصور فعلًا."
+        actual = {"facts": [{"field": "published", "status": "reported",
+                             "value": True, "quote": "نشر الصور فعلًا"}]}
+        result = validate_interview_facts_diagnostic(
+            actual_text, json.dumps(actual, ensure_ascii=False))
+        self.assertEqual([fact["field"] for fact in result["facts"]], ["published"])
+        self.assertEqual(result["filtered_facts"], [])
 
     def test_grounded_answer_shows_only_an_exact_source_excerpt(self):
         payload = {"claims": [{"source_id": "AU-TEST", "quote": "Preserve relevant records."}]}
@@ -150,6 +228,138 @@ class OptionalModelTests(unittest.TestCase):
                 self.assertEqual(diagnostic["facts"], [])
                 self.assertEqual(diagnostic["filtered_facts"][0]["filter_code"], "value_inconsistent")
 
+    def test_reported_negations_and_unknown_paid_amount_are_field_scoped(self):
+        cases = [
+            ("ما حصل نشر لصور الحساب.", "published", "reported", True, False),
+            ("ما حصل نشر لصور الحساب.", "published", "denied", False, True),
+            ("نشر صور الحساب بالفعل.", "published", "reported", True, True),
+            ("ما صار أي تهديد مباشر.", "threat", "reported", True, False),
+            ("ما صار أي تهديد مباشر.", "threat", "denied", False, True),
+            ("هددني برسالة مباشرة.", "threat", "reported", True, True),
+            ("ما دفعت أي مبلغ.", "paid_amount", "unknown", None, False),
+            ("ما دفعت أي مبلغ.", "paid_amount", "denied", None, True),
+            ("ما بعرف إذا دفعت أي مبلغ.", "paid_amount", "unknown", None, True),
+            ("ما دفعت أي مبلغ، لكن نشر صور الحساب.", "published", "reported", True, True),
+        ]
+        for text, field, status, value, should_accept in cases:
+            with self.subTest(text=text, field=field, status=status):
+                fact = {"field": field, "status": status, "value": value, "quote": text}
+                result = validate_interview_facts_diagnostic(
+                    text, json.dumps({"facts": [fact]}, ensure_ascii=False),
+                    pending_slot=field)
+                self.assertTrue(result["accepted"])
+                self.assertEqual(bool(result["facts"]), should_accept)
+                if not should_accept:
+                    self.assertEqual(len(result["filtered_facts"]), 1)
+                    self.assertIn(result["filtered_facts"][0]["filter_code"],
+                                  {"value_inconsistent", "unsupported_status_evidence"})
+
+    def test_mixed_unknown_and_negation_do_not_leak_between_fields_or_clauses(self):
+        text = "ما بعرف إذا حصل نشر للصور، لكن دفعت 40 دينار."
+        facts = [
+            {"field": "published", "status": "unknown", "value": None,
+             "quote": "ما بعرف إذا حصل نشر للصور"},
+            {"field": "paid_amount", "status": "reported", "value": "40 دينار",
+             "quote": "دفعت 40 دينار"},
+        ]
+        result = validate_interview_facts_diagnostic(
+            text, json.dumps({"facts": facts}, ensure_ascii=False), pending_slot="paid_amount")
+        self.assertEqual([item["field"] for item in result["facts"]], ["published", "paid_amount"])
+        self.assertEqual(result["filtered_facts"], [])
+
+        mixed = "ما حصل نشر للصور، لكنه هددني مباشرة."
+        facts = [
+            {"field": "published", "status": "denied", "value": False,
+             "quote": "ما حصل نشر للصور"},
+            {"field": "threat", "status": "reported", "value": True,
+             "quote": "هددني مباشرة"},
+        ]
+        result = validate_interview_facts_diagnostic(
+            mixed, json.dumps({"facts": facts}, ensure_ascii=False), pending_slot="threat")
+        self.assertEqual([item["field"] for item in result["facts"]], ["published", "threat"])
+        self.assertEqual(result["filtered_facts"], [])
+
+    def test_negation_attaches_to_predicate_not_every_field_in_a_conjoined_sentence(self):
+        text = "ما نشر الصور وهددني بنشرها."
+        facts = [
+            {"field": "published", "status": "denied", "value": False, "quote": text},
+            {"field": "threat", "status": "reported", "value": True, "quote": text},
+        ]
+        result = validate_interview_facts_diagnostic(
+            text, json.dumps({"facts": facts}, ensure_ascii=False))
+        self.assertEqual([(f["field"], f["status"], f["value"]) for f in result["facts"]],
+                         [("published", "denied", False), ("threat", "reported", True)])
+        self.assertEqual(result["filtered_facts"], [])
+
+        wrong_threat_denial = {"facts": [{"field": "threat", "status": "denied",
+                                           "value": False, "quote": text}]}
+        rejected = validate_interview_facts_diagnostic(
+            text, json.dumps(wrong_threat_denial, ensure_ascii=False))
+        self.assertEqual(rejected["facts"], [])
+        self.assertEqual(rejected["filtered_facts"][0]["filter_code"], "unsupported_status_evidence")
+
+        wrong_publication_claim = {"facts": [{"field": "published", "status": "reported",
+                                                "value": True, "quote": text}]}
+        rejected = validate_interview_facts_diagnostic(
+            text, json.dumps(wrong_publication_claim, ensure_ascii=False))
+        self.assertEqual(rejected["facts"], [])
+        self.assertEqual(rejected["filtered_facts"][0]["filter_code"], "value_inconsistent")
+
+        excerpt_facts = {"facts": [
+            {"field": "published", "status": "denied", "value": False, "quote": "ما نشر الصور"},
+            {"field": "threat", "status": "reported", "value": True, "quote": "هددني بنشرها"},
+        ]}
+        excerpt_result = validate_interview_facts_diagnostic(
+            text, json.dumps(excerpt_facts, ensure_ascii=False))
+        self.assertEqual([fact["field"] for fact in excerpt_result["facts"]], ["published", "threat"])
+        self.assertEqual(excerpt_result["filtered_facts"], [])
+
+    def test_unknown_actor_identity_does_not_make_the_threat_unknown(self):
+        text = "ما بعرف مين هددني."
+        facts = {"facts": [
+            {"field": "identity", "status": "unknown", "value": None, "quote": text},
+            {"field": "threat", "status": "reported", "value": True, "quote": text},
+        ]}
+        result = validate_interview_facts_diagnostic(text, json.dumps(facts, ensure_ascii=False))
+        self.assertEqual([fact["field"] for fact in result["facts"]], ["identity", "threat"])
+        self.assertEqual(result["filtered_facts"], [])
+
+        unknown_threat = {"facts": [{"field": "threat", "status": "unknown",
+                                      "value": None, "quote": text}]}
+        rejected = validate_interview_facts_diagnostic(
+            text, json.dumps(unknown_threat, ensure_ascii=False))
+        self.assertEqual(rejected["facts"], [])
+        self.assertEqual(rejected["filtered_facts"][0]["filter_code"], "unsupported_status_evidence")
+
+    def test_unknown_whether_threat_happened_and_negated_conjoined_actions_remain_distinct(self):
+        unknown_text = "ما بعرف إذا هددني."
+        unknown_fact = {"facts": [{"field": "threat", "status": "unknown",
+                                    "value": None, "quote": unknown_text}]}
+        accepted = validate_interview_facts_diagnostic(
+            unknown_text, json.dumps(unknown_fact, ensure_ascii=False), pending_slot="threat")
+        self.assertEqual([(f["status"], f["value"]) for f in accepted["facts"]], [("unknown", None)])
+        for status, value in (("reported", True), ("denied", False)):
+            rejected = validate_interview_facts_diagnostic(
+                unknown_text, json.dumps({"facts": [{"field": "threat", "status": status,
+                                                       "value": value, "quote": unknown_text}]},
+                                         ensure_ascii=False), pending_slot="threat")
+            self.assertEqual(rejected["facts"], [])
+
+        denied_text = "ما هددني ولا نشر الصور."
+        denials = {"facts": [
+            {"field": "threat", "status": "denied", "value": False, "quote": denied_text},
+            {"field": "published", "status": "denied", "value": False, "quote": denied_text},
+        ]}
+        accepted = validate_interview_facts_diagnostic(
+            denied_text, json.dumps(denials, ensure_ascii=False))
+        self.assertEqual([fact["field"] for fact in accepted["facts"]], ["threat", "published"])
+        for field in ("threat", "published"):
+            rejected = validate_interview_facts_diagnostic(
+                denied_text, json.dumps({"facts": [{"field": field, "status": "reported",
+                                                     "value": True, "quote": denied_text}]},
+                                         ensure_ascii=False))
+            self.assertEqual(rejected["facts"], [])
+
     def test_evidence_positive_claim_cannot_quote_explicit_evidence_absence(self):
         text = "ما عندي نسخ ولا لقطات محفوظة من الرسائل."
         payload = {"facts": [{"field": "evidence", "status": "reported", "value": text, "quote": text}]}
@@ -246,9 +456,18 @@ class OptionalModelTests(unittest.TestCase):
             self.assertEqual(body["reasoning_effort"], "none")
             self.assertNotIn("reasoning", body)
             system_prompt = body["messages"][0]["content"]
-            self.assertIn('"value":true', system_prompt)
-            self.assertIn('"value":null', system_prompt)
+            self.assertIn("reported binary=true", system_prompt)
+            self.assertIn("denied: binary value=false", system_prompt)
+            self.assertIn("text/time/amount value=null", system_prompt)
             self.assertIn("narrative", system_prompt)
+            self.assertIn("current_quote", system_prompt)
+            self.assertIn("لا تضع operation في الإجابة المباشرة", system_prompt)
+            self.assertIn("operation=same أو support أو correct", system_prompt)
+            self.assertIn("لا تستنتج unknown من غياب رقم", system_prompt)
+            self.assertIn("before tomorrow", system_prompt)
+            self.assertIn("كيف أحمي حسابي؟", system_prompt)
+            self.assertIn("ما حصل نشر لصور الحساب", system_prompt)
+            self.assertIn('"answer_pending_question","ask_guidance"', system_prompt)
             request_text = body["messages"][1]["content"]
             self.assertEqual(json.loads(request_text)["current_user_message"], text)
 
@@ -297,8 +516,9 @@ class OptionalModelTests(unittest.TestCase):
             result = generate_interview_extraction(text, "narrative")
         self.assertEqual(result[0]["field"], "threat")
         sent = json.loads(chat.call_args.args[0][1]["content"])
-        self.assertEqual(set(sent), {"pending_question_slot", "current_user_message", "allowed_fact_fields"})
+        self.assertEqual(set(sent), {"pending_question_slot", "current_user_message", "allowed_fact_fields_and_types"})
         self.assertEqual(sent["current_user_message"], text)
+        self.assertEqual(sent["allowed_fact_fields_and_types"]["threat"], "binary")
         self.assertEqual(sent["pending_question_slot"], "narrative")
         self.assertNotIn("session_id", str(sent))
         self.assertNotIn("transcript", str(sent))
@@ -320,7 +540,202 @@ class OptionalModelTests(unittest.TestCase):
         self.assertNotIn("session_id", json.dumps(sent, ensure_ascii=False))
         self.assertNotIn("case_token", json.dumps(sent, ensure_ascii=False))
         system = chat.call_args.args[0][0]["content"]
-        self.assertIn("تلميحات الأهداف اقتراحات أولية فقط", system)
+        self.assertIn("التلميحات غير موثوقة", system)
+        self.assertIn("ask_question", system)
+
+    def test_contextual_yes_is_valid_only_for_the_referenced_pending_question(self):
+        text = "نعم"
+        context = {
+            "pending_question": {"slot": "repeated", "question_ref": "m8", "text": "هل تكرر التهديد؟"},
+            "recent_relevant_messages": [{"message_ref": "m8", "role": "assistant", "text": "هل تكرر التهديد؟"}],
+            "related_facts": [], "related_money_events": [],
+        }
+        candidate = {"facts": [{"field": "repeated", "status": "reported", "value": True,
+                                "current_quote": text, "question_ref": "m8"}]}
+        accepted = validate_interview_facts_diagnostic(text, json.dumps(candidate, ensure_ascii=False),
+                                                       "repeated", context)
+        self.assertTrue(accepted["accepted"])
+        self.assertEqual(accepted["facts"][0]["field"], "repeated")
+        self.assertEqual(accepted["facts"][0]["question_ref"], "m8")
+
+        candidate["facts"][0]["question_ref"] = "m404"
+        rejected = validate_interview_facts_diagnostic(text, json.dumps(candidate, ensure_ascii=False),
+                                                       "repeated", context)
+        self.assertEqual(rejected["filtered_facts"][0]["filter_code"], "context_reference_invalid")
+
+    def test_same_operation_requires_and_preserves_an_authorized_target_fact(self):
+        text = "نفس المحفظة الإلكترونية."
+        fact_ref = "fact:payment_method:m2"
+        context = {"pending_question": {"slot": "payment_method", "question_ref": "m3"},
+                   "recent_relevant_messages": [{"message_ref": "m2", "role": "user",
+                                                "text": "حولت عن طريق محفظة إلكترونية."}],
+                   "related_facts": [{"fact_ref": fact_ref, "field": "payment_method", "status": "reported",
+                                      "value": "محفظة إلكترونية", "quote": "حولت عن طريق محفظة إلكترونية.",
+                                      "message_ref": "m2"}], "related_money_events": []}
+        payload = {"facts": [{"field": "payment_method", "status": "reported", "value": "محفظة إلكترونية",
+                              "current_quote": text, "operation": "same", "target_fact_id": fact_ref,
+                              "context_refs": [fact_ref]}]}
+        result = validate_interview_facts_diagnostic(text, json.dumps(payload, ensure_ascii=False),
+                                                     "payment_method", context)
+        self.assertTrue(result["accepted"])
+        self.assertEqual(result["facts"][0]["target_fact_id"], fact_ref)
+        self.assertEqual(result["facts"][0]["operation"], "same")
+
+        payload["facts"][0]["target_fact_id"] = "fact:identity:m2"
+        rejected = validate_interview_facts_diagnostic(text, json.dumps(payload, ensure_ascii=False),
+                                                       "payment_method", context)
+        self.assertEqual(rejected["filtered_facts"][0]["filter_code"], "context_reference_invalid")
+
+    def test_operations_are_minimal_and_reference_only_when_authorized(self):
+        text = "الموعد نفسه هو بكرا."
+        baseline_fact = {"field": "deadline", "status": "reported", "value": "بكرا", "quote": text}
+
+        no_operation = validate_interview_facts_diagnostic(
+            text, json.dumps({"facts": [baseline_fact]}, ensure_ascii=False), "deadline")
+        self.assertEqual(no_operation["facts"], [baseline_fact])
+
+        unsupported = dict(baseline_fact, operation="unrecorded-operation")
+        rejected_unsupported = validate_interview_facts_diagnostic(
+            text, json.dumps({"facts": [unsupported]}, ensure_ascii=False), "deadline")
+        self.assertEqual(rejected_unsupported["filtered_facts"][0]["filter_code"], "operation_unsupported")
+        self.assertNotIn("unrecorded-operation", json.dumps(rejected_unsupported, ensure_ascii=False))
+
+        missing_target = dict(baseline_fact, operation="same")
+        rejected_missing = validate_interview_facts_diagnostic(
+            text, json.dumps({"facts": [missing_target]}, ensure_ascii=False), "deadline")
+        self.assertEqual(rejected_missing["filtered_facts"][0]["filter_code"], "operation_target_missing")
+
+        arbitrary_direct_op = dict(baseline_fact, operation="answer")
+        rejected_answer_op = validate_interview_facts_diagnostic(
+            text, json.dumps({"facts": [arbitrary_direct_op]}, ensure_ascii=False), "deadline")
+        self.assertEqual(rejected_answer_op["filtered_facts"][0]["filter_code"], "operation_unsupported")
+
+    def test_same_operation_requires_explicit_reference_wording_even_with_target(self):
+        text = "المحفظة الإلكترونية متاحة عندي."
+        fact_ref = "fact:payment_method:synthetic-previous-message"
+        context = {
+            "pending_question": {"slot": "payment_method", "question_ref": "synthetic-question"},
+            "recent_relevant_messages": [{"message_ref": "synthetic-previous-message", "role": "user",
+                                         "text": "أستخدم المحفظة الإلكترونية."}],
+            "related_facts": [{"fact_ref": fact_ref, "field": "payment_method", "status": "reported",
+                               "value": "محفظة إلكترونية", "quote": "أستخدم المحفظة الإلكترونية.",
+                               "message_ref": "synthetic-previous-message"}],
+            "related_money_events": [],
+        }
+        proposal = {"facts": [{"field": "payment_method", "status": "reported",
+                               "value": "محفظة إلكترونية", "quote": text, "operation": "same",
+                               "target_fact_id": fact_ref}]}
+        result = validate_interview_facts_diagnostic(text, json.dumps(proposal, ensure_ascii=False),
+                                                      "payment_method", context)
+        self.assertEqual(result["filtered_facts"][0]["filter_code"], "operation_reference_unsupported")
+
+    def test_deadline_value_must_preserve_before_after_and_during_qualifiers(self):
+        cases = [
+            ("قال ادفع قبل بكرا.", "بكرا", False),
+            ("قال ادفع قبل بكرا.", "قبل بكرا", True),
+            ("الموعد بعد نهاية الشهر.", "نهاية الشهر", False),
+            ("الموعد بعد نهاية الشهر.", "بعد نهاية الشهر", True),
+            ("السداد خلال يومين.", "يومين", False),
+            ("السداد خلال يومين.", "خلال يومين", True),
+        ]
+        for text, value, should_accept in cases:
+            with self.subTest(text=text, value=value):
+                fact = {"field": "deadline", "status": "reported", "value": value, "quote": text}
+                result = validate_interview_facts_diagnostic(
+                    text, json.dumps({"facts": [fact]}, ensure_ascii=False), "deadline")
+                self.assertTrue(result["accepted"])
+                self.assertEqual(bool(result["facts"]), should_accept)
+                if not should_accept:
+                    self.assertEqual(result["filtered_facts"][0]["filter_code"], "value_inconsistent")
+
+    def test_deadline_constraints_keep_direction_target_and_offset_associated(self):
+        cases = [
+            ("موعد السداد قبل نهاية الأسبوع بيوم.", "قبل نهاية الأسبوع", False),
+            ("موعد السداد قبل نهاية الأسبوع بيوم.", "قبل نهاية الأسبوع بيوم", True),
+            ("موعد السداد قبل نهاية الأسبوع بيوم واحد.", "قبل نهاية الأسبوع بيوم واحد", True),
+            ("موعد السداد قبل نهاية الأسبوع بيوم واحد.", "قبل نهاية الأسبوع بيوم", False),
+            ("الموعد قبل الساعة 6:30.", "قبل الساعة 6:45", False),
+            ("الموعد قبل الساعة 6:30.", "قبل الساعة 6", False),
+            ("الموعد قبل الساعة 6:30.", "قبل الساعة 6:30", True),
+            ("الموعد قبل الساعة 6.", "قبل الساعة 6", True),
+            ("الموعد قبل الساعة 6 مساءً.", "قبل الساعة 6 صباحًا", False),
+            ("الموعد قبل الساعة 6 مساءً.", "قبل الساعة 6 مساءً", True),
+            ("الموعد قبل الساعة ٦:٣٠.", "قبل الساعة 6:30", True),
+            ("الموعد قبل بكرا وبعد الساعة 6.", "قبل الساعة 6 وبعد بكرا", False),
+            ("الموعد قبل بكرا وبعد الساعة 6.", "قبل بكرا وبعد الساعة 6", True),
+            ("الموعد قبل بكرا وبعد الساعة 6.", "قبل بكرا", False),
+            ("موعد السداد قبل العيد.", "قبل العيد", False),
+            ("بعثلي وقال موعد السداد قبل نهاية الأسبوع بيوم وأنا كنت مرتبك.",
+             "قبل نهاية الأسبوع بيوم", True),
+            ("موعد السداد قبل نهاية الأسبوع بيوم.", "قبل نهاية الأسبوع بيومين", False),
+        ]
+        for text, value, should_accept in cases:
+            with self.subTest(text=text, value=value):
+                fact = {"field": "deadline", "status": "reported", "value": value, "quote": text}
+                result = validate_interview_facts_diagnostic(
+                    text, json.dumps({"facts": [fact]}, ensure_ascii=False), "deadline")
+                self.assertTrue(result["accepted"])
+                self.assertEqual(bool(result["facts"]), should_accept)
+                if not should_accept:
+                    self.assertEqual(result["filtered_facts"][0]["filter_code"], "value_inconsistent")
+                    self.assertIn("clock precision/daypart", result["filtered_facts"][0]["filter_detail"])
+
+    def test_deadline_values_must_be_source_language_spans(self):
+        text = "حدد موعد الدفع قبل بكرا."
+        for value, should_accept in [("before tomorrow", False), ("قبل بكرا", True)]:
+            with self.subTest(value=value):
+                fact = {"field": "deadline", "status": "reported", "value": value,
+                        "quote": "موعد الدفع قبل بكرا"}
+                result = validate_interview_facts_diagnostic(
+                    text, json.dumps({"facts": [fact]}, ensure_ascii=False), "deadline")
+                self.assertTrue(result["accepted"])
+                self.assertEqual(bool(result["facts"]), should_accept)
+                if not should_accept:
+                    self.assertEqual(result["filtered_facts"][0]["filter_code"], "value_inconsistent")
+                    self.assertIn("source-language span", result["filtered_facts"][0]["filter_detail"])
+
+    def test_guidance_question_must_be_a_verbatim_requested_span(self):
+        text = "كيف أحمي حسابي؟"
+        exact = {"message_goals": ["ask_guidance"], "guidance_question": text, "facts": []}
+        accepted = validate_interview_facts_diagnostic(text, json.dumps(exact, ensure_ascii=False))
+        self.assertTrue(accepted["accepted"])
+        self.assertEqual(accepted["message_plan"]["guidance_question"], text)
+
+        paraphrased = {"message_goals": ["ask_guidance"],
+                       "guidance_question": "كيف أحافظ على حسابي؟", "facts": []}
+        rejected = validate_interview_facts_diagnostic(text, json.dumps(paraphrased, ensure_ascii=False))
+        self.assertFalse(rejected["accepted"])
+        self.assertEqual(rejected["rejection_code"], "quote_mismatch")
+
+    def test_answer_pending_question_can_coexist_with_other_goals(self):
+        text = "ما دفعت أي مبلغ، كيف أحمي حسابي؟"
+        payload = {"message_goals": ["answer_pending_question", "ask_guidance"],
+                   "guidance_question": "كيف أحمي حسابي؟",
+                   "facts": [{"field": "paid_amount", "status": "denied", "value": None,
+                              "current_quote": "ما دفعت أي مبلغ"}]}
+        result = validate_interview_facts_diagnostic(text, json.dumps(payload, ensure_ascii=False),
+                                                     pending_slot="paid_amount")
+        self.assertTrue(result["accepted"])
+        self.assertEqual(result["message_plan"]["goals"], ["answer_pending_question", "ask_guidance"])
+        self.assertEqual(result["facts"][0]["status"], "denied")
+
+    def test_prompt_simplification_reduces_request_size_without_extra_calls(self):
+        text = "شو معنى المهلة؟"
+        response = {"message_goals": ["ask_question"], "guidance_question": text, "facts": []}
+        captured = []
+
+        def fake_urlopen(request, timeout):
+            captured.append(bytes(request.data))
+            envelope = {"choices": [{"message": {"content": json.dumps(response, ensure_ascii=False)}}]}
+            return io.BytesIO(json.dumps(envelope, ensure_ascii=False).encode("utf-8"))
+
+        with patch("app.model.urllib.request.urlopen", side_effect=fake_urlopen):
+            result = generate_interview_extraction(text, "deadline")
+        self.assertEqual(result, [])
+        self.assertEqual(len(captured), 1)
+        self.assertLess(len(captured[0]), 8030)
+        self.assertEqual(last_call_trace()["request_body_bytes"], len(captured[0]))
+        self.assertEqual(last_call_trace()["provider_attempt_count"], 1)
 
     def test_malformed_extraction_falls_back_but_semantic_fact_is_filtered(self):
         text = "طلب مني 100 دينار"
@@ -373,7 +788,7 @@ class OptionalModelTests(unittest.TestCase):
         text = "في شخص يهددني"
         raw = json.dumps({"facts": [{"field": "threat", "status": "reported", "value": True,
                                      "quote": "نص مخترع"}]}, ensure_ascii=False)
-        def fake_chat(_messages):
+        def fake_chat(_messages, **_kwargs):
             from app.model import _update_call_trace
             _update_call_trace(attempted=True, status="generated", result_accepted=False,
                                failure_code=None, latency_ms=1.0)

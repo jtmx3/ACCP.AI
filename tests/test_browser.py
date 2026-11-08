@@ -142,6 +142,7 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
                  "response_valid": True, "result_accepted": False, "fallback_used": True,
                  "failure_code": "empty_extraction", "fact_fields": [], "filtered_fact_count": 0,
                  "filtered_fact_code_counts": {}, "latency_ms": 2980}
+        diagnostic = {"accepted": True, "raw_response": '{"facts":[]}', "filtered_facts": []}
         async def intercept(route):
             if route.request.url.endswith("/api/provider/status"):
                 await route.fulfill(json={"config": config, "probe": {"configured": True,
@@ -162,6 +163,77 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
             await expect(self.page.locator("#runtime-mode")).to_contain_text("رد صالح")
             await expect(self.page.locator("#runtime-mode")).to_contain_text("بلا وقائع مستخرجة")
             await expect(self.page.locator("#status-message")).to_contain_text("لم يُعد ذلك نجاحًا للاستخراج")
+            await expect(self.page.locator("#runtime-detail")).to_contain_text("استجابة المزود: وصل رد")
+            await expect(self.page.locator("#runtime-detail")).to_contain_text("حالة التحقق: بنية صالحة")
+            await expect(self.page.locator("#runtime-detail")).to_contain_text("الرجوع: إلى القواعد المحلية")
+
+    async def test_unsupported_decline_goal_is_shown_as_unapplied_interpretation(self):
+        from app.model import InterviewUnderstanding
+
+        config = {"provider": "ollama", "mode": "local_model", "model": "fixture:qwen",
+                  "configuration_complete": True, "configured": True, "local": True,
+                  "ollama_reasoning_effort": "none"}
+        trace = {"attempted": True, "status": "valid_empty", "extraction_outcome": "valid_empty",
+                 "response_valid": True, "result_accepted": False, "failure_code": "empty_extraction",
+                 "fact_fields": [], "filtered_fact_count": 0, "latency_ms": 98}
+        diagnostic = {"accepted": True, "raw_response": '{"message_goals":["decline_disclosure"],"facts":[]}',
+                      "filtered_facts": [], "unsupported_message_goals": ["decline_disclosure"],
+                      "message_plan": {"goals": [], "unsupported_goals": ["decline_disclosure"],
+                                       "guidance_question": None}}
+        understanding = InterviewUnderstanding([], diagnostic["message_plan"], diagnostic)
+
+        async def intercept(route):
+            if route.request.url.endswith("/api/provider/status"):
+                await route.fulfill(json={"config": config, "probe": {"configured": True,
+                    "service_reachable": True, "model_available": True, "models_count": 1,
+                    "failure_code": None}})
+            else:
+                await route.continue_()
+
+        await self.page.route("**/api/provider/status", intercept)
+        with patch("app.main.provider_config", return_value=config), \
+             patch("app.main.model_configured", return_value=True), \
+             patch("app.main.generate_interview_extraction", return_value=understanding), \
+             patch("app.main.last_call_trace", return_value=trace), \
+             patch("app.main.last_extraction_diagnostic", return_value=diagnostic):
+            await self.page.goto(self.base_url)
+            await self.page.locator("#start-case").click()
+            await self.page.locator("#message").fill("لا، ما حدد مهلة أو موعد للدفع.")
+            await self.page.locator("#model-consent").check()
+            await self.page.locator("#send").click()
+            await expect(self.page.locator("#runtime-detail")).to_contain_text("تفسير غير مدعوم لم يُطبّق")
+            await expect(self.page.locator("#runtime-detail")).to_contain_text("الامتناع عن الإفصاح")
+            self.assertNotIn("raw_response", await self.page.locator("#runtime-detail").inner_text())
+
+    async def test_review_and_downloads_return_after_confirmed_case_is_resumed(self):
+        await self.page.goto(self.base_url)
+        await self.page.locator("#start-case").click()
+        await self._send("في شخص يهددني")
+        await self._send("اعرض الملخص")
+        await expect(self.page.locator("#stage-badge")).to_have_text("مراجعة")
+        await self.page.locator("#confirm-summary").click()
+        await expect(self.page.locator("#confirmation-state")).to_contain_text("مؤكد لهذا الإصدار")
+        assistant_count = await self.page.locator("#chat .bubble.assistant").count()
+
+        await self.page.locator("#pause-case").click()
+        await expect(self.page.locator("#stage-badge")).to_have_text("محفوظة")
+        await self.page.locator("#pause-case").click()
+
+        await expect(self.page.locator("#stage-badge")).to_have_text("مراجعة")
+        await expect(self.page.locator("#review")).to_be_visible()
+        await expect(self.page.locator("#confirmation-state")).to_contain_text("مؤكد لهذا الإصدار")
+        await expect(self.page.locator("#download-report")).to_be_visible()
+        await expect(self.page.locator("#download-json")).to_be_visible()
+        await expect(self.page.locator("#confirm-summary")).to_be_disabled()
+        self.assertEqual(await self.page.locator("#chat .bubble.assistant").count(), assistant_count + 2)
+
+        async with self.page.expect_download() as json_event:
+            await self.page.locator("#download-json").click()
+        download = await json_event.value
+        path = Path(self.tmp.name) / download.suggested_filename
+        await download.save_as(path)
+        report = json.loads(path.read_text(encoding="utf-8"))
+        self.assertTrue(report["confirmed"])
 
     async def test_all_filtered_model_response_shows_reasons_and_local_fallback(self):
         config = {"provider": "ollama", "mode": "local_model", "model": "fixture:latest",
@@ -190,7 +262,7 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
             await self.page.locator("#model-consent").check()
             await self.page.locator("#send").click()
             await expect(self.page.locator("#runtime-mode")).to_contain_text("استُبعدت جميع مقترحات")
-            await expect(self.page.locator("#runtime-detail")).to_contain_text("قيمة غير متسقة: 1")
+            await expect(self.page.locator("#runtime-detail")).to_contain_text("وصف الواقعة [value_inconsistent]")
             await expect(self.page.locator("#status-message")).to_contain_text("طُبقت القواعد المحلية")
 
     async def test_windows_f83_contact_and_corrected_amount_are_visible_in_review_and_exports(self):
@@ -343,8 +415,6 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         await self.page.locator("#pause-case").click()
         await expect(self.page.locator("#stage-badge")).to_have_text("محفوظة")
         await self.page.locator("#pause-case").click()
-        await expect(self.page.locator("#stage-badge")).to_have_text("مقابلة")
-        await self._send("اعرض الملخص")
         await expect(self.page.locator("#stage-badge")).to_have_text("مراجعة")
 
         displayed_version = await self.page.locator("#review").get_attribute("data-summary-version")
@@ -520,7 +590,9 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
 
         self.page.on("request", capture_message_request)
 
-        def fake_chat(messages):
+        def fake_chat(messages, **_kwargs):
+            from app.model import _update_call_trace
+            _update_call_trace(attempted=True, status="generated", latency_ms=1.0, result_accepted=True)
             payload = json.loads(messages[1]["content"])
             outbound.append(payload)
             if not payload["sources"]:
@@ -528,8 +600,20 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
             source = payload["sources"][0]
             return json.dumps({"claims": [{"source_id": source["source_id"], "quote": source["excerpt"][:40]}]}, ensure_ascii=False)
 
+        def fake_extraction(*_args, **_kwargs):
+            from app.model import _update_call_trace
+            _update_call_trace(attempted=True, status="generated", latency_ms=1.0,
+                               result_accepted=False, fallback_used=True)
+            return []
+
+        async def send_and_wait(text):
+            async with self.page.expect_response(
+                    lambda response: response.request.method == "POST" and "/messages" in response.url) as response_info:
+                await self._send(text)
+            return await response_info.value
+
         with patch.dict("os.environ", env), \
-             patch("app.main.generate_interview_extraction", return_value=[]) as extract, \
+             patch("app.main.generate_interview_extraction", side_effect=fake_extraction) as extract, \
              patch("app.main.generate_grounded_answer", wraps=main.generate_grounded_answer) as answer, \
              patch("app.model._chat", side_effect=fake_chat) as provider:
             await self.page.goto(self.base_url)
@@ -539,18 +623,18 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(await self.page.locator("#model-consent").is_checked())
             self.assertFalse(await self.page.locator("#context-consent").is_checked())
 
-            await self._send("في شخص يهددني على واتساب")
+            await send_and_wait("في شخص يهددني على واتساب")
             await expect(self.page.locator("#status-message")).to_contain_text("تم حفظ الرسالة وتحديث الحالة بالقواعد المحلية.")
             await expect(self.page.locator("#chat .question-plan").last).to_contain_text("الخطر المباشر")
             extract.assert_not_called()
             self.assertFalse(await self.page.locator("#model-consent").is_checked())
             self.assertFalse(message_requests[-1]["allow_external_extraction"])
             await self.page.locator("#model-consent").check()
-            await self._send("لا")
+            await send_and_wait("لا")
+            await expect(self.page.locator("#status-message")).to_contain_text("نص الرسالة الحالية فقط")
             self.assertEqual(extract.call_count, 1, f"requests={message_requests!r}")
             self.assertEqual(extract.call_args.args[:2], ("لا", "direct_danger"))
             self.assertEqual(len(extract.call_args.args), 2)
-            await expect(self.page.locator("#status-message")).to_contain_text("نص الرسالة الحالية فقط")
             self.assertFalse(await self.page.locator("#model-consent").is_checked())
             self.assertFalse(await self.page.locator("#context-consent").is_checked())
             self.assertTrue(message_requests[-1]["allow_external_extraction"])
@@ -559,7 +643,7 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
 
             await self.page.locator("#model-consent").check()
             await self.page.locator("#context-consent").check()
-            await self._send("قال لي إذا ما دفعت رح أنشر صوري")
+            await send_and_wait("قال لي إذا ما دفعت رح أنشر صوري")
             self.assertEqual(extract.call_count, 2, f"requests={message_requests!r}")
             self.assertTrue(extract.call_args.args[2]["untrusted_user_data"])
             await expect(self.page.locator("#status-message")).to_contain_text("سياق محدود")
@@ -570,7 +654,7 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
             await expect(self.page.locator("#status-message")).to_contain_text("تم تحديث الاختصاص")
             await self.page.locator("#toggle-mode").click()
             await expect(self.page.locator("#model-consent-copy")).to_contain_text("مقتطفات المصادر المختارة")
-            await self._send("كيف أحفظ الأدلة واللقطات؟")
+            await send_and_wait("كيف أحفظ الأدلة واللقطات؟")
             await expect(self.page.locator("#status-message")).to_contain_text("تم حفظ الرسالة وتحديث الحالة بالقواعد المحلية.")
             answer.assert_not_called()
             provider.assert_not_called()
@@ -579,7 +663,10 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(message_requests[-1]["allow_external_extraction"])
 
             await self.page.locator("#model-consent").check()
-            await self._send("كيف أحفظ الأدلة واللقطات؟")
+            question_response = await send_and_wait("كيف أحفظ الأدلة واللقطات؟")
+            question_payload = await question_response.json()
+            self.assertTrue(question_payload["external_data_sent"],
+                            f"payload={question_payload!r}, requests={message_requests!r}")
             await expect(self.page.locator("#status-message")).to_contain_text("نص السؤال الحالي")
             await expect(self.page.locator("#model-consent")).not_to_be_checked()
             self.assertTrue(message_requests[-1]["allow_external"])
@@ -596,6 +683,67 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(all(set(source) == {"source_id", "title", "excerpt"} for source in outbound[0]["sources"]))
             self.assertTrue(all(source["excerpt"] for source in outbound[0]["sources"]))
 
+
+    async def test_whatsapp_guidance_is_compact_sources_expand_and_pending_question_returns_once(self):
+        await self.page.goto(self.base_url)
+        await self.page.locator("#start-case").click()
+        await self._send("في شخص عم يهددني على واتساب.")
+        await self._send("كيف أحمي حسابي على واتساب؟")
+        guidance = self.page.locator("#chat .bubble.assistant").filter(has=self.page.locator(".citation-list")).last
+        await expect(guidance).to_contain_text("خطوات مختصرة")
+        await expect(guidance).to_contain_text("التحقق بخطوتين")
+        await expect(guidance).not_to_contain_text("المقتطف الداعم")
+        source_links = self.page.locator("#chat .citation-item a")
+        self.assertGreater(await source_links.count(), 0)
+        for index in range(await source_links.count()):
+            href = await source_links.nth(index).get_attribute("href")
+            self.assertTrue(href.startswith("https://faq.whatsapp.com/"))
+        details = self.page.locator("#chat .citation-details").first
+        self.assertFalse(await details.evaluate("element => element.open"))
+        await details.locator("summary").click()
+        await expect(details).to_contain_text("المقتطف المستخدم")
+        resumed = self.page.locator("#chat .bubble.assistant").filter(has_text="نكمل من السؤال السابق:")
+        self.assertEqual(await resumed.count(), 1)
+
+    async def test_all_filtered_model_response_shows_field_reason_without_raw_quote(self):
+        config = {"provider": "ollama", "mode": "local_model", "model": "fixture:latest",
+                  "configuration_complete": True, "configured": True, "local": True,
+                  "ollama_reasoning_effort": "none"}
+        trace = {"attempted": True, "status": "all_facts_filtered", "extraction_outcome": "all_facts_filtered",
+                 "response_valid": True, "result_accepted": False, "fallback_used": True,
+                 "failure_code": "all_facts_filtered", "fact_fields": [], "filtered_fact_count": 1,
+                 "filtered_fact_fields": ["narrative"], "filtered_fact_code_counts": {"quote_mismatch": 1},
+                 "latency_ms": 1470}
+        diagnostic = {"accepted": True, "raw_response": '{"facts":[{"private":"must not appear"}]}',
+                      "filtered_facts": [{"field": "narrative", "status": "reported", "value": "x",
+                                          "quote": "synthetic confidential quote", "filter_code": "quote_mismatch",
+                                          "filter_detail": "الاقتباس لا يطابق نص الرسالة الحالية."}]}
+
+        async def intercept(route):
+            if route.request.url.endswith("/api/provider/status"):
+                await route.fulfill(json={"config": config, "probe": {"configured": True,
+                    "service_reachable": True, "model_available": True, "models_count": 1,
+                    "failure_code": None}})
+            else:
+                await route.continue_()
+        await self.page.route("**/api/provider/status", intercept)
+        with patch("app.main.provider_config", return_value=config), \
+             patch("app.main.model_configured", return_value=True), \
+             patch("app.main.generate_interview_extraction", return_value=[]), \
+             patch("app.main.last_call_trace", return_value=trace), \
+             patch("app.main.last_extraction_diagnostic", return_value=diagnostic):
+            await self.page.goto(self.base_url)
+            await self.page.locator("#start-case").click()
+            await self.page.locator("#message").fill("في شخص عم يهددني على واتساب.")
+            await self.page.locator("#model-consent").check()
+            await self.page.locator("#send").click()
+            detail = self.page.locator("#runtime-detail")
+            await expect(detail).to_contain_text("استجابة المزود: وصل رد")
+            await expect(detail).to_contain_text("بنية صالحة")
+            await expect(detail).to_contain_text("وصف الواقعة [quote_mismatch]")
+            await expect(detail).to_contain_text("الرجوع: إلى القواعد المحلية")
+            self.assertNotIn("must not appear", await detail.inner_text())
+            self.assertNotIn("synthetic confidential quote", await detail.inner_text())
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,14 @@
+{
+  "edition": "1.0",
+  "purpose": "Synthetic follow-up matrix for unresolved predicate polarity, independent positive evidence in mixed messages, and future-vs-actual publication across supported verbs.",
+  "cases": [
+    {"id": "unresolved_threat_not_reported", "message": "ما صار معي تهديد.", "field": "threat", "status": "reported", "value": true, "quote": "ما صار معي تهديد.", "accepted": false, "filter_code": "value_inconsistent"},
+    {"id": "unresolved_threat_not_denied", "message": "ما صار معي تهديد.", "field": "threat", "status": "denied", "value": false, "quote": "ما صار معي تهديد.", "accepted": false, "filter_code": "unsupported_status_evidence"},
+    {"id": "independent_threat_report_survives_mixed_message", "message": "ما صار معي تهديد، لكنه هددني مباشرة.", "field": "threat", "status": "reported", "value": true, "quote": "ما صار معي تهديد، لكنه هددني مباشرة.", "accepted": true},
+    {"id": "future_publish_nazal", "message": "رح ينزل الصور بكرا.", "field": "published", "status": "reported", "value": true, "quote": "رح ينزل الصور بكرا.", "accepted": false, "filter_code": "value_inconsistent"},
+    {"id": "future_publish_yunshor", "message": "رح ينشر الصور بكرا.", "field": "published", "status": "reported", "value": true, "quote": "رح ينشر الصور بكرا.", "accepted": false, "filter_code": "value_inconsistent"},
+    {"id": "future_publish_yirfa", "message": "رح يرفع الصور بكرا.", "field": "published", "status": "reported", "value": true, "quote": "رح يرفع الصور بكرا.", "accepted": false, "filter_code": "value_inconsistent"},
+    {"id": "actual_publish_nazal", "message": "نزل الصور على الحساب أمس.", "field": "published", "status": "reported", "value": true, "quote": "نزل الصور على الحساب أمس.", "accepted": true},
+    {"id": "actual_publish_rafa", "message": "رفع الصور على الحساب بالفعل.", "field": "published", "status": "reported", "value": true, "quote": "رفع الصور على الحساب بالفعل.", "accepted": true}
+  ]
+}

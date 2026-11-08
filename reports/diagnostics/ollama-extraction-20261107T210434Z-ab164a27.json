@@ -1,0 +1,9 @@
+{
+  "error": "هذه الأداة تسمح بمزود Ollama المحلي فقط.",
+  "generation_attempted": false,
+  "provider_response_received": false,
+  "response_valid": false,
+  "merge_performed": false,
+  "fallback_performed": false,
+  "result_file": "/home/ubuntu/work/accp-ai/reports/diagnostics/ollama-extraction-20261107T210434Z-ab164a27.json"
+}

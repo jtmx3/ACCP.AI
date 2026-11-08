@@ -1,0 +1,122 @@
+{
+  "evaluation_type": "model_extraction_only_contrastive",
+  "evaluation_version": "1.0",
+  "scoring_version": "3.0",
+  "prompt_contract_version": "scoped-status-multigoal-source-span-v3",
+  "suite_id": "accp-extraction-contrastive-v1",
+  "synthetic": true,
+  "provider": "ollama",
+  "model": "qwen3.5:4b-q4_K_M",
+  "reasoning_effort": "none",
+  "service_reachable": false,
+  "model_available": false,
+  "probe_elapsed_ms": 34.503,
+  "probe_failure_code": "unreachable",
+  "prompt_source": "app.model.generate_interview_extraction",
+  "validator_source": "app.model.validate_interview_facts_diagnostic",
+  "integrated_system_evaluation": false,
+  "rule_merge_performed": false,
+  "fallback_performed": false,
+  "raw_provider_responses_saved": false,
+  "raw_model_proposals_saved": true,
+  "quote_scoring_definitions": {
+    "fixture_exact": "proposal quote equals the fixture's expected quote string byte-for-byte",
+    "literal_span": "proposal quote is a non-empty exact substring of the current user message",
+    "grounded_fact": "the real validator accepts that proposal's field/status/value/quote in isolation",
+    "legacy_fact_quote_accuracy": "retained for historical comparison; it measures exact fixture-string equality on validator-accepted facts"
+  },
+  "case_count": 17,
+  "cases": [
+    {
+      "case_id": "D01-deadline-explicit-denial-original",
+      "outcome": "not_run",
+      "provider_attempted": false
+    },
+    {
+      "case_id": "D02-deadline-explicit-denial-variant",
+      "outcome": "not_run",
+      "provider_attempted": false
+    },
+    {
+      "case_id": "U01-deadline-unknown-original",
+      "outcome": "not_run",
+      "provider_attempted": false
+    },
+    {
+      "case_id": "U02-deadline-unknown-variant",
+      "outcome": "not_run",
+      "provider_attempted": false
+    },
+    {
+      "case_id": "M01-deadline-not-remembered-original",
+      "outcome": "not_run",
+      "provider_attempted": false
+    },
+    {
+      "case_id": "M02-deadline-not-remembered-variant",
+      "outcome": "not_run",
+      "provider_attempted": false
+    },
+    {
+      "case_id": "R01-deadline-declined-original",
+      "outcome": "not_run",
+      "provider_attempted": false
+    },
+    {
+      "case_id": "R02-deadline-declined-variant",
+      "outcome": "not_run",
+      "provider_attempted": false
+    },
+    {
+      "case_id": "P01-deadline-reported-original",
+      "outcome": "not_run",
+      "provider_attempted": false
+    },
+    {
+      "case_id": "P02-deadline-reported-variant",
+      "outcome": "not_run",
+      "provider_attempted": false
+    },
+    {
+      "case_id": "Q01-deadline-meaning-question",
+      "outcome": "not_run",
+      "provider_attempted": false
+    },
+    {
+      "case_id": "B01-binary-denial-published",
+      "outcome": "not_run",
+      "provider_attempted": false
+    },
+    {
+      "case_id": "B02-binary-denial-threat",
+      "outcome": "not_run",
+      "provider_attempted": false
+    },
+    {
+      "case_id": "A01-amount-denial-paid",
+      "outcome": "not_run",
+      "provider_attempted": false
+    },
+    {
+      "case_id": "U03-amount-unknown-paid",
+      "outcome": "not_run",
+      "provider_attempted": false
+    },
+    {
+      "case_id": "M03-time-not-remembered-initial",
+      "outcome": "not_run",
+      "provider_attempted": false
+    },
+    {
+      "case_id": "R03-identity-declined",
+      "outcome": "not_run",
+      "provider_attempted": false
+    }
+  ],
+  "run_status": "not_run",
+  "summary": {
+    "attempted_cases": 0,
+    "reason": "unreachable"
+  },
+  "result_file": "/home/ubuntu/work/accp-ai/reports/evaluation/extraction-contrastive-v1-status-scope-v345-not-run-linux-2026-11-08.json"
+}

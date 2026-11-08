@@ -180,10 +180,21 @@
         anchor.textContent = `${citation.publisher}: ${citation.title}`;
         item.append(anchor);
         if (citation.excerpt) {
+          const details = document.createElement('details');
+          details.className = 'citation-details';
+          const summary = document.createElement('summary');
+          summary.textContent = 'المقتطف والنطاق';
           const excerpt = document.createElement('div');
           excerpt.className = 'citation-excerpt';
           excerpt.textContent = `المقتطف المستخدم: «${citation.excerpt}»`;
-          item.append(excerpt);
+          details.append(summary, excerpt);
+          if (citation.scope_note) {
+            const scope = document.createElement('div');
+            scope.className = 'citation-scope';
+            scope.textContent = `النطاق: ${citation.scope_note}`;
+            details.append(scope);
+          }
+          item.append(details);
         }
         links.append(item);
       }
@@ -240,19 +251,24 @@
         quote.textContent = `الاقتباس: «${fact.quote}»`;
         wrapper.append(quote);
       }
-      if (key === 'details') {
+      if (['details', 'narrative', 'requested_amount'].includes(key)) {
         const requested = facts.requested_amount;
-        const previous = [...(requested?.history || [])].reverse().find(item =>
-          ['explicit_correction', 'explicit_amount_relation_correction'].includes(item.reason) && item.value != null);
-        const currentDigits = String(requested?.value ?? '').replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))).replace(/\D/g, '');
-        const previousDigits = String(previous?.value ?? '').replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))).replace(/\D/g, '');
-        const detailDigits = String(fact.quote || fact.value || '').replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))).replace(/\D/g, '');
-        const correctionRecorded = (state.money_events || []).some(event => event.kind === 'requested' && event.relation === 'correction' &&
-          event.message_id === requested?.message_id && String(event.amount || '').replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))).replace(/\D/g, '') === currentDigits);
-        if (previous && previousDigits && currentDigits && previousDigits !== currentDigits && detailDigits.includes(previousDigits) && correctionRecorded) {
+        const latestCorrection = [...(state.money_corrections || [])].reverse().find(item =>
+          item.kind === 'requested' && String(item.amount) === String(requested?.value));
+        const originalEvent = latestCorrection && (state.money_events || []).find(item => item.id === latestCorrection.target_event_id);
+        const latinDigits = value => String(value ?? '').replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
+        const amountDigits = value => latinDigits(value).replace(/\D/g, '');
+        const originalDigits = amountDigits(originalEvent?.amount);
+        const currentKey = latinDigits(requested?.value).replace(/[\s،,]/g, '').toLowerCase();
+        const originalKey = latinDigits(originalEvent?.amount).replace(/[\s،,]/g, '').toLowerCase();
+        const sourceFact = ['details', 'narrative'].map(field => [field, facts[field]]).find(([, item]) =>
+          !!item && !!originalEvent && item.message_id === originalEvent.message_id
+            && amountDigits(item.quote || item.value).includes(originalDigits));
+        const noteField = sourceFact?.[0] || 'requested_amount';
+        if (latestCorrection && originalEvent && originalDigits && currentKey !== originalKey && noteField === key) {
           const note = document.createElement('div');
           note.className = 'fact-correction-note';
-          note.textContent = `توضيح مستند إلى تصحيح لاحق: المبلغ المطلوب المعتمد حاليًا ${requested.value}؛ وكانت الإفادة الأصلية في هذا الموضع تذكر ${previous.value}. بقي الاقتباس الأصلي أعلاه دون تعديل.`;
+          note.textContent = `توضيح مستند إلى تصحيح لاحق: المبلغ المطلوب المعتمد حاليًا ${requested.value}؛ وكانت الإفادة الأصلية في هذا الموضع تذكر ${originalEvent.amount}. بقي الاقتباس الأصلي أعلاه حرفيًا كما ورد.`;
           wrapper.append(note);
         }
       }
@@ -293,8 +309,14 @@
     const missingItems = (assessment.relevant_fields || [])
       .filter(key => !facts[key] && !relationSlots.has(key)).map(key => labels[key] || 'معلومة إضافية');
     const unknownItems = Object.entries(facts)
-      .filter(([, fact]) => ['unknown', 'not_remembered', 'declined'].includes(fact.status))
-      .map(([key, fact]) => `${labels[key] || 'معلومة إضافية'} — ${factStatusLabels[fact.status]}`);
+      .filter(([, fact]) => fact.status === 'unknown')
+      .map(([key]) => labels[key] || 'معلومة إضافية');
+    const notRememberedItems = Object.entries(facts)
+      .filter(([, fact]) => fact.status === 'not_remembered')
+      .map(([key]) => labels[key] || 'معلومة إضافية');
+    const declinedItems = Object.entries(facts)
+      .filter(([, fact]) => fact.status === 'declined')
+      .map(([key]) => labels[key] || 'معلومة إضافية');
     const unresolvedItems = Object.entries(facts)
       .filter(([, fact]) => fact.status === 'unresolved')
       .map(([key]) => labels[key] || 'معلومة إضافية');
@@ -309,7 +331,9 @@
       .map(([key, fact]) => `${labels[key] || 'معلومة إضافية'} — ${fact.alternatives?.length || 0} إفادة بديلة محفوظة`);
     const gapGroups = [
       ['لم تُسجّل بعد', missingItems],
-      ['غير معروفة أو لم يتذكرها المستخدم أو فضّل عدم الإجابة', unknownItems],
+      ['غير معروفة للمستخدم', unknownItems],
+      ['لا يتذكرها المستخدم', notRememberedItems],
+      ['فضّل المستخدم عدم الإفصاح', declinedItems],
       ['تحتاج إلى توضيح', unresolvedItems],
       ['تعارضات فعلية', conflicts],
     ];
@@ -331,7 +355,7 @@
       group.append(heading, list);
       gapPanel.append(group);
     }
-    if (!hasGaps) gapPanel.textContent = 'لا توجد معلومات مجهولة أو غير محسومة أو متعارضة في الحقول ذات الصلة.';
+    if (!hasGaps) gapPanel.textContent = 'لا توجد معلومات مجهولة أو منسية أو ممتنع عنها أو غير محسومة أو متعارضة في الحقول ذات الصلة.';
     $('confirmation-state').textContent = `إصدار الملخص المعروض: ${state.summary_version ?? 'غير متاح'} · ${state.confirmed ? 'مؤكد لهذا الإصدار' : 'غير مؤكد'}. ${state.confirmed ? 'أي تعديل لاحق يتطلب مراجعة جديدة.' : ''}`;
     $('confirm-summary').disabled = !!state.confirmed || caseOps.has(state.session_id) || unresolvedMoney.length > 0;
   }
@@ -446,18 +470,42 @@
           const extractionOutcome = result.extraction_outcome || result.provider_call?.extraction_outcome;
           const extractionCall = result.external_model_purpose === 'current_message_extraction';
           const latency = result.provider_call?.latency_ms ?? 'غير متاح';
+          const unsupportedGoals = result.model_diagnostics?.validation?.unsupported_message_goals || [];
+          const goalLabels = { decline_disclosure: 'الامتناع عن الإفصاح', unknown: 'عدم المعرفة',
+            not_remembered: 'عدم التذكر', answer_pending_question: 'الإجابة عن السؤال المعلّق' };
+          const unsupportedGoalNote = unsupportedGoals.length
+            ? `؛ تفسير غير مدعوم لم يُطبّق: ${unsupportedGoals.map(goal => goalLabels[goal] || 'هدف حواري').join('، ')}` : '';
           if (extractionCall && extractionOutcome === 'valid_empty') {
+            const diagnostics = result.model_diagnostics || {};
+            const response = diagnostics.provider_response || {};
+            const validation = diagnostics.validation || {};
+            const fallback = diagnostics.fallback || {};
+            const merge = diagnostics.merge || {};
+            const mergeSummary = merge.performed
+              ? `جرى الدمج وفق ${merge.field_dispositions?.length || 0} قرارًا مسجلًا`
+              : 'لم يقبل المدقق حقائق لدمجها';
+            const fallbackTarget = String(fallback.to || 'rules').split('+').map(target =>
+              ({ rules: 'القواعد المحلية', local_rag: 'الإجابة المحلية المستندة إلى المصادر' })[target] || 'معالجة محلية'
+            ).join(' و');
             $('runtime-mode').textContent = `القواعد المحلية — رد صالح من ${provider} بلا وقائع مستخرجة.`;
             setStatus(`رد ${provider} صالح بنيويًا لكنه لم يتضمن وقائع؛ لم يُعد ذلك نجاحًا للاستخراج، وطُبقت القواعد المحلية على الرسالة.`, false, ctx);
-            $('runtime-detail').textContent = `آخر عملية: رد صالح بلا مقترحات حقائق؛ القواعد المحلية عالجت الرسالة. زمن الاستجابة ${latency} مللي ثانية.`;
+            $('runtime-detail').textContent = `استجابة المزود: ${response.received ? 'وصل رد' : 'لم يصل رد'}؛ حالة التحقق: ${validation.response_valid ? 'بنية صالحة' : 'غير صالحة'}؛ الدمج: ${mergeSummary}؛ الرجوع: ${fallback.used ? `إلى ${fallbackTarget}` : 'لم يحدث'}؛ لا توجد حقائق مستخرجة${unsupportedGoalNote}. زمن الاستجابة ${latency} مللي ثانية.`;
           } else if (extractionCall && extractionOutcome === 'all_facts_filtered') {
-            const reasonLabels = { quote_mismatch: 'اقتباس غير مطابق', value_inconsistent: 'قيمة غير متسقة',
-              unsupported_status_evidence: 'حالة بلا دليل كافٍ', other_validation: 'تحقق آخر' };
-            const reasonCounts = result.provider_call?.filtered_fact_code_counts || {};
-            const reasons = Object.entries(reasonCounts).map(([code, count]) => `${reasonLabels[code] || 'سبب تحقق آخر'}: ${count}`).join('، ');
+            const validation = result.model_diagnostics?.validation || {};
+            const providerResponse = result.model_diagnostics?.provider_response || {};
+            const filters = validation.filtered_facts || result.provider_call?.validation_diagnostics || [];
+            const reasons = filters.map(item => `${item.field_label || labels[item.field] || item.field || 'حقل غير معروف'} [${item.code || 'other_validation'}]: ${item.detail || 'لم يُسجل تفصيل التحقق.'}`).join('؛ ');
+            const merge = result.model_diagnostics?.merge || {};
+            const mergeSummary = merge.performed
+              ? `جرى الدمج وفق ${merge.field_dispositions?.length || 0} قرارًا مسجلًا`
+              : 'لم يقبل المدقق حقائق لدمجها';
+            const fallback = result.model_diagnostics?.fallback || {};
             $('runtime-mode').textContent = `القواعد المحلية — استُبعدت جميع مقترحات ${provider}.`;
             setStatus(`أعاد ${provider} مقترحات، لكن المدقق استبعدها جميعًا${reasons ? ` (${reasons})` : ''}؛ طُبقت القواعد المحلية.`, false, ctx);
-            $('runtime-detail').textContent = `آخر عملية: استُبعدت جميع المقترحات (${result.provider_call?.filtered_fact_count || 0})؛ ${reasons || 'أسباب التصفية مسجلة في التشخيص'}؛ زمن الاستجابة ${latency} مللي ثانية.`;
+            const fallbackTarget = String(fallback.to || 'rules').split('+').map(target =>
+              ({ rules: 'القواعد المحلية', local_rag: 'الإجابة المحلية المستندة إلى المصادر' })[target] || 'معالجة محلية'
+            ).join(' و');
+            $('runtime-detail').textContent = `استجابة المزود: ${providerResponse.received ? 'وصل رد' : 'لم يصل رد'}؛ حالة التحقق: ${validation.response_valid ? 'بنية صالحة' : 'غير صالحة'}؛ الدمج: ${mergeSummary}؛ الرجوع: ${fallback.used ? `إلى ${fallbackTarget}` : 'لم يحدث'}${unsupportedGoalNote}. أسباب التصفية: ${reasons || 'غير متاحة لهذا التشغيل'}؛ زمن الاستجابة ${latency} مللي ثانية.`;
           } else if (result.external_model_result_accepted) {
             const filteredCount = Number(result.provider_call?.filtered_fact_count || 0);
             const runtimeLabel = result.runtime_mode === 'local_model' ? 'نموذج Ollama المحلي' : 'مزود خارجي';
@@ -465,10 +513,10 @@
             const filterNote = filteredCount ? `؛ واستبعد النظام ${filteredCount} من الحقائق غير المسندة عن الحالة` : '';
             const extractedCount = Number(result.provider_call?.fact_fields?.length || 0);
             const acceptedSummary = extractionCall ? `عدد الوقائع المقبولة: ${extractedCount}` : 'قُبل جواب الاستناد إلى المصادر';
-            setStatus(`أُرسل ${purpose} بموافقتك إلى ${provider}؛ ${acceptedSummary}${filterNote}.`, true, ctx);
+            setStatus(`أُرسل ${purpose} بموافقتك إلى ${provider}؛ ${acceptedSummary}${filterNote}${unsupportedGoalNote}.`, true, ctx);
             $('runtime-detail').textContent = filteredCount
-              ? `آخر عملية: ${extractionCall ? `استخراج من ${provider}؛ عدد الوقائع المقبولة ${extractedCount}، وعدد المقترحات المصفاة ${filteredCount}` : `قُبل الجواب الموثق من ${provider}`}؛ زمن الاستجابة ${latency} مللي ثانية.`
-              : `آخر عملية: ${extractionCall ? `استخراج من ${provider}؛ عدد الوقائع المقبولة ${extractedCount}` : `قُبل الجواب الموثق من ${provider}`}؛ زمن الاستجابة ${latency} مللي ثانية.`;
+              ? `آخر عملية: ${extractionCall ? `استخراج من ${provider}؛ عدد الوقائع المقبولة ${extractedCount}، وعدد المقترحات المصفاة ${filteredCount}` : `قُبل الجواب الموثق من ${provider}`}${unsupportedGoalNote}؛ زمن الاستجابة ${latency} مللي ثانية.`
+              : `آخر عملية: ${extractionCall ? `استخراج من ${provider}؛ عدد الوقائع المقبولة ${extractedCount}` : `قُبل الجواب الموثق من ${provider}`}${unsupportedGoalNote}؛ زمن الاستجابة ${latency} مللي ثانية.`;
           } else {
             $('runtime-mode').textContent = `القواعد المحلية — عاد الطلب إليها بعد تعذر قبول نتيجة ${provider}.`;
             setStatus(`لم تُقبل نتيجة ${provider} بعد إرسال ${purpose} بموافقتك؛ فعاد الطلب إلى ${result.fallback_to === 'local_rag' ? 'الإجابة المحلية المستندة إلى المصادر' : 'القواعد المحلية'}.`, false, ctx);

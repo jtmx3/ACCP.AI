@@ -1,0 +1,519 @@
+{
+  "suite_id": "ACCP-CONVERSATION-V3-ACCEPTANCE-20",
+  "version": "conversation-v3-1-supplemental",
+  "synthetic_internal_cases": true,
+  "frozen_before_application_fixes": false,
+  "review_note": "The original frozen 18-case suite and the reviewed 18-case copy remain unchanged. This aggregate adds two supplemental questions about account security and post-payment actions; their expectations were specified before scoring but after application changes, so use them as follow-up checks, not as pre-fix blind evidence.",
+  "description": "Synthetic multi-turn acceptance cases fixed before v3 implementation; includes previously known holdout failures as regressions, not as new unseen evidence.",
+  "cases": [
+    {
+      "case_id": "V3-Q01-account-protection-no-question-mark",
+      "turns": [
+        {
+          "text": "كيف أحمي حسابي",
+          "expect": {
+            "no_fact_fields": [
+              "narrative"
+            ],
+            "assistant_answer": true,
+            "citation_topic": "account_security"
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "V3-Q02-time-and-evidence-guidance-in-one-message",
+      "turns": [
+        {
+          "text": "قبل ساعتين بدأت الواقعة، كيف أوثق الأدلة؟",
+          "expect": {
+            "facts": {
+              "initial_time": {
+                "status": "reported",
+                "value_contains": "قبل ساعتين"
+              }
+            },
+            "assistant_answer": true,
+            "citation_topic": "evidence",
+            "single_followup": true
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "V3-Q03-recurrence-denial-and-guidance-mixed-turn",
+      "turns": [
+        {
+          "text": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
+          "expect": {
+            "facts": {
+              "platform": {
+                "status": "reported"
+              },
+              "requested_amount": {
+                "status": "reported",
+                "value_contains": "100"
+              },
+              "initial_time": {
+                "status": "reported"
+              },
+              "publication_threat": {
+                "status": "reported",
+                "value": true
+              }
+            },
+            "pending_slot": "direct_danger"
+          }
+        },
+        {
+          "text": "لا، ما في خطر مباشر علي الآن، بس اليوم رجع هددني. كيف أوثق الأدلة؟",
+          "expect": {
+            "facts": {
+              "direct_danger": {
+                "status": "denied",
+                "value": false
+              },
+              "repeated": {
+                "status": "reported",
+                "value": true
+              },
+              "latest_time": {
+                "status": "reported",
+                "value_contains": "اليوم"
+              }
+            },
+            "assistant_answer": true,
+            "citation_topic": "evidence",
+            "single_followup": true,
+            "not_pending": [
+              "direct_danger",
+              "repeated"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "V3-KNOWN-V02-finding-account-versus-opening-date",
+      "known_prior_holdout_regression": true,
+      "turns": [
+        {
+          "text": "انتبهت للحساب اليوم، لكن ما عندي فكرة عن موعد إنشائه",
+          "expect": {
+            "facts": {
+              "discovery_time": {
+                "status": "reported",
+                "value_contains": "اليوم"
+              },
+              "account_creation_time": {
+                "status": "unknown"
+              }
+            },
+            "no_fact_fields": [
+              "initial_time"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "V3-KNOWN-V03-explicit-identity-claim-new-verb",
+      "known_prior_holdout_regression": true,
+      "turns": [
+        {
+          "text": "الصفحة تنتحل دوري أمام الآخرين وتستعمل هويتي",
+          "expect": {
+            "facts": {
+              "impersonation": {
+                "status": "reported",
+                "value": true
+              },
+              "details": {
+                "status": "reported"
+              }
+            },
+            "no_fact_fields": [
+              "account_access"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "V3-KNOWN-V04-unknown-actor-independent-from-saved-chat",
+      "known_prior_holdout_regression": true,
+      "turns": [
+        {
+          "text": "الفاعل مجهول بالنسبة إلي، لكن عندي نسخة احتياطية من المحادثة",
+          "expect": {
+            "facts": {
+              "identity": {
+                "status": "unknown"
+              },
+              "evidence": {
+                "status": "reported"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "V3-Q04-discovery-and-creation-distinct-times",
+      "turns": [
+        {
+          "text": "اكتشفت الحساب اليوم، ويبدو أنه أُنشئ قبل أسبوع",
+          "expect": {
+            "facts": {
+              "discovery_time": {
+                "status": "reported",
+                "value_contains": "اليوم"
+              },
+              "account_creation_time": {
+                "status": "reported",
+                "value_contains": "قبل أسبوع"
+              }
+            },
+            "no_fact_fields": [
+              "initial_time"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "V3-Q05-original-account-access-does-not-imply-compromise",
+      "turns": [
+        {
+          "text": "حسابي الأصلي معي وبقدر أدخل عليه",
+          "expect": {
+            "facts": {
+              "original_account_access_available": {
+                "status": "reported",
+                "value": true
+              }
+            },
+            "no_fact_fields": [
+              "account_access"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "V3-Q06-reference-same-first-payment",
+      "turns": [
+        {
+          "text": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
+          "expect": {
+            "facts": {
+              "requested_amount": {
+                "status": "reported",
+                "value_contains": "100"
+              },
+              "paid_amount": {
+                "status": "reported",
+                "value_contains": "130"
+              },
+              "payment_method": {
+                "status": "reported"
+              }
+            }
+          }
+        },
+        {
+          "text": "الدفعة الثانية هي المبلغ الأول نفسه، ما حولت مرة ثانية",
+          "expect": {
+            "money_event_count": 2,
+            "paid_event_count": 1,
+            "facts": {
+              "paid_amount": {
+                "status": "reported",
+                "value_contains": "130"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "V3-Q07-guidance-post-transfer",
+      "turns": [
+        {
+          "text": "بعد ما حولت المال، شو أعمل؟",
+          "expect": {
+            "assistant_answer": true,
+            "citation_topic": "payment_recovery"
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "V3-Q08-instagram-impersonation-reporting",
+      "turns": [
+        {
+          "text": "كيف أبلّغ عن حساب ينتحل شخصيتي على إنستغرام",
+          "expect": {
+            "assistant_answer": true,
+            "citation_topic": "impersonation_reporting",
+            "no_fact_fields": [
+              "narrative"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "V3-Q09-similar-or-fan-account-is-not-automatic-impersonation",
+      "turns": [
+        {
+          "text": "في حساب معجبين مشابه لاسمي وصورتي لكنه يوضح أنه حساب معجبين ولا يدعي أنه أنا",
+          "expect": {
+            "no_true_facts": [
+              "impersonation"
+            ],
+            "no_fact_fields": [
+              "account_access"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "V3-Q10-confirmed-requested-amount-correction-preserves-paid-event",
+      "turns": [
+        {
+          "text": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+          "expect": {
+            "facts": {
+              "requested_amount": {
+                "status": "reported",
+                "value_contains": "100"
+              },
+              "paid_amount": {
+                "status": "reported",
+                "value_contains": "130"
+              }
+            },
+            "money_event_count": 2
+          }
+        },
+        {
+          "text": "المبلغ اللي طلبه كان 120 بدل 100، أما اللي حولته فهو 130، مش دفعة جديدة",
+          "expect": {
+            "facts": {
+              "requested_amount": {
+                "status": "reported",
+                "value_contains": "120"
+              },
+              "paid_amount": {
+                "status": "reported",
+                "value_contains": "130"
+              }
+            },
+            "money_event_count": 3,
+            "money_relations": {
+              "requested": [
+                "initial",
+                "correction"
+              ],
+              "paid": [
+                "initial"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "V3-Q11-country-required-only-for-local-reporting",
+      "turns": [
+        {
+          "text": "كيف أقدم بلاغًا رسميًا عن جريمة إلكترونية؟",
+          "expect": {
+            "assistant_answer": true,
+            "ask_jurisdiction": true
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "V3-Q12-spelling-variation-account-security",
+      "turns": [
+        {
+          "text": "كيف احمي حسابي من الختراق",
+          "expect": {
+            "assistant_answer": true,
+            "citation_topic": "account_security",
+            "no_fact_fields": [
+              "narrative"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "V3-Q13-compound-negation-and-unknown-publication",
+      "turns": [
+        {
+          "text": "شخص هددني على واتساب",
+          "expect": {
+            "facts": {
+              "threat": {
+                "status": "reported",
+                "value": true
+              }
+            }
+          }
+        },
+        {
+          "text": "لا، ما في خطر مباشر علي الآن، وما بعرف إذا نشر المحادثات ولا لأ",
+          "expect": {
+            "facts": {
+              "direct_danger": {
+                "status": "denied",
+                "value": false
+              },
+              "published": {
+                "status": "unknown"
+              }
+            },
+            "single_followup": true
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "V3-Q14-yes-refers-to-pending-repeated-harm-question",
+      "turns": [
+        {
+          "text": "شخص هددني على واتساب",
+          "expect": {
+            "facts": {
+              "threat": {
+                "status": "reported",
+                "value": true
+              }
+            }
+          }
+        },
+        {
+          "text": "لا، ما في خطر مباشر علي الآن",
+          "expect": {
+            "facts": {
+              "direct_danger": {
+                "status": "denied",
+                "value": false
+              },
+              "pending_slot": "details"
+            }
+          }
+        },
+        {
+          "text": "قال إنه سيؤذيني إذا رفضت الدفع",
+          "expect": {
+            "facts": {
+              "details": {
+                "status": "reported"
+              },
+              "pending_slot": "initial_time"
+            }
+          }
+        },
+        {
+          "text": "بدأ قبل يومين",
+          "expect": {
+            "facts": {
+              "initial_time": {
+                "status": "reported"
+              },
+              "pending_slot": "repeated"
+            }
+          }
+        },
+        {
+          "text": "نعم",
+          "expect": {
+            "facts": {
+              "repeated": {
+                "status": "reported",
+                "value": true
+              }
+            },
+            "not_pending": [
+              "repeated"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "V3-Q15-correction-and-why-question-together",
+      "turns": [
+        {
+          "text": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+          "expect": {
+            "facts": {
+              "requested_amount": {
+                "status": "reported",
+                "value_contains": "100"
+              },
+              "paid_amount": {
+                "status": "reported",
+                "value_contains": "130"
+              }
+            },
+            "money_event_count": 2
+          }
+        },
+        {
+          "text": "قصدي المبلغ المطلوب 120 بدل 100، ليش بتسأل عن المهلة؟",
+          "expect": {
+            "facts": {
+              "requested_amount": {
+                "status": "reported",
+                "value_contains": "120"
+              },
+              "paid_amount": {
+                "status": "reported",
+                "value_contains": "130"
+              }
+            },
+            "money_event_count": 3,
+            "assistant_answer": true,
+            "answer_contains": "الدفع مسجل",
+            "no_fact_fields": [
+              "deadline"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "V3-S19-security-guidance-variant-no-country",
+      "turns": [
+        {
+          "text": "شو الخطوات اللي بتساعدني أحمي حسابي الأصلي على إنستغرام؟",
+          "expect": {
+            "assistant_answer": true,
+            "citation_topic": "account_security"
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "V3-S20-payment-recovery-guidance-no-country",
+      "turns": [
+        {
+          "text": "حوّلت مصاري، كيف أتصرف حتى أتحقق إذا ممكن أسترجعها؟",
+          "expect": {
+            "assistant_answer": true,
+            "citation_topic": "payment_recovery"
+          }
+        }
+      ]
+    }
+  ],
+  "expectations_locked_before_evaluation": true,
+  "provenance": "The first 18 cases are the reviewed copy of the pre-fix frozen suite; two supplemental source-guidance cases were added after the initial implementation and before their own scoring. They are not described as blind or independent."
+}

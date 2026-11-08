@@ -81,6 +81,19 @@ class InterviewWorkflowTests(unittest.TestCase):
                 question = next(m for m in self.state["messages"] if m["id"] == fact["question_id"])
                 self.assertEqual(question["role"], "assistant")
 
+    def test_standalone_yes_answers_the_pending_repeated_harm_question(self):
+        state = new_state("synthetic-contextual-yes-repeated")
+        for text in ("في شخص عم يهددني على واتساب.", "لا، ما في خطر مباشر علي الآن.",
+                     "قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.", "أمس الساعة 6 مساءً."):
+            handle_turn(state, text)
+        self.assertEqual(state["pending_slot"], "repeated")
+        question = next(message for message in reversed(state["messages"])
+                        if message["role"] == "assistant" and message.get("kind") in {"question", "clarification"})
+        handle_turn(state, "نعم")
+        fact = state["facts"]["repeated"]
+        self.assertEqual((fact["status"], fact["value"], fact["quote"]), ("reported", True, "نعم"))
+        self.assertEqual(fact["question_id"], question["id"])
+
     def test_indirect_deadline_answer_is_clarified_not_assumed(self):
         self.say("في شخص عم يهددني على واتساب")
         self.say("لا")
@@ -294,7 +307,8 @@ class InterviewWorkflowTests(unittest.TestCase):
         self.assertTrue(any(item["message_id"] == state["messages"][-2]["id"]
                             for item in fact.get("supporting_statements", [])))
         trace = [item for item in last_model_merge_trace() if item["field"] == "payment_method"]
-        self.assertEqual(trace[-1]["disposition"], "superseded_by_rules")
+        self.assertEqual(trace[-1]["disposition"], "ignored")
+        self.assertEqual(trace[-1]["reason"], "model_payment_method_value_not_supported_by_current_quote")
 
         different = new_state("payment-method-real-conflict")
         handle_turn(different, "حولت المبلغ عن طريق محفظة إلكترونية.")
@@ -363,7 +377,10 @@ class InterviewWorkflowTests(unittest.TestCase):
 
     def test_local_rag_requires_supported_jurisdiction_and_returns_citations(self):
         generic = answer_question("كيف أحفظ الأدلة واللقطات؟", None)
-        self.assertEqual(generic["citations"], [])
+        self.assertTrue(generic["citations"])
+        self.assertTrue(all(c["geography"] == "AU" and c["guidance_scope"] == "general_practice"
+                            for c in generic["citations"]))
+        self.assertIn("لا يمثل قانونًا أو جهة محلية", generic["text"])
         au = answer_question("كيف أحفظ الأدلة واللقطات؟", "AU")
         self.assertTrue(au["citations"])
         self.assertTrue(all(c["geography"] == "AU" for c in au["citations"]))
@@ -374,19 +391,37 @@ class InterviewWorkflowTests(unittest.TestCase):
         self.assertEqual(weak["citations"], [])
         near_word = answer_question("ما هو معنى كلمة صور في اللغة العربية؟", "AU")
         self.assertEqual(near_word["citations"], [])
+        instagram_security = answer_question("كيف أؤمن حسابي الأصلي على إنستغرام إذا كنت ما زلت أستطيع الدخول؟", None)
+        self.assertTrue(any(c["id"] == "GLOBAL-IG-SECURITY-2026" for c in instagram_security["citations"]))
+        instagram_impersonation = answer_question("كيف أبلغ من داخل إنستغرام عن حساب يدعي أنه أنا؟", None)
+        self.assertTrue(any(c["id"] == "GLOBAL-IG-IMPERSONATION-2026"
+                            for c in instagram_impersonation["citations"]))
         us = retrieve("استرداد المال بعد الدفع إلى محتَال عبر البنك أو التطبيق", "US")
         self.assertTrue(any(s["id"] == "US-FTC-SCAM-2026" for s in us))
+        general_recovery = answer_question("حوّلت مصاري، كيف أتصرف حتى أتحقق إذا ممكن أسترجعها؟", None)
+        self.assertTrue(any(c["id"] == "US-FTC-SCAM-2026" for c in general_recovery["citations"]))
+        self.assertIn("إذا كان التحويل مرتبطًا باحتيال", general_recovery["text"])
         self.assertEqual(retrieve("استرداد المال بعد الدفع إلى محتَال", "JO"), [])
         jordan_police = answer_question("ما هي وسائل التواصل مع وحدة الجرائم الإلكترونية بالأردن؟", "JO")
         self.assertTrue(any(c["id"] == "JO-PSD-CYBERCRIME-UNIT-2026" for c in jordan_police["citations"]))
+        explicit_jordan_without_saved_scope = answer_question("كيف أبلغ عن جريمة إلكترونية في الأردن؟", None)
+        self.assertTrue(any(c["id"] == "JO-PSD-CYBERCRIME-UNIT-2026"
+                            for c in explicit_jordan_without_saved_scope["citations"]))
+        general_reporting_without_country = answer_question("كيف أقدم بلاغًا رسميًا عن جريمة إلكترونية؟", None)
+        self.assertEqual(general_reporting_without_country["citations"], [])
+        self.assertIn("اذكر البلد", general_reporting_without_country["text"])
         jocert = answer_question("ما هي خدمة الإبلاغ عن حادث أمني سيبراني بالأردن؟", "JO")
         self.assertTrue(any(c["id"] == "JO-NCSC-INCIDENT-REPORT-2026" for c in jocert["citations"]))
         emergency = answer_question("ما رقم الطوارئ للأردن؟", "JO")
         self.assertTrue(any(c["id"] == "JO-PSD-EMERGENCY-911-2026" for c in emergency["citations"]))
         self.assertFalse(any(c["id"] == "JO-PSD-CYBERCRIME-UNIT-2026" for c in emergency["citations"]))
         no_local_evidence_steps = answer_question("كيف أحفظ الأدلة واللقطات؟", "JO")
-        self.assertEqual(no_local_evidence_steps["citations"], [])
-        self.assertTrue(all(c["excerpt"] in jocert["text"] for c in jocert["citations"]))
+        self.assertTrue(any(c["id"] == "AU-ESAFETY-EVIDENCE-2026" for c in no_local_evidence_steps["citations"]))
+        self.assertTrue(all(c.get("scope_note") for c in no_local_evidence_steps["citations"]
+                            if c["geography"] != "JO"))
+        self.assertTrue(all(c["excerpt"] for c in jocert["citations"]))
+        self.assertTrue(all(c["excerpt"] not in jocert["text"] for c in jocert["citations"]))
+        self.assertIn("افتح تفاصيل المصدر", jocert["text"])
 
 
 if __name__ == "__main__":

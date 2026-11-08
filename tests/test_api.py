@@ -1,3 +1,5 @@
+import io
+import json
 import tempfile
 import os
 import threading
@@ -62,8 +64,9 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertFalse(why_message["external_model_used"])
         question = self.turn("كيف أحفظ الأدلة واللقطات؟", kind="question")
         answer_message = question["messages"][-2]
-        self.assertIn("ما عندي مصدر موثوق", answer_message["text"])
-        self.assertEqual(answer_message["citations"], [])
+        self.assertIn("المصادر الوطنية لا تمثل مسارًا محليًا خارجه", answer_message["text"])
+        self.assertTrue(any(source["id"] == "AU-ESAFETY-EVIDENCE-2026" for source in answer_message["citations"]))
+        self.assertTrue(all(source["scope_note"] for source in answer_message["citations"]))
         response = self.client.put(
             f"/api/sessions/{self.case_id}/jurisdiction",
             headers=self.headers,
@@ -103,6 +106,141 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertEqual(result["provider_call"]["filtered_fact_count"], 1)
         self.assertEqual(result["provider_call"]["filtered_fact_fields"], ["identity"])
         self.assertNotIn("filtered_fact_proposals", result["provider_call"])
+
+    def test_all_filtered_model_diagnostics_separate_provider_validation_merge_and_fallback(self):
+        trace = {"attempted": True, "status": "all_facts_filtered", "result_accepted": False,
+                 "failure_code": "all_facts_filtered", "latency_ms": 321,
+                 "extraction_outcome": "all_facts_filtered", "response_valid": True,
+                 "filtered_fact_count": 1, "filtered_fact_fields": ["deadline"]}
+        diagnostic = {"accepted": True, "raw_response": '{"facts":[{"private":"do not return"}]}',
+                      "filtered_facts": [{"field": "deadline", "status": "reported", "value": "غدًا",
+                                          "quote": "اقتباس خاص", "filter_code": "quote_mismatch",
+                                          "filter_detail": "The quote does not match a current message span."}]}
+        with patch("app.main.model_configured", return_value=True), \
+             patch("app.main.provider_config", return_value={"provider": "ollama", "model": "fixture:latest",
+                                                                "mode": "local_model"}), \
+             patch("app.main.generate_interview_extraction", return_value=[]), \
+             patch("app.main.last_call_trace", return_value=trace), \
+             patch("app.main.last_extraction_diagnostic", return_value=diagnostic):
+            response = self.client.post(
+                f"/api/sessions/{self.case_id}/messages", headers=self.headers,
+                json={"expected_revision": self.revision, "text": "لا، ما حدد مهلة أو موعد للدفع.",
+                      "kind": "answer", "allow_external_extraction": True})
+        self.assertEqual(response.status_code, 200, response.text)
+        result = response.json()
+        detail = result["model_diagnostics"]
+        self.assertTrue(detail["provider_response"]["received"])
+        self.assertEqual(detail["provider_response"]["status"], "all_facts_filtered")
+        self.assertTrue(detail["validation"]["response_valid"])
+        self.assertEqual(detail["validation"]["filtered_facts"], [{
+            "field": "deadline", "field_label": "مهلة الدفع", "code": "quote_mismatch",
+            "detail": "The quote does not match a current message span."}])
+        self.assertFalse(detail["merge"]["performed"])
+        self.assertTrue(detail["fallback"]["used"])
+        self.assertFalse(detail["raw_response_included"])
+        self.assertNotIn("private", response.text)
+        self.assertNotIn("اقتباس خاص", response.text)
+
+    def test_negated_or_unknown_model_proposals_are_filtered_before_state_and_report(self):
+        cases = [
+            ("ما حصل نشر لصور الحساب.", "published", "reported", True, "value_inconsistent"),
+            ("ما صار أي تهديد مباشر.", "threat", "reported", True, "value_inconsistent"),
+            ("ما دفعت أي مبلغ.", "paid_amount", "unknown", None, "unsupported_status_evidence"),
+            ("ما نشر الصور وهددني بنشرها.", "threat", "denied", False,
+             "unsupported_status_evidence"),
+            ("هددني بنشر الصور.", "published", "reported", True, "value_inconsistent"),
+            ("ما صار معي تهديد.", "threat", "reported", True, "value_inconsistent"),
+            ("رح ينزل الصور بكرا.", "published", "reported", True, "value_inconsistent"),
+        ]
+        env = {"MODEL_PROVIDER": "ollama", "MODEL_BASE_URL": "http://127.0.0.1:11434/v1",
+               "MODEL_NAME": "synthetic-test:latest", "OLLAMA_REASONING_EFFORT": "none"}
+        for text, field, status, value, expected_code in cases:
+            with self.subTest(field=field):
+                created = self.client.post("/api/sessions", json={}).json()
+                session_id = created["session"]["session_id"]
+                token = created["token"]
+                revision = created["session"]["revision"]
+                model_payload = {"message_goals": [], "guidance_question": None,
+                                 "facts": [{"field": field, "status": status, "value": value,
+                                            "current_quote": text}]}
+                provider_payload = {"choices": [{"message": {"content": json.dumps(
+                    model_payload, ensure_ascii=False)}}]}
+                calls = []
+
+                def fake_urlopen(request, timeout):
+                    calls.append(request)
+                    return io.BytesIO(json.dumps(provider_payload, ensure_ascii=False).encode("utf-8"))
+
+                with patch.dict(os.environ, env, clear=True), \
+                     patch("app.main.model_configured", return_value=True), \
+                     patch("app.main.provider_config", return_value={"provider": "ollama",
+                           "model": "synthetic-test:latest", "mode": "local_model"}), \
+                     patch("app.model.urllib.request.urlopen", side_effect=fake_urlopen):
+                    response = self.client.post(
+                        f"/api/sessions/{session_id}/messages", headers={"X-Case-Token": token},
+                        json={"expected_revision": revision, "text": text, "kind": "answer",
+                              "allow_external_extraction": True})
+
+                self.assertEqual(response.status_code, 200, response.text)
+                result = response.json()
+                self.assertEqual(len(calls), 1)
+                self.assertFalse(result["external_model_result_accepted"])
+                self.assertTrue(result["extraction_fallback_used"])
+                self.assertEqual(result["fallback_to"], "rules")
+                validation = result["model_diagnostics"]["validation"]
+                self.assertEqual(validation["accepted_fields"], [])
+                self.assertEqual(validation["filtered_facts"][0]["field"], field)
+                self.assertEqual(validation["filtered_facts"][0]["code"], expected_code)
+                self.assertFalse(result["model_diagnostics"]["merge"]["performed"])
+                for facts in (result["session"].get("facts", {}), result["report"].get("facts", {})):
+                    stored = facts.get(field)
+                    self.assertFalse(stored and stored.get("status") == status and stored.get("value") == value)
+
+    def test_unsupported_decline_goal_is_diagnostic_only_and_rules_handle_deadline_denial(self):
+        from app.model import InterviewUnderstanding
+
+        def make_deadline_pending(state):
+            state["stage"] = "interview"
+            state["pending_slot"] = "deadline"
+
+        pending = main.store.mutate(self.case_id, self.token, self.revision,
+                                    "synthetic_test_setup", make_deadline_pending)
+        self.revision = pending["revision"]
+        message = "لا، ما حدد مهلة أو موعد للدفع."
+        trace = {"attempted": True, "status": "valid_empty", "result_accepted": False,
+                 "response_valid": True, "extraction_outcome": "valid_empty", "failure_code": "empty_extraction",
+                 "latency_ms": 98, "fact_fields": [], "filtered_fact_count": 0,
+                 "unsupported_message_goals": ["decline_disclosure"]}
+        diagnostic = {"accepted": True, "raw_response": '{"message_goals":["decline_disclosure"],"facts":[]}',
+                      "filtered_facts": [], "unsupported_message_goals": ["decline_disclosure"],
+                      "message_plan": {"goals": [], "unsupported_goals": ["decline_disclosure"],
+                                       "guidance_question": None}}
+        understanding = InterviewUnderstanding([], diagnostic["message_plan"], diagnostic)
+        config = {"provider": "ollama", "model": "fixture:qwen", "mode": "local_model", "local": True}
+        with patch("app.main.model_configured", return_value=True), \
+             patch("app.main.provider_config", return_value=config), \
+             patch("app.main.generate_interview_extraction", return_value=understanding), \
+             patch("app.main.last_call_trace", return_value=trace), \
+             patch("app.main.call_trace_history", return_value=[trace]), \
+             patch("app.main.last_extraction_diagnostic", return_value=diagnostic):
+            response = self.client.post(
+                f"/api/sessions/{self.case_id}/messages", headers=self.headers,
+                json={"expected_revision": self.revision, "text": message, "kind": "answer",
+                      "allow_external_extraction": True})
+        self.assertEqual(response.status_code, 200, response.text)
+        result = response.json()
+        self.assertEqual(result["extraction_outcome"], "valid_empty")
+        self.assertFalse(result["external_model_result_accepted"])
+        self.assertFalse(result["message_plan_applied"])
+        self.assertEqual(result["model_diagnostics"]["validation"]["unsupported_message_goals"],
+                         ["decline_disclosure"])
+        self.assertFalse(result["model_diagnostics"]["merge"]["performed"])
+        self.assertTrue(result["model_diagnostics"]["fallback"]["used"])
+        self.assertEqual(result["provider_call"]["fact_fields"], [])
+        deadline = result["report"]["facts"].get("deadline")
+        self.assertEqual(deadline["status"], "denied")
+        self.assertIsNone(deadline["value"])
+        self.assertIn("ما حدد مهلة أو موعد للدفع", deadline["quote"])
 
     def test_valid_empty_and_all_filtered_model_extractions_fall_back_without_claiming_success(self):
         cases = [
@@ -158,7 +296,9 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertEqual(state["pending_slot"], "direct_danger")
         self.assertEqual(state["facts"], facts_before)
         self.assertEqual(state["messages"][-2]["kind"], "answer")
-        self.assertIn("ما عندي مصدر موثوق", state["messages"][-2]["text"])
+        self.assertIn("المصادر الوطنية لا تمثل مسارًا محليًا خارجه", state["messages"][-2]["text"])
+        self.assertTrue(any(citation["id"] == "AU-ESAFETY-EVIDENCE-2026"
+                            for citation in state["messages"][-2]["citations"]))
         self.assertEqual(state["messages"][-1]["kind"], "question")
         self.assertIn("هل أنت بخطر مباشر الآن؟", state["messages"][-1]["text"])
 
@@ -334,7 +474,8 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertEqual(json_before_confirm["facts"]["contact"]["value"], "رقم واتساب متوفر بحسب الإفادة؛ المعرّف لم يُدرج")
         self.assertEqual(json_before_confirm["facts"]["contact_identifier_disclosure"]["status"], "declined")
         self.assertEqual(json_before_confirm["facts"]["identity"]["status"], "unknown")
-        self.assertIn("contact_identifier_disclosure", json_before_confirm["unknown_fields"])
+        self.assertIn("contact_identifier_disclosure", json_before_confirm["declined_fields"])
+        self.assertNotIn("contact_identifier_disclosure", json_before_confirm["unknown_fields"])
         self.assertEqual(json_before_confirm["correction_notes"][0]["previous_value"], "100 دينار")
         self.assertEqual(json_before_confirm["correction_notes"][0]["current_value"], "120 دينار")
         message_times = {message["id"]: message["created_at"] for message in corrected["messages"]}
@@ -382,7 +523,7 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertEqual(resumed.json()["report"]["summary_version"], later["summary_version"])
         self.assertEqual(resumed.json()["report"]["facts"]["paid_amount"]["value"], "130 دينار")
 
-    def test_confirmation_is_invalidated_when_resumed_turn_changes_facts_before_clarification_return(self):
+    def test_confirmation_is_invalidated_when_a_fact_changes_after_review_resume(self):
         self.turn("في شخص يهددني")
         self.turn("اعرض الملخص")
         confirmed = self.client.post(f"/api/sessions/{self.case_id}/confirm", headers=self.headers, json={"expected_revision": self.revision})
@@ -399,12 +540,14 @@ class ApiIntegrationTests(unittest.TestCase):
         resumed = self.client.post(f"/api/sessions/{self.case_id}/resume", headers=self.headers, json={"expected_revision": self.revision})
         self.assertEqual(resumed.status_code, 200)
         self.revision = resumed.json()["session"]["revision"]
-        self.assertEqual(resumed.json()["session"]["pending_slot"], "direct_danger")
+        self.assertEqual(resumed.json()["session"]["stage"], "review")
+        self.assertIsNone(resumed.json()["session"]["pending_slot"])
         self.assertTrue(resumed.json()["session"]["confirmed"])
 
         updated = self.turn("طلب مني 100 دينار")
         self.assertEqual(updated["facts"]["requested_amount"]["value"], "100 دينار")
-        self.assertEqual(updated["pending_slot"], "direct_danger")
+        self.assertEqual(updated["stage"], "review")
+        self.assertIsNone(updated["pending_slot"])
         self.assertFalse(updated["confirmed"])
         self.assertIsNone(updated["confirmed_digest"])
         self.assertGreater(updated["summary_version"], prior_version)
@@ -419,6 +562,59 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertIn("**التأكيد:** غير مؤكد", exported.text)
         self.assertIn("تأكيد سابق؛ لا يؤكد محتوى هذا الإصدار", exported.text)
         self.assertNotIn("**التأكيد:** مؤكد من المستخدم", exported.text)
+
+    def test_urgent_stop_state_survives_pause_and_resume_without_interview_question(self):
+        risk = self.turn("أنا بخطر مباشر الآن.")
+        self.assertEqual(risk["stage"], "urgent_stop")
+        self.assertIsNone(risk["pending_slot"])
+        paused = self.turn("احفظ الجلسة")
+        self.assertEqual(paused["stage"], "paused")
+        self.assertEqual(paused["resume_stage"], "urgent_stop")
+        before_resume_count = len(paused["messages"])
+        response = self.client.post(f"/api/sessions/{self.case_id}/resume", headers=self.headers,
+                                    json={"expected_revision": self.revision})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.revision = response.json()["session"]["revision"]
+        state = response.json()["session"]
+        self.assertEqual(state["stage"], "urgent_stop")
+        self.assertIsNone(state["pending_slot"])
+        new_messages = state["messages"][before_resume_count:]
+        self.assertEqual(len(new_messages), 1)
+        self.assertEqual(new_messages[0]["kind"], "safety")
+        self.assertFalse(any(message["kind"] == "question" for message in new_messages))
+
+    def test_confirmed_review_returns_to_review_after_save_and_resume(self):
+        self.turn("في شخص يهددني")
+        reviewed = self.turn("اعرض الملخص")
+        self.assertEqual(reviewed["stage"], "review")
+        confirmed = self.client.post(f"/api/sessions/{self.case_id}/confirm", headers=self.headers,
+                                     json={"expected_revision": self.revision})
+        self.assertEqual(confirmed.status_code, 200, confirmed.text)
+        confirmed_state = confirmed.json()["session"]
+        self.revision = confirmed_state["revision"]
+        confirmed_digest = confirmed_state["confirmed_digest"]
+        confirmed_version = confirmed_state["summary_version"]
+        message_count = len(confirmed_state["messages"])
+
+        paused = self.turn("احفظ الجلسة")
+        self.assertEqual(paused["stage"], "paused")
+        self.assertEqual(paused.get("resume_stage"), "review")
+        self.assertTrue(paused["confirmed"])
+        resumed = self.client.post(f"/api/sessions/{self.case_id}/resume", headers=self.headers,
+                                   json={"expected_revision": self.revision})
+        self.assertEqual(resumed.status_code, 200, resumed.text)
+        self.revision = resumed.json()["session"]["revision"]
+        state = resumed.json()["session"]
+        report = resumed.json()["report"]
+        self.assertEqual(state["stage"], "review")
+        self.assertEqual(len(state["messages"]), message_count + 3)  # save user/status + resume status
+        self.assertEqual(state["confirmed_digest"], confirmed_digest)
+        self.assertTrue(state["confirmed"])
+        self.assertTrue(report["confirmed"])
+        self.assertEqual(report["summary_version"], confirmed_version)
+        self.assertEqual(self.client.get(f"/api/sessions/{self.case_id}/report.json", headers=self.headers).json()["confirmed"], True)
+        self.assertIn("**التأكيد:** مؤكد من المستخدم", self.client.get(
+            f"/api/sessions/{self.case_id}/report.md", headers=self.headers).text)
 
     def test_read_and_export_never_claim_confirmation_for_a_mismatched_legacy_digest(self):
         self.turn("في شخص يهددني")
@@ -482,7 +678,8 @@ class ApiIntegrationTests(unittest.TestCase):
             return []
 
         with patch.dict(os.environ, {"MODEL_PROVIDER": "openai-compatible", "MODEL_API_KEY": "test-only"}), \
-             patch("app.main.generate_interview_extraction", side_effect=slow_extract):
+             patch("app.main.generate_interview_extraction", side_effect=slow_extract), \
+             patch("app.main.last_call_trace", return_value={"attempted": True, "latency_ms": 1}):
             with ThreadPoolExecutor(max_workers=2) as pool:
                 futures = [
                     pool.submit(main.post_message, self.case_id, TurnRequest(expected_revision=0, text="شخص يهددني برسالة", allow_external_extraction=True), self.token),
@@ -540,7 +737,8 @@ class ApiIntegrationTests(unittest.TestCase):
             return result
 
         with patch.dict(os.environ, {"MODEL_PROVIDER": "openai-compatible", "MODEL_API_KEY": "test-only"}), \
-             patch("app.main.generate_grounded_answer", side_effect=slow_answer):
+             patch("app.main.generate_grounded_answer", side_effect=slow_answer), \
+             patch("app.main.last_call_trace", return_value={"attempted": True, "latency_ms": 1}):
             with ThreadPoolExecutor(max_workers=2) as pool:
                 first = pool.submit(main.post_message, self.case_id,
                                     TurnRequest(expected_revision=1, text="كيف أحفظ الأدلة واللقطات؟", kind="question", allow_external=True), self.token)

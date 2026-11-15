@@ -20,7 +20,7 @@ PLATFORM_ALIASES = {
     "facebook": ("فيسبوك", "فيس بوك", "facebook"),
     "tiktok": ("تيك توك", "tiktok"),
     "snapchat": ("سناب شات", "سناب", "snapchat"),
-    "telegram": ("تلغرام", "تليجرام", "تيليجرام", "telegram"),
+    "telegram": ("تلغرام", "تلجرام", "تيلغرام", "تليجرام", "تيليجرام", "telegram"),
     "signal": ("سيجنال", "signal"),
     "x": ("تويتر", "twitter", "x.com"),
 }
@@ -84,7 +84,18 @@ def available_jurisdictions(corpus: dict[str, Any] | None = None) -> list[dict[s
 def _normalize(value: str) -> str:
     value = value.lower()
     value = re.sub(r"[\u064b-\u065f\u0670]", "", value)
-    return value.replace("أ", "ا").replace("إ", "ا").replace("آ", "ا").replace("ى", "ي").replace("ة", "ه")
+    value = value.replace("أ", "ا").replace("إ", "ا").replace("آ", "ا").replace("ى", "ي").replace("ة", "ه")
+    value = re.sub(r"([\u0600-\u06ff])\1{2,}", r"\1", value)
+    for source, target in _TOKEN_TYPO_MAP.items():
+        value = value.replace(source, target)
+    return value
+
+
+_TOKEN_TYPO_MAP = {
+    "علاقثه": "علاقه", "بعتللي": "بعتلي", "بعت لي": "بعتلي", "حكاللي": "حكالي",
+    "صارلو": "صارله", "صرلو": "صارله", "تيلغرام": "تلغرام", "تلجرام": "تلغرام",
+    "تيليجرام": "تلغرام", "امبارحه": "مبارح", "البارحه": "مبارح",
+}
 
 
 NORMALIZED_STOPWORDS = {_normalize(word) for word in STOPWORDS}
@@ -173,6 +184,15 @@ def _query_topics(value: str) -> set[str]:
         topics.add("cybercrime_reporting")
     if terms & {"حادث", "incident"} and terms & {"سيبراني", "الكتروني", "امن", "cybersecurity", "security", "jocert"}:
         topics.add("cybersecurity_incident_reporting")
+    legal_cue = any(marker in normalized for marker in (
+        "قانون الجرائم الالكترونيه", "cybercrime law", "قانوني", "عقوبه", "العقوبه", "الماده", "article",
+    ))
+    cybercrime_cue = any(marker in normalized for marker in (
+        "جرائم الكترونيه", "جرائم الالكترونيه", "قانون الجرائم الالكترونيه",
+        "ابتزاز", "تهديد", "انتحال", "صور حميمه", "cybercrime", "extortion",
+    ))
+    if legal_cue and cybercrime_cue:
+        topics.update({"cybercrime_law", "legal_information"})
     if terms & {"طوارئ", "911", "خطر", "مباشر", "emergency"}:
         topics.add("emergency")
 
@@ -218,8 +238,18 @@ def _requires_jurisdiction(query: str) -> bool:
     normalized = _normalize(query)
     return any(marker in normalized for marker in (
         "ابلغ", "ابلاغ", "بلاغ", "الشرطه", "الشرطة", "قانوني", "رقم الطوارئ", "رقم 911", "رقم 196",
-        "جهة مختصة", "محكمة", "تعويض قانوني", "report cybercrime", "official report", "police", "legal advice", "emergency number",
+        "جهة مختصة", "محكمة", "تعويض قانوني", "قانون الجرائم", "قانوني", "الماده", "المادة",
+        "عقوبه", "العقوبه",
+        "report cybercrime", "official report", "police", "legal advice", "emergency number",
     ))
+
+
+def _requested_jordan_law_article(query: str) -> str | None:
+    normalized = _normalize(query)
+    if not any(marker in normalized for marker in ("قانون الجرائم الالكترونيه", "cybercrime law")):
+        return None
+    match = re.search(r"(?:الماده|article)\s*(?:رقم\s*)?(\d{1,3})", normalized)
+    return match.group(1) if match else None
 
 
 def _resolve_platform(query: str, platform_context: str | list[str] | None,
@@ -247,6 +277,7 @@ def retrieve(query: str, jurisdiction: str | None, limit: int = 3, corpus: dict[
     if scope and scope not in available:
         return []
     query_topics = set(topics) if topics is not None else _query_topics(query)
+    requested_law_article = _requested_jordan_law_article(query)
     if not query_topics:
         return []
     query_terms = _search_terms(query)
@@ -255,6 +286,9 @@ def retrieve(query: str, jurisdiction: str | None, limit: int = 3, corpus: dict[
     scored: list[tuple[float, int, dict[str, Any]]] = []
     for source in corpus["sources"]:
         geography = str(source["geography"]).upper()
+        if requested_law_article and source["id"].startswith("JO-CYBERCRIME-LAW-ART"):
+            if source["id"] != f"JO-CYBERCRIME-LAW-ART{requested_law_article}-2023":
+                continue
         general_practice = source.get("guidance_scope") == "general_practice"
         global_platform = source.get("guidance_scope") == "global_platform" or geography == "GLOBAL"
         allowed_geography = (global_platform or general_practice) if not scope else (
@@ -347,7 +381,10 @@ def answer_question(query: str, jurisdiction: str | None, context_text: str = ""
                 "resolved_platform": platform, "resolved_topics": sorted(topics), "resolved_jurisdiction": effective_scope,
                 "clarification_required": None}
 
-    if effective_scope:
+    legal_only = bool(topics & {"cybercrime_law", "legal_information"})
+    if legal_only:
+        lines = ["معلومات عامة من النص القانوني الرسمي الأردني؛ لا تمثل تكييفًا لواقعتك أو مشورة قانونية:"]
+    elif effective_scope:
         lines = ["خطوات مختصرة بحسب المصادر الموثقة:"]
     else:
         lines = ["خطوات مختصرة من مصادر موثقة؛ لا أفترض بلدك، والمصادر الوطنية لا تمثل مسارًا محليًا خارجه:"]

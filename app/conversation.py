@@ -12,7 +12,6 @@ MAX_MONEY_EVENTS = 4
 
 QUESTION_TEXT = {
     "narrative": "احكيلي شو صار معك.",
-    "direct_danger": "هل أنت بخطر مباشر الآن؟",
     "details": "شو قال لك تحديدًا أو شو صار؟",
     "initial_time": "متى بدأ التصرف أو وصلك أول تواصل؟",
     "discovery_time": "متى اكتشفت الواقعة؟",
@@ -27,6 +26,7 @@ QUESTION_TEXT = {
     "identity": "هل تعرف هوية الشخص أم لديك قناة تواصل فقط؟",
     "evidence": "ما الأدلة المتوفرة بحسب إفادتك؟",
     "repeated": "هل تكرر التهديد أو المضايقة؟",
+    "ongoing_contact": "هل ما زال التواصل مستمرًا الآن؟ هذا منفصل عن تكرار التهديد أو الضرر.",
 }
 
 FINANCIAL_FIELDS = {"requested_amount", "paid_amount", "payment_method", "deadline",
@@ -34,12 +34,11 @@ FINANCIAL_FIELDS = {"requested_amount", "paid_amount", "payment_method", "deadli
 FIELD_GROUPS = {
     "narrative": {"narrative", "details", "threat", "impersonation", "platform"},
     "unclassified_details": {"narrative", "details", "threat", "impersonation", "platform"},
-    "direct_danger": {"threat", "direct_danger"},
     "details": {"narrative", "details", "threat", "impersonation", "publication_threat", "published"},
     "initial_time": {"initial_time", "discovery_time", "account_creation_time", "latest_time"},
     "discovery_time": {"discovery_time", "initial_time", "account_creation_time"},
     "account_creation_time": {"discovery_time", "account_creation_time", "initial_time"},
-    "repeated": {"threat", "harassment", "repeated", "contact_repeated"},
+    "repeated": {"threat", "harassment", "repeated", "contact_repeated", "ongoing_contact"},
     "requested_amount": FINANCIAL_FIELDS,
     "requested_amount_relation": FINANCIAL_FIELDS,
     "paid_amount": FINANCIAL_FIELDS,
@@ -59,8 +58,24 @@ QUESTION_PREFIXES = (
 
 def normalize_goal_text(text: str) -> str:
     normalized = re.sub(r"[\u064b-\u065f\u0670\u0640]", "", text.lower())
-    return (normalized.replace("أ", "ا").replace("إ", "ا").replace("آ", "ا")
-            .replace("ى", "ي").replace("ة", "ه"))
+    normalized = (normalized.replace("أ", "ا").replace("إ", "ا").replace("آ", "ا")
+                  .replace("ى", "ي").replace("ة", "ه").replace("ؤ", "و").replace("ئ", "ي"))
+    normalized = re.sub(r"([\u0600-\u06ff])\1{2,}", r"\1", normalized)
+    for source, target in (("علاقثه", "علاقه"), ("تلجرام", "تلغرام"), ("تيليجرام", "تلغرام"),
+                           ("تيلغرام", "تلغرام"), ("البارحه", "مبارح"), ("امبارحه", "مبارح")):
+        normalized = normalized.replace(source, target)
+    return normalized
+
+
+_CONVERSATIONAL_PREAMBLES = re.compile(
+    r"^\s*(?:(?:اسمع|شوف|بصراحة|بصراحه|يعني|للتوضيح|بالمناسبة|بالمناسبه|عفوا|عفوًا)\s*[,،:؛-]\s*)+",
+    re.IGNORECASE,
+)
+
+
+def _strip_conversational_preambles_only(text: str) -> str:
+    """Strip only a leading filler for matching; callers retain the original source text."""
+    return _CONVERSATIONAL_PREAMBLES.sub("", text, count=1).strip()
 
 
 def _question_prefix_at(text: str, start: int) -> bool:
@@ -71,6 +86,8 @@ def _question_prefix_at(text: str, start: int) -> bool:
 def extract_guidance_question(text: str) -> str | None:
     """Return a literal current-message question span, prioritizing a final question clause."""
     if not text.strip():
+        return None
+    if normalize_goal_text(text.strip(" \t\r\n.!؟?")) in {"كم يوم", "من شخص", "كم شخص"}:
         return None
     # Prefer an explicit question-mark suffix. Preserve the exact original substring.
     question_end = max(text.rfind("؟"), text.rfind("?"))
@@ -118,11 +135,16 @@ def _has_explicit_fact_clause(text: str) -> bool:
 def interpret_message(text: str, pending_slot: str | None) -> dict[str, Any]:
     """Return non-exclusive role hints and exact spans; never changes session state."""
     value = text.strip()
-    normalized = normalize_goal_text(value)
+    matching_value = _strip_conversational_preambles_only(value)
+    normalized = normalize_goal_text(matching_value)
     question = extract_guidance_question(value)
     fact_text = extract_fact_text(value, question)
     goals: list[str] = []
-    if pending_slot and fact_text:
+    normalized_fact_text = normalize_goal_text(fact_text)
+    response_prefaces_only = {
+        "قبل ما اجاوب", "قبل اجاوب", "قبل ما ارد", "قبل ارد", "قبل الاجابة", "قبل ما احكي",
+    }
+    if pending_slot and fact_text and normalized_fact_text not in response_prefaces_only:
         goals.append("answer_pending_question")
     if question:
         goals.append("ask_question")

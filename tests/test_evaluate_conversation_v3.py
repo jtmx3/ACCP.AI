@@ -59,7 +59,7 @@ class ConversationV3EvaluatorTests(unittest.TestCase):
                 "cases": [{"case_id": "metric-case", "turns": [
                     {"text": f"تفصيل إضافي رقم {index}", "expect": {}} for index in range(22)
                 ]}]}, ensure_ascii=False), encoding="utf-8")
-            provider = {"provider": "openai-compatible", "model": "synthetic-test", "mode": "external_model"}
+            provider = {"provider": "ollama", "model": "synthetic-test", "mode": "local_model"}
             trace = {"attempted": True, "status": "valid_empty", "response_valid": True,
                      "result_accepted": False, "extraction_outcome": "valid_empty", "failure_code": "empty_extraction",
                      "latency_ms": 2.0}

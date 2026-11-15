@@ -73,14 +73,14 @@ class ModelPipelineTests(unittest.TestCase):
         later = "رجع بعتلي رسالة ثانية اليوم وطلب مني أحوّل المبلغ نفسه."
         handle_turn(state, opening)
         original_narrative = state["facts"]["narrative"]["value"]
-        self.assertEqual(state["pending_slot"], "direct_danger")
+        self.assertEqual(state["pending_slot"], "details")
 
         candidate = [{"field": "narrative", "status": "reported", "value": later, "quote": later}]
         handle_turn(state, later, model_facts=candidate)
 
         self.assertEqual(state["facts"]["narrative"]["status"], "reported")
         self.assertEqual(state["facts"]["narrative"]["value"], original_narrative)
-        self.assertEqual(state["pending_slot"], "direct_danger")
+        self.assertEqual(state["pending_slot"], "initial_time")
         self.assertIn({"field": "narrative", "disposition": "ignored",
                        "reason": "preserve_original_narrative_without_explicit_correction"},
                       last_model_merge_trace())

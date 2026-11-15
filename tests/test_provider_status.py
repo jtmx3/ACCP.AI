@@ -47,30 +47,28 @@ class ProviderStatusTests(unittest.TestCase):
         self.assertTrue(status["model_available"])
         self.assertEqual(status["models_count"], 1)
 
-    def test_remote_probe_checks_model_list_without_sending_user_content(self):
-        env = {
-            "MODEL_PROVIDER": "openai-compatible",
-            "MODEL_BASE_URL": "https://provider.example/v1",
-            "MODEL_NAME": "fixture-model",
-            "MODEL_API_KEY": "secret-test-value",
-        }
-        response = FakeResponse({"data": [{"id": "fixture-model"}]})
-        with patch.dict(os.environ, env, clear=True), patch("app.model.urllib.request.urlopen", return_value=response) as urlopen:
+    def test_remote_provider_and_remote_ollama_endpoint_are_rejected(self):
+        with patch.dict(os.environ, {"MODEL_PROVIDER": "remote-provider", "MODEL_NAME": "fixture"}, clear=True):
+            config = model.provider_config()
+            self.assertFalse(config["configured"])
+            self.assertFalse(config["valid_provider"])
+            self.assertIsNone(config["base_url_host"])
+        with patch.dict(os.environ, {"MODEL_PROVIDER": "ollama", "MODEL_BASE_URL": "https://host.example/v1",
+                                    "MODEL_NAME": "fixture"}, clear=True), \
+             patch("app.model.urllib.request.urlopen") as urlopen:
+            config = model.provider_config()
             status = model.probe_provider()
-            request = urlopen.call_args.args[0]
-            self.assertEqual(request.get_method(), "GET")
-            self.assertTrue(request.full_url.endswith("/models"))
-            self.assertIsNone(request.data)
-        self.assertTrue(status["service_reachable"])
-        self.assertTrue(status["model_available"])
+            urlopen.assert_not_called()
+        self.assertFalse(config["configured"])
+        self.assertEqual(config["failure_code"], "nonlocal_endpoint_disallowed")
+        self.assertFalse(status["service_reachable"])
 
     def test_fixed_generation_diagnostic_records_a_real_accepted_call(self):
         env = {
-            "MODEL_PROVIDER": "openai-compatible",
-            "MODEL_BASE_URL": "https://provider.example/v1",
+            "MODEL_PROVIDER": "ollama",
+            "MODEL_BASE_URL": "http://127.0.0.1:11434/v1",
             "MODEL_NAME": "fixture-model",
-            "MODEL_API_KEY": "secret-test-value",
-            "MODEL_REASONING_EFFORT": "low",
+            "OLLAMA_REASONING_EFFORT": "low",
         }
         content = json.dumps({"choices": [{"message": {"content": "{\"ok\":true}"}}]})
         request_bodies = []
@@ -84,38 +82,37 @@ class ProviderStatusTests(unittest.TestCase):
             trace = model.last_call_trace()
         self.assertTrue(result["attempted"])
         self.assertTrue(result["success"])
-        self.assertEqual(result["provider"], "openai-compatible")
+        self.assertEqual(result["provider"], "ollama")
         self.assertEqual(result["model"], "fixture-model")
         self.assertTrue(trace["result_accepted"])
         self.assertIsInstance(trace["latency_ms"], (int, float))
-        self.assertEqual(request_bodies[0]["reasoning"], {"effort": "low"})
+        self.assertEqual(request_bodies[0]["reasoning_effort"], "low")
         serialized = json.dumps(request_bodies[0], ensure_ascii=False)
         self.assertIn("اختبار اتصال ثابت", serialized)
         self.assertNotIn("نص حالة المستخدم", serialized)
 
-    def test_status_and_generation_routes_do_not_disclose_api_key(self):
+    def test_status_and_generation_routes_show_only_local_ollama_configuration(self):
         env = {
-            "MODEL_PROVIDER": "openai-compatible",
-            "MODEL_BASE_URL": "https://provider.example/v1",
+            "MODEL_PROVIDER": "ollama",
+            "MODEL_BASE_URL": "http://127.0.0.1:11434/v1",
             "MODEL_NAME": "fixture-model",
-            "MODEL_API_KEY": "do-not-disclose-this-secret",
         }
         probe = {"configured": True, "service_reachable": True, "model_available": True,
-                 "models_count": 1, "failure_code": None, "provider": "openai-compatible",
-                 "mode": "external_model", "model": "fixture-model"}
+                 "models_count": 1, "failure_code": None, "provider": "ollama",
+                 "mode": "local_model", "model": "fixture-model"}
         with patch.dict(os.environ, env, clear=True), TestClient(main.app) as client:
             with patch("app.main.probe_provider", return_value=probe):
                 response = client.get("/api/provider/status")
             self.assertEqual(response.status_code, 200)
             self.assertTrue(response.json()["config"]["configuration_complete"])
-            self.assertNotIn(env["MODEL_API_KEY"], response.text)
+            self.assertEqual(response.json()["config"]["provider"], "ollama")
             with patch("app.main.probe_provider", return_value=probe), \
                  patch("app.main.test_provider_generation", return_value={"success": True, "attempted": True,
-                     "latency_ms": 12.5, "failure_code": None, "provider": "openai-compatible", "model": "fixture-model"}):
+                     "latency_ms": 12.5, "failure_code": None, "provider": "ollama", "model": "fixture-model"}):
                 result = client.post("/api/provider/test", json={})
             self.assertEqual(result.status_code, 200)
             self.assertTrue(result.json()["success"])
-            self.assertNotIn(env["MODEL_API_KEY"], result.text)
+            self.assertEqual(result.json()["provider"], "ollama")
 
     def test_configuration_without_reachable_service_is_not_reported_as_connected(self):
         from urllib.error import URLError

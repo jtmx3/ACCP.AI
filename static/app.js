@@ -28,7 +28,7 @@
   let active = null; // { id, token, label, generation, session }
   let activeGeneration = 0;
   let kind = 'answer';
-  let externalConfigured = false;
+  let localModelConfigured = false;
   let providerConfig = null;
   let providerProbe = null;
   let providerGenerationTest = false;
@@ -67,7 +67,6 @@
   }
   function providerLabel(provider) {
     if (provider === 'ollama') return 'Ollama محلي';
-    if (provider === 'openai-compatible') return 'مزود متوافق خارجي';
     return 'القواعد المحلية';
   }
   function isActive(ctx) {
@@ -365,6 +364,7 @@
     $('welcome').classList.add('hidden');
     $('case-view').classList.remove('hidden');
     $('case-title').textContent = `الحالة ${state.session_id.slice(0, 8)}`;
+    $('session-local-auto').checked = Boolean(state.adaptive_questions_enabled);
     $('case-updated-at').textContent = `آخر تحديث للحالة: ${formatTime(state.updated_at)}`;
     $('stage-badge').textContent = ({ interview: 'مقابلة', paused: 'محفوظة', review: 'مراجعة', urgent_stop: 'سلامة أولًا' })[state.stage] || 'جلسة';
     $('pause-case').textContent = state.stage === 'paused' ? 'استكمال المقابلة' : 'حفظ ومتابعة لاحقًا';
@@ -453,29 +453,45 @@
     setStatus('جارٍ الحفظ…', true, ctx);
     try {
       const payload = { expected_revision: ctx.revision, text, kind,
-        allow_external: kind === 'question' && consent,
-        allow_external_extraction: kind === 'answer' && consent,
-        allow_context_extraction: kind === 'answer' && consent && contextConsent };
+        allow_local_model: consent,
+        allow_context_extraction: kind === 'answer' && consent && contextConsent,
+        allow_adaptive_question: $('session-local-auto').checked };
       const result = await api(`/api/sessions/${ctx.id}/messages`, { method: 'POST', body: JSON.stringify(payload) }, ctx);
       const rendered = commitState(ctx, result.session, sequence);
       if (rendered && $('message').value === text) $('message').value = '';
       if (rendered) {
-        if (result.external_data_sent) {
+        if (result.local_data_sent) {
           const provider = providerLabel(result.provider_call?.provider || providerConfig?.provider);
-          const purpose = result.external_model_purpose === 'grounded_question'
+          const adaptiveTrace = (result.provider_calls || []).find(call => call.purpose === 'adaptive_question');
+          const purpose = result.local_model_purpose === 'adaptive_question'
+            ? 'اسم الحقل وخصائص تصنيفية محدودة لصياغة سؤال المتابعة، دون نص الرسالة أو الاقتباسات'
+            : result.local_model_purpose === 'grounded_question'
             ? 'نص السؤال الحالي ومقتطفات المصادر المختارة'
-            : result.external_context_sent
+            : result.local_context_sent
               ? 'نص الرسالة الحالية وسياق محدود من السؤال والرسائل والحقائق ذات الصلة'
               : 'نص الرسالة الحالية فقط';
           const extractionOutcome = result.extraction_outcome || result.provider_call?.extraction_outcome;
-          const extractionCall = result.external_model_purpose === 'current_message_extraction';
-          const latency = result.provider_call?.latency_ms ?? 'غير متاح';
+          const extractionCall = result.local_model_purpose === 'current_message_extraction';
+          const latency = (result.local_model_purpose === 'adaptive_question' ? adaptiveTrace?.latency_ms
+            : result.provider_call?.latency_ms) ?? 'غير متاح';
+          const adaptiveNote = result.adaptive_question?.attempted
+            ? `؛ سؤال المتابعة المحلي ${result.adaptive_question.accepted ? 'قُبل بعد التحقق' : 'استُبعد وعاد التطبيق إلى صياغة القواعد'}` : '';
           const unsupportedGoals = result.model_diagnostics?.validation?.unsupported_message_goals || [];
           const goalLabels = { decline_disclosure: 'الامتناع عن الإفصاح', unknown: 'عدم المعرفة',
             not_remembered: 'عدم التذكر', answer_pending_question: 'الإجابة عن السؤال المعلّق' };
           const unsupportedGoalNote = unsupportedGoals.length
             ? `؛ تفسير غير مدعوم لم يُطبّق: ${unsupportedGoals.map(goal => goalLabels[goal] || 'هدف حواري').join('، ')}` : '';
-          if (extractionCall && extractionOutcome === 'valid_empty') {
+          if (result.local_model_purpose === 'adaptive_question') {
+            if (result.adaptive_question?.accepted) {
+              $('runtime-mode').textContent = 'نموذج Ollama المحلي — صيغ سؤال متابعة بعد التحقق.';
+              setStatus('استُخدمت خصائص تصنيفية محدودة فقط لصياغة سؤال المتابعة؛ لم يُرسل نص الرسالة أو الاقتباسات.', true, ctx);
+              $('runtime-detail').textContent = `سؤال المتابعة اجتاز التحقق. زمن الاستجابة ${latency} مللي ثانية؛ لا يمثل ذلك نجاح استخراج وقائع.`;
+            } else {
+              $('runtime-mode').textContent = 'القواعد المحلية — استُبعد اقتراح السؤال التكيفي.';
+              setStatus(`لم يُقبل اقتراح صياغة السؤال من ${provider}؛ استُخدمت صياغة القواعد. لم يُرسل نص الرسالة أو الاقتباسات.`, false, ctx);
+              $('runtime-detail').textContent = `سبب الاستبعاد: ${result.adaptive_question?.rejection_code || 'غير متاح'}؛ زمن الاستجابة ${latency} مللي ثانية.`;
+            }
+          } else if (extractionCall && extractionOutcome === 'valid_empty') {
             const diagnostics = result.model_diagnostics || {};
             const response = diagnostics.provider_response || {};
             const validation = diagnostics.validation || {};
@@ -506,14 +522,14 @@
               ({ rules: 'القواعد المحلية', local_rag: 'الإجابة المحلية المستندة إلى المصادر' })[target] || 'معالجة محلية'
             ).join(' و');
             $('runtime-detail').textContent = `استجابة المزود: ${providerResponse.received ? 'وصل رد' : 'لم يصل رد'}؛ حالة التحقق: ${validation.response_valid ? 'بنية صالحة' : 'غير صالحة'}؛ الدمج: ${mergeSummary}؛ الرجوع: ${fallback.used ? `إلى ${fallbackTarget}` : 'لم يحدث'}${unsupportedGoalNote}. أسباب التصفية: ${reasons || 'غير متاحة لهذا التشغيل'}؛ زمن الاستجابة ${latency} مللي ثانية.`;
-          } else if (result.external_model_result_accepted) {
+          } else if (result.local_model_result_accepted) {
             const filteredCount = Number(result.provider_call?.filtered_fact_count || 0);
-            const runtimeLabel = result.runtime_mode === 'local_model' ? 'نموذج Ollama المحلي' : 'مزود خارجي';
+            const runtimeLabel = result.runtime_mode === 'local_model' ? 'نموذج Ollama المحلي' : 'القواعد المحلية';
             $('runtime-mode').textContent = `${runtimeLabel} — استُخدم في آخر إرسال بموافقتك.`;
             const filterNote = filteredCount ? `؛ واستبعد النظام ${filteredCount} من الحقائق غير المسندة عن الحالة` : '';
             const extractedCount = Number(result.provider_call?.fact_fields?.length || 0);
             const acceptedSummary = extractionCall ? `عدد الوقائع المقبولة: ${extractedCount}` : 'قُبل جواب الاستناد إلى المصادر';
-            setStatus(`أُرسل ${purpose} بموافقتك إلى ${provider}؛ ${acceptedSummary}${filterNote}${unsupportedGoalNote}.`, true, ctx);
+            setStatus(`أُرسل ${purpose} بموافقتك إلى ${provider}؛ ${acceptedSummary}${filterNote}${adaptiveNote}${unsupportedGoalNote}.`, true, ctx);
             $('runtime-detail').textContent = filteredCount
               ? `آخر عملية: ${extractionCall ? `استخراج من ${provider}؛ عدد الوقائع المقبولة ${extractedCount}، وعدد المقترحات المصفاة ${filteredCount}` : `قُبل الجواب الموثق من ${provider}`}${unsupportedGoalNote}؛ زمن الاستجابة ${latency} مللي ثانية.`
               : `آخر عملية: ${extractionCall ? `استخراج من ${provider}؛ عدد الوقائع المقبولة ${extractedCount}` : `قُبل الجواب الموثق من ${provider}`}${unsupportedGoalNote}؛ زمن الاستجابة ${latency} مللي ثانية.`;
@@ -646,11 +662,11 @@
   }
   function renderProviderConfig(config) {
     providerConfig = config || null;
-    externalConfigured = !!providerConfig?.configuration_complete;
+    localModelConfigured = !!providerConfig?.configuration_complete;
     providerProbe = null;
     providerGenerationTest = false;
     $('test-provider-generation').disabled = true;
-    if (!externalConfigured) {
+    if (!localModelConfigured) {
       const providerWasSelected = providerConfig && providerConfig.provider !== 'rules';
       $('runtime-mode').textContent = providerWasSelected
         ? `القواعد المحلية — إعداد ${providerLabel(providerConfig.provider)} غير مكتمل.`
@@ -664,7 +680,7 @@
       $('runtime-mode').textContent = `إعداد ${providerLabel(providerConfig.provider)} · النموذج: ${providerConfig.model} — لم يُثبت الاتصال بعد.`;
       $('runtime-detail').textContent = `الإعداد موجود فقط؛ لم يُفحص اتصال الخدمة أو وجود النموذج أو نجاح التوليد.${reasoning}`;
     }
-    $('model-consent-row').dataset.configured = String(externalConfigured);
+    $('model-consent-row').dataset.configured = String(localModelConfigured);
     updateConsentVisibility();
   }
   function renderProviderProbe(probe) {
@@ -708,7 +724,7 @@
       const result = await api('/api/provider/test', { method: 'POST', body: '{}' });
       providerGenerationTest = !!result.success;
       if (result.success) {
-        $('runtime-mode').textContent = `${providerConfig?.local ? 'نموذج Ollama المحلي' : 'مزود خارجي'} — نجح اختبار التوليد الثابت.`;
+        $('runtime-mode').textContent = `نموذج Ollama المحلي — نجح اختبار التوليد الثابت.`;
         $('runtime-detail').textContent = `نجح توليد JSON الثابت من ${providerLabel(result.provider)} (${result.model}) خلال ${result.latency_ms} مللي ثانية.`;
         setStatus('نجح اختبار توليد ثابت؛ لم تُرسل بيانات حالة.', true);
       } else {
@@ -732,11 +748,14 @@
     }
   }
   function updateConsentVisibility() {
-    $('model-consent-row').classList.toggle('hidden', !externalConfigured);
-    $('context-consent-row').classList.toggle('hidden', kind !== 'answer' || !externalConfigured);
+    $('model-consent-row').classList.toggle('hidden', !localModelConfigured);
+    $('context-consent-row').classList.toggle('hidden', kind !== 'answer' || !localModelConfigured);
+    const adaptiveEnabled = !!providerConfig?.adaptive_question_generation_enabled && localModelConfigured;
+    $('session-local-auto-row').classList.toggle('hidden', !adaptiveEnabled);
+    $('session-local-auto').disabled = !adaptiveEnabled;
     $('model-consent').checked = false;
     $('context-consent').checked = false;
-    const target = providerConfig?.local ? 'نموذج Ollama المحلي المضبوط' : 'مزود خارجي';
+    const target = 'نموذج Ollama المحلي المضبوط';
     $('model-consent-copy').textContent = kind === 'question'
       ? `أوافق على إرسال نص هذا السؤال الحالي ومقتطفات المصادر المختارة فقط إلى ${target} لهذا الرد. لن يُرسل سجل المقابلة.`
       : `أوافق على إرسال نص رسالتي الحالية فقط إلى ${target} لاستخراج الوقائع في هذا الطلب. لا يشمل ذلك الرسائل السابقة.`;
@@ -754,6 +773,23 @@
   $('check-provider').addEventListener('click', checkProvider);
   $('test-provider-generation').addEventListener('click', testProviderGeneration);
   $('jurisdiction').addEventListener('change', changeJurisdiction);
+  $('session-local-auto').addEventListener('change', async () => {
+    const ctx = snapshotActive();
+    if (!ctx) return;
+    const owner = beginMutation(ctx);
+    if (!owner) return;
+    const enabled = $('session-local-auto').checked;
+    try {
+      const result = await api(`/api/sessions/${ctx.id}/adaptive-question-settings`, {
+        method: 'PUT', body: JSON.stringify({ expected_revision: ctx.revision, enabled })
+      }, ctx);
+      commitState(ctx, result.session, nextRequest(ctx));
+      setStatus(enabled ? 'تم تفعيل صياغة السؤال التكيفي لهذه الجلسة.' : 'تم إيقاف صياغة السؤال التكيفي لهذه الجلسة.', true, ctx);
+    } catch (error) {
+      $('session-local-auto').checked = !enabled;
+      setStatus(error.message, false, ctx);
+    } finally { endMutation(ctx, owner); }
+  });
   $('case-list').addEventListener('change', () => { $('resume-case').disabled = !$('case-list').value; });
   $('resume-case').addEventListener('click', () => openCase($('case-list').value));
   $('toggle-mode').addEventListener('click', () => {

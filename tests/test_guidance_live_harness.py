@@ -32,7 +32,7 @@ class GuidanceLiveHarnessTests(unittest.TestCase):
                 "text": "أي تطبيق تقصد؟", "citations": []}]},
             "message_plan_applied": True,
             "message_plan": {"goals": ["ask_guidance"]},
-            "external_context_sent": True,
+            "local_context_sent": True,
             "provider_call": {"context_fact_count": 0},
         }
         observed = live._evaluate_result(scenario, result, None)
@@ -53,7 +53,7 @@ class GuidanceLiveHarnessTests(unittest.TestCase):
             "text": "فعّل التحقق بخطوتين.", "citations": [{"id": "GLOBAL-WA-ACCOUNT-SECURITY-2026"}]}]},
             "message_plan_applied": True,
             "message_plan": {"goals": ["ask_guidance"]},
-            "external_context_sent": False,
+            "local_context_sent": False,
             "provider_call": {"context_fact_count": 0}}
         observed = live._evaluate_result(scenario, result, True)
         self.assertTrue(observed["checks"]["has_whatsapp_source"])
@@ -67,13 +67,13 @@ class GuidanceLiveHarnessTests(unittest.TestCase):
             "text": "راجع قائمة الأجهزة المرتبطة.", "citations": [{"id": "GLOBAL-WA-ACCOUNT-SECURITY-2026"}]}]},
             "message_plan_applied": True,
             "message_plan": {"goals": ["ask_guidance"]},
-            "external_model_result_accepted": False,
+            "local_model_result_accepted": False,
             "provider_call": {"context_sent": True, "context_fact_count": 1}}
         observed = live._evaluate_result(scenario, result, True)
         self.assertTrue(observed["checks"]["bounded_context_sent"])
         self.assertTrue(observed["checks"]["bounded_context_has_seeded_fact"])
         self.assertTrue(observed["checks"]["model_plan_applied"])
-        self.assertFalse(observed["external_model_result_accepted"])
+        self.assertFalse(observed["local_model_result_accepted"])
         self.assertTrue(observed["passed"])
 
     def test_cli_stops_before_network_when_expected_ollama_model_is_not_configured(self):

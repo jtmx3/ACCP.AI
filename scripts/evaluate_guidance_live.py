@@ -110,8 +110,7 @@ def _send(client: TestClient, case_id: str, token: str, revision: int, text: str
             "expected_revision": revision,
             "text": text,
             "kind": "answer",
-            "allow_external": allow_model,
-            "allow_external_extraction": allow_model,
+            "allow_local_model": allow_model,
             "allow_context_extraction": allow_context,
         },
     )
@@ -142,7 +141,7 @@ def _evaluate_result(scenario: dict[str, Any], result: dict[str, Any],
         checks["model_plan_applied"] = bool(result.get("message_plan_applied"))
         checks[f"model_goal:{required_goal}"] = required_goal in goals
     if scenario.get("requires_context"):
-        context_sent = bool(result.get("external_context_sent", trace.get("context_sent")))
+        context_sent = bool(result.get("local_context_sent", trace.get("context_sent")))
         checks["bounded_context_sent"] = context_sent
         checks["bounded_context_has_seeded_fact"] = bool(trace.get("context_fact_count", 0))
     expected = scenario["expected"]
@@ -174,8 +173,8 @@ def _evaluate_result(scenario: dict[str, Any], result: dict[str, Any],
         "answer_text": answer_text,
         "retrieved_sources": public_citations,
         "message_plan": {"applied": bool(result.get("message_plan_applied")), "goals": goals},
-        "external_context_sent": bool(result.get("external_context_sent", trace.get("context_sent"))),
-        "external_model_result_accepted": bool(result.get("external_model_result_accepted")),
+        "local_context_sent": bool(result.get("local_context_sent", trace.get("context_sent"))),
+        "local_model_result_accepted": bool(result.get("local_model_result_accepted")),
         "provider_call": safe_trace,
         "seed_platform_recorded": seed_platform_ok,
     }
@@ -214,7 +213,7 @@ def run_live_scenarios(include_bounded_context: bool = False) -> list[dict[str, 
                                        allow_model=True, allow_context=True)
                         item = _evaluate_result(scenario, result, seed_platform_ok)
                         item["elapsed_ms"] = round((time.perf_counter() - scenario_started) * 1000, 3)
-                        item["external_data_sent"] = bool(result.get("external_data_sent"))
+                        item["local_data_sent"] = bool(result.get("local_data_sent"))
                         item["external_model_purpose"] = result.get("external_model_purpose")
                         item["fact_or_answer_fallback_used"] = bool(result.get("fallback_used"))
                         item["fact_or_answer_fallback_to"] = result.get("fallback_to")

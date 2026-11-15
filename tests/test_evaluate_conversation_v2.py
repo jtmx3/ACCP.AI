@@ -31,7 +31,7 @@ class ConversationV2EvaluatorTests(unittest.TestCase):
                  "extraction_outcome": "extracted", "result_accepted": True}
         diagnostic = {"accepted": True, "filtered_facts": [], "filtered_fact_code_counts": {}}
         provider = {"provider": "synthetic", "model": "synthetic-fixture", "configuration_complete": True,
-                    "mode": "external_model"}
+                    "mode": "local_model"}
 
         with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as temp_dir:
             path = Path(temp_dir) / "suite.json"

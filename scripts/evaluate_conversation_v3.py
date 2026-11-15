@@ -348,8 +348,7 @@ def run_suite(suite_path: Path, mode: str = "rules", with_context: bool = False)
                             model_forbidden += int(any(f.get("field") == field for f in model_facts or []))
 
                     payload = {"expected_revision": before["revision"], "text": text, "kind": kind,
-                               "allow_external": False,
-                               "allow_external_extraction": extraction_eligible,
+                               "allow_local_model": extraction_eligible,
                                "allow_context_extraction": extraction_eligible and with_context}
                     request_started = time.perf_counter()
                     if extraction_eligible:
@@ -408,7 +407,7 @@ def run_suite(suite_path: Path, mode: str = "rules", with_context: bool = False)
                                         "money_corrections": after.get("money_corrections", []),
                                         "new_assistant_messages": [m for m in after.get("messages", [])[before_message_count:]
                                                                     if m.get("role") == "assistant"],
-                                        "external_data_sent": api_result.get("external_data_sent"),
+                                        "local_data_sent": api_result.get("local_data_sent"),
                                         "fallback_used": api_result.get("fallback_used"),
                                         "extraction_outcome": api_result.get("extraction_outcome"),
                                         "message_plan_applied": api_result.get("message_plan_applied", False),

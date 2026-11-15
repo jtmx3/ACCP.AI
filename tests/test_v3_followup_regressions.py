@@ -76,16 +76,16 @@ class MoneyEventReferenceTrustTests(unittest.TestCase):
                 malicious = {"facts": [{"field": "identity", "status": "reported", "value": "أحمد",
                                          "current_quote": "نفس الدفعة", "operation": "same",
                                          "target_event_id": "money-2"}]}
-                env = {"MODEL_PROVIDER": "openai-compatible", "MODEL_BASE_URL": "https://provider.example/v1",
-                       "MODEL_NAME": "synthetic-test", "MODEL_API_KEY": "test-only"}
+                env = {"MODEL_PROVIDER": "ollama", "MODEL_BASE_URL": "http://127.0.0.1:11434/v1",
+                       "MODEL_NAME": "synthetic-test"}
                 with patch.dict(os.environ, env, clear=True), \
                      patch("app.main.model_configured", return_value=True), \
-                     patch("app.main.provider_config", return_value={"provider": "openai-compatible",
-                                                                        "model": "synthetic-test", "mode": "external_model"}), \
+                     patch("app.main.provider_config", return_value={"provider": "ollama",
+                                                                        "model": "synthetic-test", "mode": "local_model"}), \
                      patch("app.model._chat", return_value=json.dumps(malicious, ensure_ascii=False)):
                     second = client.post(f"/api/sessions/{session_id}/messages", headers=headers,
                                          json={"expected_revision": revision, "text": "نفس الدفعة", "kind": "answer",
-                                               "allow_external_extraction": True, "allow_context_extraction": True})
+                                               "allow_local_model": True, "allow_context_extraction": True})
                 self.assertEqual(second.status_code, 200, second.text)
                 result = second.json()
                 saved = result["session"]
@@ -104,8 +104,8 @@ class ValidatedMessagePlanTests(unittest.TestCase):
     def test_generation_result_preserves_validated_goals_when_facts_are_empty(self):
         text = "بدي نصيحة أحافظ فيها على حسابي."
         payload = {"message_goals": ["ask_guidance"], "guidance_question": text, "facts": []}
-        env = {"MODEL_PROVIDER": "openai-compatible", "MODEL_BASE_URL": "https://provider.example/v1",
-               "MODEL_NAME": "synthetic-test", "MODEL_API_KEY": "test-only"}
+        env = {"MODEL_PROVIDER": "ollama", "MODEL_BASE_URL": "http://127.0.0.1:11434/v1",
+               "MODEL_NAME": "synthetic-test"}
         with patch.dict(os.environ, env, clear=True), \
              patch("app.model._chat", return_value=json.dumps(payload, ensure_ascii=False)):
             result = generate_interview_extraction(text, "narrative")
@@ -143,15 +143,15 @@ class ValidatedMessagePlanTests(unittest.TestCase):
         text = "بدي نصيحة أحافظ فيها على حسابي."
         plan = {"message_goals": ["ask_guidance"], "guidance_question": text, "facts": []}
         local = {"text": "فعّل المصادقة الثنائية وراجع الجلسات النشطة.", "citations": []}
-        env = {"MODEL_PROVIDER": "openai-compatible", "MODEL_BASE_URL": "https://provider.example/v1",
-               "MODEL_NAME": "synthetic-test", "MODEL_API_KEY": "test-only"}
+        env = {"MODEL_PROVIDER": "ollama", "MODEL_BASE_URL": "http://127.0.0.1:11434/v1",
+               "MODEL_NAME": "synthetic-test"}
         with patch.dict(os.environ, env, clear=True), \
              patch("app.main.model_configured", return_value=True), \
-             patch("app.main.provider_config", return_value={"provider": "openai-compatible",
-                                                                "model": "synthetic-test", "mode": "external_model"}), \
+             patch("app.main.provider_config", return_value={"provider": "ollama",
+                                                                "model": "synthetic-test", "mode": "local_model"}), \
              patch("app.model._chat", return_value=json.dumps(plan, ensure_ascii=False)), \
              patch("app.main.answer_question", return_value=local) as answer:
-            result = self.send(text, allow_external_extraction=True)
+            result = self.send(text, allow_local_model=True)
         answer.assert_called_once()
         state = result["session"]
         self.assertTrue(result["question_detected"])
@@ -167,15 +167,15 @@ class ValidatedMessagePlanTests(unittest.TestCase):
                 "facts": [{"field": "evidence", "status": "reported", "value": "صور أو لقطات شاشة",
                            "current_quote": "عندي لقطات شاشة"}]}
         local = {"text": "راجع إعدادات الأمان وسجّل الخروج من الجلسات غير المعروفة.", "citations": []}
-        env = {"MODEL_PROVIDER": "openai-compatible", "MODEL_BASE_URL": "https://provider.example/v1",
-               "MODEL_NAME": "synthetic-test", "MODEL_API_KEY": "test-only"}
+        env = {"MODEL_PROVIDER": "ollama", "MODEL_BASE_URL": "http://127.0.0.1:11434/v1",
+               "MODEL_NAME": "synthetic-test"}
         with patch.dict(os.environ, env, clear=True), \
              patch("app.main.model_configured", return_value=True), \
-             patch("app.main.provider_config", return_value={"provider": "openai-compatible",
-                                                                "model": "synthetic-test", "mode": "external_model"}), \
+             patch("app.main.provider_config", return_value={"provider": "ollama",
+                                                                "model": "synthetic-test", "mode": "local_model"}), \
              patch("app.model._chat", return_value=json.dumps(plan, ensure_ascii=False)), \
              patch("app.main.answer_question", return_value=local) as answer:
-            result = self.send(text, allow_external_extraction=True)
+            result = self.send(text, allow_local_model=True)
         answer.assert_called_once()
         self.assertEqual(result["session"]["facts"]["evidence"]["status"], "reported")
         self.assertTrue(any(message.get("kind") == "answer" and "راجع إعدادات الأمان" in message.get("text", "")

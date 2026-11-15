@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import os
 import re
 import time
 from pathlib import Path
@@ -12,15 +13,19 @@ from pydantic import BaseModel, Field
 
 from app.core import (
     QUESTIONS, LABELS, _add_message, _assessment, _explain_why, _why_target_slot, explain_assessment,
+    _incident_features,
     _finalize_changed_facts, _next_slot, _record, _unresolved_money_relation,
     _user_intent, classify_current_danger, confirmation_is_current, handle_turn, now_iso, normalize, render_report,
     report_data, resume_state, screen_current_danger, summary_digest, is_clear_user_question, question_plan,
+    compose_question,
     last_model_merge_trace,
 )
 from app.rag import answer_question, available_jurisdictions, load_corpus
 from app.model import (generate_grounded_answer, generate_interview_extraction, model_configured,
+                       generate_adaptive_question,
                        provider_config, probe_provider, test_provider_generation, reset_call_trace,
-                       last_call_trace, call_trace_history, last_extraction_diagnostic)
+                       last_call_trace, call_trace_history, last_extraction_diagnostic,
+                       snapshot_telemetry, restore_telemetry)
 from app.conversation import (build_bounded_context, extract_fact_text, extract_guidance_question,
                               has_actionable_fact_goal, interpret_message)
 from app.store import Forbidden, NotFound, StaleRevision, Store
@@ -34,9 +39,9 @@ class TurnRequest(BaseModel):
     expected_revision: int = Field(ge=0)
     text: str = Field(min_length=1, max_length=5000)
     kind: str = "answer"
-    allow_external: bool = False
-    allow_external_extraction: bool = False
+    allow_local_model: bool = False
     allow_context_extraction: bool = False
+    allow_adaptive_question: bool = False
 
     def model_post_init(self, __context):
         if self.kind not in {"answer", "question"}:
@@ -50,6 +55,11 @@ class RevisionRequest(BaseModel):
 class JurisdictionRequest(BaseModel):
     expected_revision: int = Field(ge=0)
     jurisdiction: str = ""
+
+
+class AdaptiveQuestionSettingsRequest(BaseModel):
+    expected_revision: int = Field(ge=0)
+    enabled: bool = False
 
 
 class TemporalConflictResolutionRequest(BaseModel):
@@ -85,6 +95,22 @@ def _saved_platform_for_guidance(state: dict) -> tuple[str | None, bool]:
     if fact.get("status") == "reported" and isinstance(fact.get("value"), str):
         return fact["value"], False
     return None, False
+
+
+def _sanitized_adaptive_question_context(state: dict, slot: str) -> dict:
+    """No raw messages, quotes, session identifiers, names, amounts, or contact IDs."""
+    features = _incident_features(state)
+    feature_allowlist = {
+        "threat", "impersonation", "publication_threat", "published_status", "sensitive_photos",
+        "ai_fabricated", "age_or_minor_mentioned", "local_payment_method_named", "deadline_known",
+        "deadline_soon", "financial", "platform", "discovery_known", "creation_known", "contact_available",
+    }
+    question_history = state.get("question_history", [])
+    recent_slots = [item.get("slot") for item in question_history[-4:] if isinstance(item, dict)]
+    recent = [compose_question(state, previous) for previous in recent_slots if previous in QUESTIONS]
+    return {"base_question": compose_question(state, slot),
+            "recent_bot_questions": list(dict.fromkeys(recent[-3:])),
+            "features": {key: features.get(key) for key in sorted(feature_allowlist)}}
 
 
 _GUIDANCE_PLATFORM_PREFIX = re.compile(
@@ -141,7 +167,7 @@ def _mutate(session_id: str, token: str, rev: int, event: str, fn):
 def health():
     config = provider_config()
     return {"status": "ok", "storage": "sqlite", "provider": config,
-            "runtime_mode": config["mode"], "external_model_configured": config["configured"], "version": app.version}
+            "runtime_mode": config["mode"], "local_model_configured": config["configured"], "version": app.version}
 
 
 @app.get("/api/provider/status")
@@ -186,8 +212,21 @@ def get_session(session_id: str, x_case_token: str = Header(default="")):
     return {"session": state, "report": report}
 
 
+@app.put("/api/sessions/{session_id}/adaptive-question-settings")
+def set_adaptive_question_settings(session_id: str, body: AdaptiveQuestionSettingsRequest,
+                                   x_case_token: str = Header(default="")):
+    if body.enabled and not provider_config().get("adaptive_question_generation_enabled"):
+        raise HTTPException(409, "توليد الأسئلة التكيفية معطل في إعداد التطبيق.")
+
+    def mutate(state):
+        state["adaptive_questions_enabled"] = bool(body.enabled)
+
+    state = _mutate(session_id, x_case_token, body.expected_revision, "adaptive_question_setting_changed", mutate)
+    return {"session": state, "adaptive_questions_enabled": state["adaptive_questions_enabled"]}
+
+
 def _append_answer_before_followup(state: dict, text: str, citations: list[dict] | None = None,
-                                  external_model_used: bool = False) -> None:
+                                  local_model_used: bool = False) -> None:
     if state.get("stage") == "urgent_stop":
         return
     followup = state.get("messages", [])[-1] if state.get("messages") else None
@@ -199,7 +238,7 @@ def _append_answer_before_followup(state: dict, text: str, citations: list[dict]
         state["messages"].pop()
     response = _add_message(state, "assistant", text, "answer")
     response["citations"] = citations or []
-    response["external_model_used"] = external_model_used
+    response["local_model_used"] = local_model_used
     if followup:
         if followup.get("kind") in {"question", "clarification"}:
             slot = (followup.get("question_plan") or {}).get("slot") or state.get("pending_slot")
@@ -210,15 +249,15 @@ def _append_answer_before_followup(state: dict, text: str, citations: list[dict]
             _add_message(state, "assistant", followup.get("text", "راجع الملخص الحالي."), "review")
 
 
-def _append_guidance_before_followup(state: dict, local_answer: dict, external_answer: dict | None) -> None:
-    reply = external_answer["text"] if external_answer else local_answer["text"]
+def _append_guidance_before_followup(state: dict, local_answer: dict, grounded_local_answer: dict | None) -> None:
+    reply = grounded_local_answer["text"] if grounded_local_answer else local_answer["text"]
     reply = "سجلت الجزء الذي ذكرته في مسودة الإفادة.\n\n" + reply
-    if external_answer:
+    if grounded_local_answer:
         reply += "\n\nصيغ الرد من مقتطفات حرفية موثقة، ولم يُرسل سجل المقابلة. راجع المصدر ولا تعتبره نصيحة قانونية."
-    used_ids = set(external_answer["source_ids"]) if external_answer else set()
+    used_ids = set(grounded_local_answer["source_ids"]) if grounded_local_answer else set()
     citations = [citation for citation in local_answer["citations"]
                  if not used_ids or citation["id"] in used_ids]
-    _append_answer_before_followup(state, reply, citations, bool(external_answer))
+    _append_answer_before_followup(state, reply, citations, bool(grounded_local_answer))
 
 
 @app.post("/api/sessions/{session_id}/messages")
@@ -272,13 +311,13 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
     if intent is None and "ask_assessment_reason" in message_interpretation["goals"]:
         intent = "assessment_why"
     local_qa = None
-    external_answer = None
+    grounded_local_answer = None
     model_facts = None
     model_message_plan: dict[str, Any] = {"goals": [], "unsupported_goals": [], "guidance_question": None}
     message_plan_applied = False
     extraction_context = None
-    external_extraction_sent = False
-    external_question_sent = False
+    local_extraction_sent = False
+    local_question_sent = False
     reset_call_trace()
 
     # Extract role goals and current-turn facts in one call. Plan fields come only
@@ -289,9 +328,9 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
     initial_auto_question = (not resolving_pending_guidance and body.kind == "answer"
                              and is_clear_user_question(text) and not initial_actionable_fact)
     extraction_text = guidance_fact_text if mixed_pending_guidance else text
-    if (body.kind == "answer" and not initial_auto_question and body.allow_external_extraction
+    if (body.kind == "answer" and not initial_auto_question and body.allow_local_model
             and model_configured() and not urgent and intent is None and not resolving_pending_guidance):
-        external_extraction_sent = True
+        local_extraction_sent = True
         if body.allow_context_extraction:
             extraction_context = build_bounded_context(snapshot, extraction_text, pending)
             model_facts = generate_interview_extraction(extraction_text, pending, extraction_context,
@@ -372,8 +411,8 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
         retrieval_ms = round((time.perf_counter() - retrieval_started) * 1000, 3)
     answer_generation_ms = 0.0
     if (question_mode or mixed_guidance) and not urgent and intent not in {"why", "assessment_why"}:
-        if body.allow_external and model_configured() and local_qa and local_qa.get("citations"):
-            external_question_sent = True
+        if body.allow_local_model and model_configured() and local_qa and local_qa.get("citations"):
+            local_question_sent = True
             corpus = load_corpus()
             source_map = {item["id"]: item for item in corpus["sources"]}
             selected_sources = []
@@ -382,10 +421,13 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
                 if source:
                     selected_sources.append({**source, "excerpt": citation.get("excerpt", "")})
             answer_started = time.perf_counter()
-            external_answer = generate_grounded_answer(guidance_question, selected_sources)
+            grounded_local_answer = generate_grounded_answer(guidance_question, selected_sources)
             answer_generation_ms = round((time.perf_counter() - answer_started) * 1000, 3)
 
     def mutate(state):
+        adaptive_setting_enabled = (body.allow_adaptive_question
+                                    and provider_config().get("adaptive_question_generation_enabled", False))
+        state["adaptive_questions_enabled"] = bool(adaptive_setting_enabled)
         if urgent:
             user_msg = _add_message(state, "user", text, "answer")
             state["updated_at"] = user_msg["created_at"]
@@ -418,14 +460,14 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
                 state["assessment"] = _assessment(state)
                 return
             state["pending_guidance"] = None
-            answer_text = external_answer["text"] if external_answer else (local_qa or {}).get("text", "")
-            if external_answer:
+            answer_text = grounded_local_answer["text"] if grounded_local_answer else (local_qa or {}).get("text", "")
+            if grounded_local_answer:
                 answer_text += "\n\nصيغ الرد من مقتطفات حرفية موثقة، ولم يُرسل سجل المقابلة. راجع المصدر ولا تعتبره نصيحة قانونية."
             answer = _add_message(state, "assistant", answer_text, "answer")
-            used_ids = set(external_answer["source_ids"]) if external_answer else set()
+            used_ids = set(grounded_local_answer["source_ids"]) if grounded_local_answer else set()
             answer["citations"] = [citation for citation in (local_qa or {}).get("citations", [])
                                     if not used_ids or citation["id"] in used_ids]
-            answer["external_model_used"] = bool(external_answer)
+            answer["local_model_used"] = bool(grounded_local_answer)
             if state.get("stage") == "interview" and pending in QUESTIONS:
                 resumed = _add_message(state, "assistant", "نكمل من السؤال السابق: " + QUESTIONS[pending], "question")
                 resumed["question_plan"] = question_plan(state, pending)
@@ -453,17 +495,17 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
                                                      platform_context_ambiguous=guidance_platform_ambiguous,
                                                      platform_query=text, scope_query=text,
                                                      topic_query=text)
-                reply = external_answer["text"] if external_answer else result["text"]
-                if external_answer:
+                reply = grounded_local_answer["text"] if grounded_local_answer else result["text"]
+                if grounded_local_answer:
                     reply += "\n\nصيغ الرد من مقتطفات حرفية موثقة، ولم يُرسل سجل المقابلة. راجع المصدر ولا تعتبره نصيحة قانونية."
-                used_ids = set(external_answer["source_ids"]) if external_answer else set()
+                used_ids = set(grounded_local_answer["source_ids"]) if grounded_local_answer else set()
                 citations = [citation for citation in result["citations"] if not used_ids or citation["id"] in used_ids]
                 clarification_required = (intent not in {"why", "assessment_why"}
                                           and result.get("clarification_required") == "platform")
             response = _add_message(state, "assistant", reply,
                                     "guidance_clarification" if clarification_required else "answer")
             response["citations"] = citations
-            response["external_model_used"] = bool(external_answer)
+            response["local_model_used"] = bool(grounded_local_answer)
             if clarification_required:
                 state["pending_guidance"] = {"status": "awaiting_platform", "query": guidance_question,
                                              "topic_query": text, "scope_query": text,
@@ -488,20 +530,63 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
                     explanation = "الدفع مسجل عندي؛ " + explanation
             _append_answer_before_followup(state, "سجلت الجزء الذي ذكرته في مسودة الإفادة.\n\n" + explanation)
         if mixed_guidance and local_qa is not None:
-            _append_guidance_before_followup(state, local_qa, external_answer)
+            _append_guidance_before_followup(state, local_qa, grounded_local_answer)
         state["assessment"] = _assessment(state)
 
     save_started = time.perf_counter()
     state = _mutate(session_id, x_case_token, body.expected_revision, "user_message", mutate)
     save_ms = round((time.perf_counter() - save_started) * 1000, 3)
+    adaptive_question_result = {"attempted": False, "accepted": False, "rejection_code": None}
+    adaptive_question_ms = 0.0
+    adaptive_enabled = bool(body.allow_adaptive_question and state.get("adaptive_questions_enabled")
+                            and provider_config().get("adaptive_question_generation_enabled")
+                            and model_configured() and not urgent and not question_mode
+                            and state.get("stage") == "interview")
+    adaptive_slot = state.get("pending_slot")
+    last_message = state.get("messages", [])[-1] if state.get("messages") else {}
+    if adaptive_enabled and adaptive_slot in QUESTIONS and last_message.get("role") == "assistant" \
+            and last_message.get("kind") in {"question", "clarification"}:
+        telemetry_before_adaptive = snapshot_telemetry()
+        traces_before_adaptive = len(telemetry_before_adaptive.get("history", []))
+        adaptive_started = time.perf_counter()
+        adaptive_question_result = generate_adaptive_question(
+            adaptive_slot, _sanitized_adaptive_question_context(state, adaptive_slot))
+        adaptive_question_ms = round((time.perf_counter() - adaptive_started) * 1000, 3)
+        traces_after_generation = call_trace_history()[traces_before_adaptive:]
+        restore_telemetry(telemetry_before_adaptive, traces_after_generation)
+        adaptive_question_result["attempted"] = any(trace.get("attempted") for trace in traces_after_generation)
+        if adaptive_question_result.get("accepted") and adaptive_question_result.get("question"):
+            replacement = adaptive_question_result["question"]
+
+            def apply_adaptive_question(current_state):
+                if current_state.get("stage") != "interview" or current_state.get("pending_slot") != adaptive_slot:
+                    return
+                candidate = current_state.get("messages", [])[-1] if current_state.get("messages") else {}
+                if (candidate.get("role") == "assistant" and candidate.get("kind") in {"question", "clarification"}
+                        and (candidate.get("question_plan") or {}).get("slot") == adaptive_slot):
+                    candidate["text"] = replacement
+                    candidate["local_model_question"] = True
+                    current_state["last_response"] = replacement
+
+            try:
+                state = _mutate(session_id, x_case_token, state["revision"],
+                                "adaptive_question_generated", apply_adaptive_question)
+            except HTTPException as exc:
+                if exc.status_code == 409:
+                    state = _state_for(session_id, x_case_token)
+                    adaptive_question_result["accepted"] = False
+                    adaptive_question_result["question"] = None
+                    adaptive_question_result["rejection_code"] = "case_changed_before_question_save"
+                else:
+                    raise
     # An empty/fully-filtered extraction is a valid response at most, not successful extraction.
-    call_accepted = external_answer is not None or bool(model_facts)
+    call_accepted = grounded_local_answer is not None or bool(model_facts)
     provider_call = last_call_trace()
     provider_calls = call_trace_history()
     if not provider_calls and provider_call and provider_call.get("attempted"):
         provider_calls = [provider_call]
     provider = provider_config()
-    if external_question_sent or external_extraction_sent:
+    if local_question_sent or local_extraction_sent or adaptive_question_result.get("attempted"):
         provider_call = dict(provider_call or {})
         provider_call.update({
             "attempted": bool(provider_call.get("attempted")),
@@ -523,15 +608,16 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
         for call in provider_calls:
             call["provider"] = provider["provider"]
             call["model"] = provider["model"]
-            if call.get("attempted"):
+            if call.get("attempted") and call.get("purpose") != "adaptive_question":
                 call["fallback_used"] = not bool(call.get("result_accepted"))
-        if provider_calls:
-            provider_calls[-1].update({"turn_any_result_accepted": call_accepted,
-                                       "turn_fallback_used": not call_accepted,
-                                       "message_plan_applied": message_plan_applied,
-                                       "message_goals": model_message_plan["goals"]})
-    extraction_fallback_used = bool(external_extraction_sent and not model_facts)
-    guidance_fallback_used = bool(external_question_sent and not external_answer)
+        for call in provider_calls:
+            if call.get("purpose") != "adaptive_question":
+                call.update({"turn_any_result_accepted": call_accepted,
+                             "turn_fallback_used": not call_accepted,
+                             "message_plan_applied": message_plan_applied,
+                             "message_goals": model_message_plan["goals"]})
+    extraction_fallback_used = bool(local_extraction_sent and not model_facts)
+    guidance_fallback_used = bool(local_question_sent and not grounded_local_answer)
     fallback_used = extraction_fallback_used or guidance_fallback_used
     fallback_targets = []
     if extraction_fallback_used:
@@ -539,7 +625,7 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
     if guidance_fallback_used:
         fallback_targets.append("local_rag")
     fallback_to = "+".join(fallback_targets) if fallback_targets else None
-    extraction_diagnostic = last_extraction_diagnostic() if external_extraction_sent else None
+    extraction_diagnostic = last_extraction_diagnostic() if local_extraction_sent else None
     filtered_diagnostics = []
     for item in (extraction_diagnostic or {}).get("filtered_facts", []):
         if not isinstance(item, dict):
@@ -549,7 +635,7 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
         detail = item.get("filter_detail") if isinstance(item.get("filter_detail"), str) else "لم يُسجل تفصيل التحقق."
         filtered_diagnostics.append({"field": field, "field_label": LABELS.get(field, "معلومة إضافية"),
                                      "code": code, "detail": detail})
-    if external_extraction_sent and not filtered_diagnostics:
+    if local_extraction_sent and not filtered_diagnostics:
         trace_fields = (provider_call or {}).get("filtered_fact_fields", [])
         trace_code_counts = (provider_call or {}).get("filtered_fact_code_counts", {})
         if isinstance(trace_fields, list) and len(trace_fields) == 1 and isinstance(trace_code_counts, dict) and len(trace_code_counts) == 1:
@@ -559,7 +645,7 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
                 filtered_diagnostics.append({"field": field, "field_label": LABELS.get(field, "معلومة إضافية"),
                                              "code": code, "detail": "تفصيل التحقق غير محفوظ في trace هذا التشغيل."})
     model_diagnostics = None
-    if external_extraction_sent or external_question_sent:
+    if local_extraction_sent or local_question_sent or adaptive_question_result.get("attempted"):
         trace_response_valid = (provider_call or {}).get("response_valid")
         trace_status = (provider_call or {}).get("status")
         raw_received = bool(isinstance((extraction_diagnostic or {}).get("raw_response"), str)
@@ -567,38 +653,50 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
         model_diagnostics = {
             "provider_response": {"received": (raw_received or trace_response_valid is True
                                                    or trace_status in {"valid_empty", "all_facts_filtered", "partially_accepted"})
-                                                 if external_extraction_sent else bool(external_answer),
+                                                 if local_extraction_sent else bool(grounded_local_answer),
                                   "status": trace_status,
                                   "latency_ms": (provider_call or {}).get("latency_ms"),
                                   "failure_code": (provider_call or {}).get("failure_code")},
             "validation": {"response_valid": ((extraction_diagnostic or {}).get("accepted")
                                                  if extraction_diagnostic else trace_response_valid)
-                                                if external_extraction_sent else None,
-                           "accepted_fields": [fact.get("field") for fact in (model_facts or [])] if external_extraction_sent else [],
-                           "filtered_facts": filtered_diagnostics if external_extraction_sent else [],
+                                                if local_extraction_sent else None,
+                           "accepted_fields": [fact.get("field") for fact in (model_facts or [])] if local_extraction_sent else [],
+                           "filtered_facts": filtered_diagnostics if local_extraction_sent else [],
                            "unsupported_message_goals": list((extraction_diagnostic or {}).get(
-                               "unsupported_message_goals", [])) if external_extraction_sent else []},
+                               "unsupported_message_goals", [])) if local_extraction_sent else []},
             "merge": {"performed": bool(last_model_merge_trace()),
-                      "field_dispositions": last_model_merge_trace() if external_extraction_sent else []},
+                      "field_dispositions": last_model_merge_trace() if local_extraction_sent else []},
             "fallback": {"used": fallback_used, "to": fallback_to},
+            "adaptive_question": {"attempted": bool(adaptive_question_result.get("attempted")),
+                                  "accepted": bool(adaptive_question_result.get("accepted")),
+                                  "rejection_code": adaptive_question_result.get("rejection_code"),
+                                  "fallback_to": "rules" if adaptive_question_result.get("attempted")
+                                  and not adaptive_question_result.get("accepted") else None},
             "raw_response_included": False,
         }
-        if provider_call is not None and external_extraction_sent:
+        if provider_call is not None and local_extraction_sent:
             provider_call["validation_diagnostics"] = filtered_diagnostics
     timings = {"request_preflight_ms": request_preflight_ms, "provider_preflight_ms": None,
                "provider_preflight_performed": False, "message_understanding_ms": understanding_ms,
                "retrieval_ms": retrieval_ms, "answer_generation_ms": answer_generation_ms,
-               "save_ms": save_ms, "total_ms": round((time.perf_counter() - request_started) * 1000, 3)}
+               "save_ms": save_ms, "adaptive_question_ms": adaptive_question_ms,
+               "total_ms": round((time.perf_counter() - request_started) * 1000, 3)}
     return {"session": state, "report": report_data(state),
-            "external_model_used": bool(external_answer) or bool(model_facts) or message_plan_applied,
-            "external_data_sent": bool(provider_call and provider_call.get("attempted")),
-            "external_model_purpose": "grounded_question" if external_question_sent else "current_message_extraction" if external_extraction_sent else None,
-            "external_context_sent": bool(provider_call and provider_call.get("context_sent")),
-            "external_model_result_accepted": call_accepted,
+            "local_model_used": bool(grounded_local_answer) or bool(model_facts) or message_plan_applied or bool(adaptive_question_result.get("attempted")),
+            "local_data_sent": any(bool(call.get("attempted")) for call in provider_calls),
+            "local_model_purpose": "grounded_question" if local_question_sent else "current_message_extraction" if local_extraction_sent else "adaptive_question" if adaptive_question_result.get("attempted") else None,
+            "local_context_sent": bool(provider_call and provider_call.get("context_sent")),
+            "adaptive_context_sent": bool(adaptive_question_result.get("attempted")),
+            "local_model_result_accepted": call_accepted,
+            "adaptive_question": {"attempted": bool(adaptive_question_result.get("attempted")),
+                                  "accepted": bool(adaptive_question_result.get("accepted")),
+                                  "rejection_code": adaptive_question_result.get("rejection_code"),
+                                  "fallback_to_rules": bool(adaptive_question_result.get("attempted")
+                                                             and not adaptive_question_result.get("accepted"))},
             "message_plan_applied": message_plan_applied,
             "message_plan": model_message_plan if message_plan_applied else None,
-            "model_merge_trace": last_model_merge_trace() if external_extraction_sent else [],
-            "extraction_outcome": (provider_call or {}).get("extraction_outcome") if external_extraction_sent else None,
+            "model_merge_trace": last_model_merge_trace() if local_extraction_sent else [],
+            "extraction_outcome": (provider_call or {}).get("extraction_outcome") if local_extraction_sent else None,
             "fallback_used": fallback_used,
             "extraction_fallback_used": extraction_fallback_used,
             "guidance_fallback_used": guidance_fallback_used,

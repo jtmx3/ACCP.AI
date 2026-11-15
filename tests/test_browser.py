@@ -68,9 +68,9 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         await self.page.locator("#send").click()
 
     async def test_runtime_panel_distinguishes_configuration_connection_model_and_generation(self):
-        config = {"provider": "openai-compatible", "mode": "external_model", "model": "synthetic-model",
+        config = {"provider": "ollama", "mode": "local_model", "model": "synthetic-model",
                   "configuration_complete": True, "configured": True, "local": False}
-        stage = {"probe": {"provider": "openai-compatible", "configured": True, "service_reachable": False,
+        stage = {"probe": {"provider": "ollama", "configured": True, "service_reachable": False,
                             "model_available": False, "models_count": 0, "failure_code": "unreachable"}}
 
         async def intercept(route):
@@ -81,7 +81,7 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
                 await route.fulfill(json={"config": config, **stage})
             elif url.endswith("/api/provider/test"):
                 await route.fulfill(json={"success": True, "attempted": True, "latency_ms": 12,
-                                          "failure_code": None, "provider": "openai-compatible",
+                                          "failure_code": None, "provider": "ollama",
                                           "model": "synthetic-model"})
             else:
                 await route.continue_()
@@ -95,7 +95,7 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         await expect(self.page.locator("#runtime-detail")).to_contain_text("الخدمة غير متاحة")
         self.assertTrue(await self.page.locator("#test-provider-generation").is_disabled())
 
-        stage["probe"] = {"provider": "openai-compatible", "configured": True, "service_reachable": True,
+        stage["probe"] = {"provider": "ollama", "configured": True, "service_reachable": True,
                            "model_available": True, "models_count": 1, "failure_code": None}
         await self.page.locator("#check-provider").click()
         await expect(self.page.locator("#runtime-mode")).to_contain_text("الخدمة والنموذج متاحان")
@@ -103,11 +103,11 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await self.page.locator("#test-provider-generation").is_enabled())
 
         await self.page.locator("#test-provider-generation").click()
-        await expect(self.page.locator("#runtime-mode")).to_contain_text("مزود خارجي — نجح اختبار التوليد الثابت")
+        await expect(self.page.locator("#runtime-mode")).to_contain_text("نموذج Ollama المحلي — نجح اختبار التوليد الثابت")
         await expect(self.page.locator("#runtime-detail")).to_contain_text("12 مللي ثانية")
 
     async def test_partial_model_filter_is_reported_after_consented_send(self):
-        config = {"provider": "openai-compatible", "mode": "external_model", "model": "synthetic-test",
+        config = {"provider": "ollama", "mode": "local_model", "model": "synthetic-test",
                   "configuration_complete": True, "configured": True, "local": False}
         async def intercept(route):
             if route.request.url.endswith("/api/provider/status"):
@@ -447,8 +447,8 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         await self.page.goto(self.base_url)
         await self.page.locator("#start-case").click()
         await expect(self.page.locator("#stage-badge")).to_have_text("مقابلة")
-        await self._send("اليوم شخص عامل حسابًا مزيفًا باسمي على إنستغرام")
-        await expect(self.page.locator("#chat")).to_contain_text("شو قال لك")
+        await self._send("في حساب على إنستغرام يستخدم اسمي وصورتي وبحكي للناس إنه أنا")
+        await expect(self.page.locator("#chat")).to_contain_text("هل بتعرف هوية الشخص")
         await expect(self.page.locator("#chat")).to_contain_text("إنستغرام")
 
         await self.page.locator("#pause-case").click()
@@ -535,7 +535,7 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
             request = route.request
             path = urlparse(request.url).path
             if path == "/api/health":
-                await route.fulfill(json={"external_model_configured": False})
+                await route.fulfill(json={"local_model_configured": False})
             elif path == "/api/metadata":
                 await route.fulfill(json={"jurisdictions": []})
             elif request.method == "GET" and path == f"/api/sessions/{a_id}":
@@ -545,11 +545,11 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
             elif request.method == "POST" and path == f"/api/sessions/{a_id}/messages":
                 a_started.set()
                 await release_a.wait()
-                await route.fulfill(json={"session": a_after, "external_data_sent": False, "external_model_used": False})
+                await route.fulfill(json={"session": a_after, "local_data_sent": False, "local_model_used": False})
                 a_finished.set()
             elif request.method == "POST" and path == f"/api/sessions/{b_id}/messages":
                 b_post.update(url=path, body=json.loads(request.post_data or "{}"))
-                await route.fulfill(json={"session": b_after, "external_data_sent": False, "external_model_used": False})
+                await route.fulfill(json={"session": b_after, "local_data_sent": False, "local_model_used": False})
             else:
                 unexpected.append(f"{request.method} {path}")
                 await route.fulfill(status=404, json={"detail": "unexpected route"})
@@ -580,7 +580,7 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(unexpected, [])
 
     async def test_model_consent_is_optional_and_changes_scope_by_mode(self):
-        env = {"MODEL_PROVIDER": "openai-compatible", "MODEL_API_KEY": "test-only", "MODEL_BASE_URL": "https://provider.example/v1", "MODEL_NAME": "test"}
+        env = {"MODEL_PROVIDER": "ollama", "MODEL_BASE_URL": "http://127.0.0.1:11434/v1", "MODEL_NAME": "test"}
         outbound = []
         message_requests = []
 
@@ -625,20 +625,19 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
 
             await send_and_wait("في شخص يهددني على واتساب")
             await expect(self.page.locator("#status-message")).to_contain_text("تم حفظ الرسالة وتحديث الحالة بالقواعد المحلية.")
-            await expect(self.page.locator("#chat .question-plan").last).to_contain_text("الخطر المباشر")
+            await expect(self.page.locator("#chat .question-plan").last).to_contain_text("تفاصيل الواقعة")
             extract.assert_not_called()
             self.assertFalse(await self.page.locator("#model-consent").is_checked())
-            self.assertFalse(message_requests[-1]["allow_external_extraction"])
+            self.assertFalse(message_requests[-1]["allow_local_model"])
             await self.page.locator("#model-consent").check()
             await send_and_wait("لا")
             await expect(self.page.locator("#status-message")).to_contain_text("نص الرسالة الحالية فقط")
             self.assertEqual(extract.call_count, 1, f"requests={message_requests!r}")
-            self.assertEqual(extract.call_args.args[:2], ("لا", "direct_danger"))
+            self.assertEqual(extract.call_args.args[:2], ("لا", "details"))
             self.assertEqual(len(extract.call_args.args), 2)
             self.assertFalse(await self.page.locator("#model-consent").is_checked())
             self.assertFalse(await self.page.locator("#context-consent").is_checked())
-            self.assertTrue(message_requests[-1]["allow_external_extraction"])
-            self.assertFalse(message_requests[-1]["allow_external"])
+            self.assertTrue(message_requests[-1]["allow_local_model"])
             self.assertFalse(message_requests[-1]["allow_context_extraction"])
 
             await self.page.locator("#model-consent").check()
@@ -647,7 +646,7 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(extract.call_count, 2, f"requests={message_requests!r}")
             self.assertTrue(extract.call_args.args[2]["untrusted_user_data"])
             await expect(self.page.locator("#status-message")).to_contain_text("سياق محدود")
-            self.assertTrue(message_requests[-1]["allow_external_extraction"])
+            self.assertTrue(message_requests[-1]["allow_local_model"])
             self.assertTrue(message_requests[-1]["allow_context_extraction"])
 
             await self.page.locator("#jurisdiction").select_option("AU")
@@ -659,18 +658,16 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
             answer.assert_not_called()
             provider.assert_not_called()
             self.assertFalse(await self.page.locator("#model-consent").is_checked())
-            self.assertFalse(message_requests[-1]["allow_external"])
-            self.assertFalse(message_requests[-1]["allow_external_extraction"])
+            self.assertFalse(message_requests[-1]["allow_local_model"])
 
             await self.page.locator("#model-consent").check()
             question_response = await send_and_wait("كيف أحفظ الأدلة واللقطات؟")
             question_payload = await question_response.json()
-            self.assertTrue(question_payload["external_data_sent"],
+            self.assertTrue(question_payload["local_data_sent"],
                             f"payload={question_payload!r}, requests={message_requests!r}")
             await expect(self.page.locator("#status-message")).to_contain_text("نص السؤال الحالي")
             await expect(self.page.locator("#model-consent")).not_to_be_checked()
-            self.assertTrue(message_requests[-1]["allow_external"])
-            self.assertFalse(message_requests[-1]["allow_external_extraction"])
+            self.assertTrue(message_requests[-1]["allow_local_model"])
             answer.assert_called_once()
             provider.assert_called_once()
             question, sources = answer.call_args.args

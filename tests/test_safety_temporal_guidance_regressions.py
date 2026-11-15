@@ -47,14 +47,19 @@ class SafetyTemporalGuidanceRegressionTests(unittest.TestCase):
 
     def _establish_initial_time_prompt(self):
         first = self._turn("في شخص على واتساب طلب مني 100 دينار، وقال رح ينشر محادثاتي الخاصة إذا ما دفعت.")
-        self.assertEqual(first["session"]["pending_slot"], "direct_danger")
-        second = self._turn("لا، ما في خطر مباشر علي الآن، بس اليوم رجع بعتلي نفس التهديد.")
-        self.assertEqual(second["session"]["pending_slot"], "initial_time")
-        return second["session"]
+        self.assertEqual(first["session"]["pending_slot"], "initial_time")
+        self.assertNotIn("direct_danger", [message.get("question_plan", {}).get("slot")
+                                            for message in first["session"]["messages"]])
+        latest = self._turn("اليوم رجع بعتلي نفس التهديد.")
+        self.assertEqual(latest["session"]["pending_slot"], "initial_time")
+        return latest["session"]
 
     def _establish_payment_prompt(self):
-        self._establish_initial_time_prompt()
-        third = self._turn("أول رسالة وصلتني مبارح حوالي الساعة 6 المسا.")
+        first = self._turn("في شخص على واتساب طلب مني 100 دينار، وقال رح ينشر محادثاتي الخاصة إذا ما دفعت.")
+        self.assertEqual(first["session"]["pending_slot"], "initial_time")
+        second = self._turn("أول رسالة وصلتني مبارح حوالي الساعة 6 المسا.")
+        self.assertEqual(second["session"]["pending_slot"], "repeated")
+        third = self._turn("ما تكرر التهديد.")
         self.assertEqual(third["session"]["pending_slot"], "paid_amount")
         return third["session"]
 
@@ -80,8 +85,8 @@ class SafetyTemporalGuidanceRegressionTests(unittest.TestCase):
                             if message["role"] == "user")
         self.assertEqual(danger["quote"], user_message["text"])
         self.assertEqual(result["report"]["facts"]["direct_danger"]["value"], True)
-        self.assertFalse(result["external_data_sent"])
-        self.assertFalse(result["external_model_used"])
+        self.assertFalse(result["local_data_sent"])
+        self.assertFalse(result["local_model_used"])
         safety = next(message for message in reversed(state["messages"])
                       if message["role"] == "assistant")
         self.assertEqual(safety["kind"], "safety")
@@ -213,7 +218,7 @@ class SafetyTemporalGuidanceRegressionTests(unittest.TestCase):
                              if message["role"] == "assistant" and message.get("kind") in {"question", "clarification"}
                              and message.get("question_plan", {}).get("slot") == state["pending_slot"]]
         self.assertEqual(len(question_messages), 1)
-        self.assertEqual(state["pending_slot"], "direct_danger")
+        self.assertEqual(state["pending_slot"], "details")
         answer = next(message for message in reversed(state["messages"])
                       if message["role"] == "assistant" and message["kind"] == "answer")
         source_ids = {citation["id"] for citation in answer["citations"]}
@@ -264,7 +269,7 @@ class SafetyTemporalGuidanceRegressionTests(unittest.TestCase):
         with patch("app.main.model_configured", return_value=True), \
              patch("app.main.provider_config", return_value={"provider": "ollama", "model": "fixture", "mode": "local_model"}), \
              patch("app.main.generate_interview_extraction", return_value=fake_understanding) as extraction:
-            self._turn("واتساب، واليوم رجع هددني.", allow_external_extraction=True)
+            self._turn("واتساب، واليوم رجع هددني.", allow_local_model=True)
         extraction.assert_called_once()
         self.assertEqual(extraction.call_args.args[0], "واليوم رجع هددني")
 

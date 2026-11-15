@@ -56,12 +56,12 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertEqual(stale.status_code, 409)
         current = self.client.get(f"/api/sessions/{self.case_id}", headers=self.headers).json()["session"]
         self.assertEqual(current["revision"], 1)
-        self.assertEqual(current["pending_slot"], "direct_danger")
+        self.assertEqual(current["pending_slot"], "details")
 
     def test_qa_source_scope_session_resume_and_safe_citations(self):
         why = self.turn("ليش بتسأل عن التفاصيل؟", kind="question")
         why_message = why["messages"][-2]
-        self.assertFalse(why_message["external_model_used"])
+        self.assertFalse(why_message["local_model_used"])
         question = self.turn("كيف أحفظ الأدلة واللقطات؟", kind="question")
         answer_message = question["messages"][-2]
         self.assertIn("المصادر الوطنية لا تمثل مسارًا محليًا خارجه", answer_message["text"])
@@ -92,17 +92,17 @@ class ApiIntegrationTests(unittest.TestCase):
                  "fallback_used": False, "failure_code": "partial_fact_filter", "filtered_fact_count": 1,
                  "filtered_fact_fields": ["identity"], "latency_ms": 12}
         with patch("app.main.model_configured", return_value=True), \
-             patch("app.main.provider_config", return_value={"provider": "openai-compatible",
-                                                               "model": "synthetic-test", "mode": "external_model"}), \
+             patch("app.main.provider_config", return_value={"provider": "ollama",
+                                                               "model": "synthetic-test", "mode": "local_model"}), \
              patch("app.main.generate_interview_extraction", return_value=facts), \
              patch("app.main.last_call_trace", return_value=trace):
             response = self.client.post(
                 f"/api/sessions/{self.case_id}/messages", headers=self.headers,
                 json={"expected_revision": self.revision, "text": "حساب مزيف على إنستغرام",
-                      "kind": "answer", "allow_external_extraction": True})
+                      "kind": "answer", "allow_local_model": True})
         self.assertEqual(response.status_code, 200, response.text)
         result = response.json()
-        self.assertTrue(result["external_model_result_accepted"])
+        self.assertTrue(result["local_model_result_accepted"])
         self.assertEqual(result["provider_call"]["filtered_fact_count"], 1)
         self.assertEqual(result["provider_call"]["filtered_fact_fields"], ["identity"])
         self.assertNotIn("filtered_fact_proposals", result["provider_call"])
@@ -125,7 +125,7 @@ class ApiIntegrationTests(unittest.TestCase):
             response = self.client.post(
                 f"/api/sessions/{self.case_id}/messages", headers=self.headers,
                 json={"expected_revision": self.revision, "text": "لا، ما حدد مهلة أو موعد للدفع.",
-                      "kind": "answer", "allow_external_extraction": True})
+                      "kind": "answer", "allow_local_model": True})
         self.assertEqual(response.status_code, 200, response.text)
         result = response.json()
         detail = result["model_diagnostics"]
@@ -179,12 +179,12 @@ class ApiIntegrationTests(unittest.TestCase):
                     response = self.client.post(
                         f"/api/sessions/{session_id}/messages", headers={"X-Case-Token": token},
                         json={"expected_revision": revision, "text": text, "kind": "answer",
-                              "allow_external_extraction": True})
+                              "allow_local_model": True})
 
                 self.assertEqual(response.status_code, 200, response.text)
                 result = response.json()
                 self.assertEqual(len(calls), 1)
-                self.assertFalse(result["external_model_result_accepted"])
+                self.assertFalse(result["local_model_result_accepted"])
                 self.assertTrue(result["extraction_fallback_used"])
                 self.assertEqual(result["fallback_to"], "rules")
                 validation = result["model_diagnostics"]["validation"]
@@ -226,11 +226,11 @@ class ApiIntegrationTests(unittest.TestCase):
             response = self.client.post(
                 f"/api/sessions/{self.case_id}/messages", headers=self.headers,
                 json={"expected_revision": self.revision, "text": message, "kind": "answer",
-                      "allow_external_extraction": True})
+                      "allow_local_model": True})
         self.assertEqual(response.status_code, 200, response.text)
         result = response.json()
         self.assertEqual(result["extraction_outcome"], "valid_empty")
-        self.assertFalse(result["external_model_result_accepted"])
+        self.assertFalse(result["local_model_result_accepted"])
         self.assertFalse(result["message_plan_applied"])
         self.assertEqual(result["model_diagnostics"]["validation"]["unsupported_message_goals"],
                          ["decline_disclosure"])
@@ -263,11 +263,11 @@ class ApiIntegrationTests(unittest.TestCase):
                 response = self.client.post(
                     f"/api/sessions/{self.case_id}/messages", headers=self.headers,
                     json={"expected_revision": self.revision, "text": "في شخص عم يهددني على واتساب.",
-                          "kind": "answer", "allow_external_extraction": True})
+                          "kind": "answer", "allow_local_model": True})
             self.assertEqual(response.status_code, 200, response.text)
             result = response.json()
             self.revision = result["session"]["revision"]
-            self.assertFalse(result["external_model_result_accepted"])
+            self.assertFalse(result["local_model_result_accepted"])
             self.assertTrue(result["fallback_used"])
             self.assertEqual(result["fallback_to"], "rules")
             self.assertEqual(result["extraction_outcome"], expected_outcome)
@@ -278,29 +278,31 @@ class ApiIntegrationTests(unittest.TestCase):
 
     def test_clear_question_in_answer_mode_is_answered_locally_then_pending_question_resumes(self):
         before = self.turn("في شخص يهددني على واتساب")
-        self.assertEqual(before["pending_slot"], "direct_danger")
+        self.assertEqual(before["pending_slot"], "details")
         facts_before = before["facts"]
-        env = {"MODEL_PROVIDER": "openai-compatible", "MODEL_BASE_URL": "https://provider.example/v1",
-               "MODEL_NAME": "fixture-model", "MODEL_API_KEY": "test-only"}
+        env = {"MODEL_PROVIDER": "ollama", "MODEL_BASE_URL": "http://127.0.0.1:11434/v1",
+               "MODEL_NAME": "fixture-model"}
         with patch.dict(os.environ, env), patch("app.main.generate_interview_extraction",
                                                 side_effect=AssertionError("answer-mode question must not be sent for extraction")):
             response = self.client.post(f"/api/sessions/{self.case_id}/messages", headers=self.headers,
                                         json={"expected_revision": self.revision, "text": "كيف أحفظ الأدلة واللقطات؟",
-                                              "kind": "answer", "allow_external_extraction": True})
+                                              "kind": "answer", "allow_local_model": True})
         self.assertEqual(response.status_code, 200, response.text)
         payload = response.json()
         state = payload["session"]
         self.revision = state["revision"]
         self.assertTrue(payload["question_detected"])
-        self.assertFalse(payload["external_data_sent"])
-        self.assertEqual(state["pending_slot"], "direct_danger")
+        self.assertTrue(payload["local_data_sent"])
+        self.assertEqual(payload["local_model_purpose"], "grounded_question")
+        self.assertEqual(state["pending_slot"], "details")
         self.assertEqual(state["facts"], facts_before)
         self.assertEqual(state["messages"][-2]["kind"], "answer")
         self.assertIn("المصادر الوطنية لا تمثل مسارًا محليًا خارجه", state["messages"][-2]["text"])
         self.assertTrue(any(citation["id"] == "AU-ESAFETY-EVIDENCE-2026"
                             for citation in state["messages"][-2]["citations"]))
         self.assertEqual(state["messages"][-1]["kind"], "question")
-        self.assertIn("هل أنت بخطر مباشر الآن؟", state["messages"][-1]["text"])
+        self.assertNotIn("هل أنت بخطر مباشر الآن؟", state["messages"][-1]["text"])
+        self.assertNotIn("911", state["messages"][-1]["text"])
 
     def test_immediate_danger_in_question_mode_bypasses_rag(self):
         state = self.turn("الشخص وصل لعندي الآن ومعه سلاح، شو أعمل؟", kind="question")
@@ -309,7 +311,7 @@ class ApiIntegrationTests(unittest.TestCase):
         safety = state["messages"][-1]
         self.assertEqual(safety["kind"], "safety")
         self.assertEqual(safety["citations"], [])
-        self.assertFalse(safety["external_model_used"])
+        self.assertFalse(safety["local_model_used"])
 
     def test_unresolved_money_relation_blocks_confirmation_until_resolved(self):
         for text in ("في شخص يهددني", "لا", "قال ادفع 100 دينار", "طلب 120 دينار أيضًا"):
@@ -335,14 +337,14 @@ class ApiIntegrationTests(unittest.TestCase):
             "لا، ما في خطر مباشر علي الآن.",
             "قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
             "أمس الساعة 6 مسا.",
-            "نعم، رجع بعتلي اليوم.",
+            "نعم، رجع هددني اليوم.",
             "دفعت 130 دينار.",
             "بمحفظة إلكترونية.",
             "بس أنا دفعت.",
             "لا، ما حدد مهلة.",
             "ما بعرف.",
             "بعرف رقم الواتساب بس.",
-            "صور التهديد وإيصال التحويل.",
+            "عندي صور التهديد وإيصال التحويل.",
         ]
         for text in turns:
             state = self.turn(text)
@@ -394,7 +396,7 @@ class ApiIntegrationTests(unittest.TestCase):
 
     def test_windows_f83_case_reproduces_each_payment_contact_timestamp_and_correction_stage(self):
         state = self.turn("في شخص عم يهددني على واتساب.")
-        self.assertEqual(state["pending_slot"], "direct_danger")
+        self.assertEqual(state["pending_slot"], "details")
 
         state = self.turn("لا، ما في خطر مباشر علي الآن.")
         self.assertEqual(state["pending_slot"], "details")
@@ -564,7 +566,7 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertNotIn("**التأكيد:** مؤكد من المستخدم", exported.text)
 
     def test_urgent_stop_state_survives_pause_and_resume_without_interview_question(self):
-        risk = self.turn("أنا بخطر مباشر الآن.")
+        risk = self.turn("أنا بخطر مباشر الآن، الشخص واقف قدام بيتي ومعه سكين.")
         self.assertEqual(risk["stage"], "urgent_stop")
         self.assertIsNone(risk["pending_slot"])
         paused = self.turn("احفظ الجلسة")
@@ -639,31 +641,37 @@ class ApiIntegrationTests(unittest.TestCase):
         self.assertIn("**التأكيد:** غير مؤكد", report)
         self.assertIn("تأكيد سابق؛ لا يؤكد محتوى هذا الإصدار", report)
 
-    def test_why_question_bypasses_rag_and_does_not_answer_the_safety_slot(self):
+    def test_why_question_bypasses_rag_and_does_not_answer_the_pending_slot(self):
         before = self.turn("في شخص يهددني")
-        self.assertEqual(before["pending_slot"], "direct_danger")
+        self.assertEqual(before["pending_slot"], "details")
         facts_before = before["facts"]
         version_before = before["summary_version"]
         with patch("app.main.answer_question", side_effect=AssertionError("why intent must not call RAG")):
             response = self.client.post(f"/api/sessions/{self.case_id}/messages", headers=self.headers,
-                                        json={"expected_revision": self.revision, "text": "ليش بتسأل عن الخطر؟", "kind": "question"})
+                                        json={"expected_revision": self.revision, "text": "ليش بتسأل عن تفاصيل الواقعة؟", "kind": "question"})
         self.assertEqual(response.status_code, 200, response.text)
         payload = response.json()
         state = payload["session"]
         self.revision = state["revision"]
-        self.assertFalse(payload["external_data_sent"])
-        self.assertFalse(payload["external_model_used"])
-        self.assertEqual(state["pending_slot"], "direct_danger")
+        self.assertFalse(payload["local_data_sent"])
+        self.assertFalse(payload["local_model_used"])
+        self.assertEqual(state["pending_slot"], "details")
         self.assertEqual(state["facts"], facts_before)
         self.assertEqual(state["summary_version"], version_before)
-        self.assertIn("خطوة سلامة عاجلة", state["messages"][-2]["text"])
+        self.assertIn("حتى نوثق الكلام", state["messages"][-2]["text"])
 
-        answer_mode = self.turn("ليش بتسأل عن الخطر؟", kind="answer")
-        self.assertEqual(answer_mode["pending_slot"], "direct_danger")
+        answer_mode = self.turn("ليش بتسأل عن تفاصيل الواقعة؟", kind="answer")
+        self.assertEqual(answer_mode["pending_slot"], "details")
         self.assertEqual(answer_mode["facts"], facts_before)
         self.assertEqual(answer_mode["summary_version"], version_before)
-        self.assertIn("خطوة سلامة عاجلة", answer_mode["messages"][-2]["text"])
-        self.assertIn("هل أنت بخطر مباشر الآن؟", answer_mode["messages"][-1]["text"])
+        self.assertIn("حتى نوثق الكلام", answer_mode["messages"][-2]["text"])
+        self.assertNotIn("هل أنت بخطر مباشر الآن؟", answer_mode["messages"][-1]["text"])
+
+        protest = self.turn("قبل ما أجاوب، ليش بدك تعرف إذا نزلها؟", kind="answer")
+        self.assertEqual(protest["pending_slot"], "details")
+        self.assertEqual(protest["facts"], facts_before)
+        self.assertEqual(protest["summary_version"], version_before)
+        self.assertEqual(protest["messages"][-1]["question_plan"]["slot"], "details")
 
     def test_two_consented_extraction_calls_overlap_across_sessions(self):
         second_state, second_token = main.store.create()
@@ -677,17 +685,18 @@ class ApiIntegrationTests(unittest.TestCase):
             barrier.wait()
             return []
 
-        with patch.dict(os.environ, {"MODEL_PROVIDER": "openai-compatible", "MODEL_API_KEY": "test-only"}), \
+        with patch.dict(os.environ, {"MODEL_PROVIDER": "ollama"}), \
+             patch("app.main.model_configured", return_value=True), \
              patch("app.main.generate_interview_extraction", side_effect=slow_extract), \
              patch("app.main.last_call_trace", return_value={"attempted": True, "latency_ms": 1}):
             with ThreadPoolExecutor(max_workers=2) as pool:
                 futures = [
-                    pool.submit(main.post_message, self.case_id, TurnRequest(expected_revision=0, text="شخص يهددني برسالة", allow_external_extraction=True), self.token),
-                    pool.submit(main.post_message, second_state["session_id"], TurnRequest(expected_revision=0, text="حساب مزيف باسمي", allow_external_extraction=True), second_token),
+                    pool.submit(main.post_message, self.case_id, TurnRequest(expected_revision=0, text="شخص يهددني برسالة", allow_local_model=True), self.token),
+                    pool.submit(main.post_message, second_state["session_id"], TurnRequest(expected_revision=0, text="حساب مزيف باسمي", allow_local_model=True), second_token),
                 ]
                 results = [future.result(timeout=8) for future in futures]
         self.assertEqual(len(calls), 2)
-        self.assertTrue(all(result["external_data_sent"] for result in results))
+        self.assertTrue(all(result["local_data_sent"] for result in results))
         self.assertEqual({result["session"]["revision"] for result in results}, {1})
 
     def test_stale_result_after_provider_wait_is_discarded_without_retry(self):
@@ -702,11 +711,12 @@ class ApiIntegrationTests(unittest.TestCase):
             self.assertTrue(release.wait(timeout=5))
             return [{"field": "platform", "status": "reported", "value": "واتساب", "quote": "واتساب"}]
 
-        with patch.dict(os.environ, {"MODEL_PROVIDER": "openai-compatible", "MODEL_API_KEY": "test-only"}), \
+        with patch.dict(os.environ, {"MODEL_PROVIDER": "ollama"}), \
+             patch("app.main.model_configured", return_value=True), \
              patch("app.main.generate_interview_extraction", side_effect=slow_extract):
             with ThreadPoolExecutor(max_workers=1) as pool:
                 first = pool.submit(main.post_message, self.case_id,
-                                    TurnRequest(expected_revision=0, text="شخص يهددني على واتساب", allow_external_extraction=True), self.token)
+                                    TurnRequest(expected_revision=0, text="شخص يهددني على واتساب", allow_local_model=True), self.token)
                 self.assertTrue(entered.wait(timeout=3))
                 concurrent = main.post_message(self.case_id, TurnRequest(expected_revision=0, text="شخص يهددني على واتساب"), self.token)
                 self.assertEqual(concurrent["session"]["revision"], 1)
@@ -736,12 +746,13 @@ class ApiIntegrationTests(unittest.TestCase):
             second_done.set()
             return result
 
-        with patch.dict(os.environ, {"MODEL_PROVIDER": "openai-compatible", "MODEL_API_KEY": "test-only"}), \
+        with patch.dict(os.environ, {"MODEL_PROVIDER": "ollama"}), \
+             patch("app.main.model_configured", return_value=True), \
              patch("app.main.generate_grounded_answer", side_effect=slow_answer), \
              patch("app.main.last_call_trace", return_value={"attempted": True, "latency_ms": 1}):
             with ThreadPoolExecutor(max_workers=2) as pool:
                 first = pool.submit(main.post_message, self.case_id,
-                                    TurnRequest(expected_revision=1, text="كيف أحفظ الأدلة واللقطات؟", kind="question", allow_external=True), self.token)
+                                    TurnRequest(expected_revision=1, text="كيف أحفظ الأدلة واللقطات؟", kind="question", allow_local_model=True), self.token)
                 self.assertTrue(entered.wait(timeout=3))
                 second = pool.submit(write_second)
                 wrote_while_waiting = second_done.wait(timeout=2)
@@ -749,8 +760,8 @@ class ApiIntegrationTests(unittest.TestCase):
                 a_result = first.result(timeout=5)
                 b_result = second.result(timeout=5)
         self.assertTrue(wrote_while_waiting, "a slow provider call held SQLite's write lock")
-        self.assertTrue(a_result["external_data_sent"])
-        self.assertFalse(a_result["external_model_used"])
+        self.assertTrue(a_result["local_data_sent"])
+        self.assertFalse(a_result["local_model_used"])
         self.assertEqual(b_result["session"]["revision"], 2)
 
     def test_temporal_clarification_survives_review_confirmation_resume_and_exports(self):

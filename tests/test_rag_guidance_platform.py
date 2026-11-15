@@ -101,6 +101,24 @@ class RealCorpusGuidanceRetrievalTests(unittest.TestCase):
         self.assertIn("JO-PSD-CYBERCRIME-UNIT-2026", {citation["id"] for citation in result["citations"]})
         self.assertNotIn("US-FTC-SCAM-2026", {citation["id"] for citation in result["citations"]})
 
+    def test_specific_jordan_cybercrime_law_article_retrieves_its_source_without_platform(self):
+        result = answer_question("ما هي المادة 18 من قانون الجرائم الإلكترونية الأردني؟", None)
+        citations = {citation["id"]: citation for citation in result["citations"]}
+        self.assertIn("JO-CYBERCRIME-LAW-ART18-2023", citations)
+        self.assertEqual(set(citations), {"JO-CYBERCRIME-LAW-ART18-2023"})
+        self.assertEqual(result["resolved_platform"], None)
+        self.assertEqual(result["resolved_jurisdiction"], "JO")
+        self.assertIn("cybercrime_law", result["resolved_topics"])
+        self.assertIn("المادة 18 تتعلق", result["text"])
+        self.assertIn("التهديد", result["text"])
+        self.assertIn("لا تمثل تكييفًا", result["text"])
+        self.assertIn("المادة 18", citations["JO-CYBERCRIME-LAW-ART18-2023"]["excerpt"])
+        self.assertNotIn("أي تطبيق", result["text"])
+
+        unsupported_article = answer_question("ما هي المادة 99 من قانون الجرائم الإلكترونية الأردني؟", None)
+        self.assertEqual(unsupported_article["citations"], [])
+        self.assertIn("أمتنع عن الاستنتاج", unsupported_article["text"])
+
     def test_full_current_message_supplies_topic_when_guidance_span_is_short(self):
         result = answer_question("شو أعمل؟", None,
                                  topic_query="بعد ما حولت المال، شو أعمل؟")
@@ -136,14 +154,14 @@ class RoutedRealCorpusGuidanceTests(unittest.TestCase):
 
     def ask_with_simulated_goal_plan(self, text, question_span, goals=("ask_guidance",)):
         plan = {"message_goals": list(goals), "guidance_question": question_span, "facts": []}
-        env = {"MODEL_PROVIDER": "openai-compatible", "MODEL_BASE_URL": "https://provider.example/v1",
-               "MODEL_NAME": "synthetic-test", "MODEL_API_KEY": "test-only"}
+        env = {"MODEL_PROVIDER": "ollama", "MODEL_BASE_URL": "http://127.0.0.1:11434/v1",
+               "MODEL_NAME": "synthetic-test"}
         with patch.dict(os.environ, env, clear=True), \
              patch("app.main.model_configured", return_value=True), \
-             patch("app.main.provider_config", return_value={"provider": "openai-compatible",
-                                                               "model": "synthetic-test", "mode": "external_model"}), \
+             patch("app.main.provider_config", return_value={"provider": "ollama",
+                                                               "model": "synthetic-test", "mode": "local_model"}), \
              patch("app.model._chat", return_value=json.dumps(plan, ensure_ascii=False)):
-            return self.send(text, allow_external_extraction=True, allow_context_extraction=True)
+            return self.send(text, allow_local_model=True, allow_context_extraction=True)
 
     def test_previous_platform_turn_drives_real_retrieval_then_explicit_change_switches_source(self):
         first = self.send("المشكلة صارت على إنستغرام.")
@@ -181,7 +199,7 @@ class RoutedRealCorpusGuidanceTests(unittest.TestCase):
     def test_short_sourced_whatsapp_answer_resumes_pending_interview_once(self):
         first = self.send("في شخص عم يهددني على واتساب.")
         pending = first["session"]["pending_slot"]
-        self.assertEqual(pending, "direct_danger")
+        self.assertEqual(pending, "details")
         question = "كيف أحمي حسابي على واتساب؟"
         result = self.ask_with_simulated_goal_plan(question, question)
         messages = result["session"]["messages"]
@@ -191,7 +209,7 @@ class RoutedRealCorpusGuidanceTests(unittest.TestCase):
                      and message.get("kind") == "question"
                      and message.get("text", "").startswith("نكمل من السؤال السابق:")]
         self.assertEqual(len(followups), 1)
-        self.assertIn("direct_danger", result["session"]["pending_slot"])
+        self.assertEqual(result["session"]["pending_slot"], pending)
         self.assertTrue(answer["citations"])
         self.assertTrue(all(citation["id"].startswith("GLOBAL-WA-") for citation in answer["citations"]))
         self.assertFalse(any(citation["id"].startswith("GLOBAL-IG-") for citation in answer["citations"]))
@@ -221,6 +239,18 @@ class RoutedRealCorpusGuidanceTests(unittest.TestCase):
                          clarification_count + 1)
         self.assertEqual(state["messages"][-1]["kind"], "guidance_clarification")
         self.assertIn("أي تطبيق", state["messages"][-1]["text"])
+
+    def test_jordan_law_article_routes_through_api_and_real_rag_without_platform_prompt(self):
+        question = "ما هي المادة 18 من قانون الجرائم الإلكترونية الأردني؟"
+        result = self.ask_with_simulated_goal_plan(question, question)
+        answer = next(message for message in reversed(result["session"]["messages"])
+                      if message.get("role") == "assistant" and message.get("kind") == "answer")
+        self.assertTrue(result["question_detected"])
+        self.assertEqual({citation["id"] for citation in answer["citations"]},
+                         {"JO-CYBERCRIME-LAW-ART18-2023"})
+        self.assertIn("المادة 18 تتعلق", answer["text"])
+        self.assertNotIn("أي تطبيق", answer["text"])
+        self.assertNotIn("GLOBAL-IG-", " ".join(citation["id"] for citation in answer["citations"]))
 
 
 if __name__ == "__main__":

@@ -88,6 +88,19 @@ class ArabicImpersonationRegressionTests(unittest.TestCase):
                 self.assertEqual(state["facts"]["details"]["status"], "reported")
                 self.assert_fact_source(state, "impersonation", text)
 
+    def test_profile_talking_to_colleagues_as_if_it_were_the_user_is_impersonation(self):
+        state = new_state("synthetic-v2-e03-impersonation")
+        first = "اليوم لقيت حسابًا مزيفًا على إنستغرام حاط اسمي وصورتي وبيحكي مع زملائي كأنه أنا."
+        second = "الحساب يرسل لهم رسائل باسمي ويطلب منهم تحويل المال."
+        handle_turn(state, first)
+        handle_turn(state, second)
+        self.assertEqual(state["facts"]["impersonation"]["status"], "reported")
+        self.assertIs(state["facts"]["impersonation"]["value"], True)
+        self.assertEqual(state["facts"]["platform"]["value"], "إنستغرام")
+        self.assertEqual(state["facts"]["details"]["status"], "reported")
+        self.assertNotIn("account_access", state["facts"])
+        self.assert_fact_source(state, "impersonation", first)
+
     def test_name_photo_lookalike_and_fan_cases_are_not_auto_classified(self):
         for index, text in enumerate(CASES["negative_boundaries"]):
             with self.subTest(text=text):

@@ -6,7 +6,7 @@
 
 يوفر ACCP.AI مقابلة محلية تحفظ إفادات المستخدم كمسودة منظّمة مع الاقتباسات ومصادرها، ثم تتيح المراجعة والتصحيح والتأكيد. لا ينشئ هذا التأكيد بلاغًا رسميًا، ولا يثبت صحة الوقائع، ولا يرسلها إلى جهة خارجية. على تطبيق .NET أن يربط جلسة Python بحساب ACCP وبلاغه، وأن يفرض صلاحيات المشروع قبل عرض التقرير أو حفظه.
 
-لا تُرسل إلى Python كامل سجل المستخدم أو تفاصيل ACCP غير اللازمة. الجسم المرسل في الرسائل هو النص الذي أدلى به المستخدم فقط، وأي سياق سابق للنموذج الخارجي يحتاج موافقة صريحة منفصلة. لا تُفعّل `allow_context_extraction` إلا إذا أُجيز هذا الغرض للمستخدم والبلاغ المحددين.
+لا تُرسل إلى Python كامل سجل المستخدم أو تفاصيل ACCP غير اللازمة. التطبيق يستخدم القواعد أو Ollama محليًا على loopback فقط؛ لا يدعم إرسال بيانات إلى مزود بعيد. استخراج الرسالة يتطلب `allow_local_model` لكل رسالة، والسياق السابق يحتاج موافقة صريحة منفصلة عبر `allow_context_extraction`.
 
 ## المصادقة وربط الجلسة
 
@@ -30,6 +30,7 @@
 | تنزيل Markdown | `GET /api/sessions/{session_id}/report.md` | تقرير المراجعة بصيغة Markdown. |
 | تنزيل JSON | `GET /api/sessions/{session_id}/report.json` | التقرير المنظم. |
 | سجل التدقيق | `GET /api/sessions/{session_id}/audit` | أحداث التغيير المسجلة للجلسة. |
+| تفضيل صياغة السؤال التكيفي | `PUT /api/sessions/{session_id}/adaptive-question-settings` | حفظ موافقة جلسة مستقلة بعد تمكين الميزة على الخادم. |
 
 كل واجهات الجلسة باستثناء الإنشاء تتطلب `X-Case-Token`. لا تُعرّض هذه الواجهات مباشرة لمتصفح المستخدم إذا كان ذلك سيفضح الرمز؛ اجعل .NET وسيطًا مصادقًا عليه.
 
@@ -42,21 +43,27 @@
   "expected_revision": 7,
   "text": "النص الذي كتبه المستخدم",
   "kind": "answer",
-  "allow_external": false,
-  "allow_external_extraction": false,
-  "allow_context_extraction": false
+  "allow_local_model": false,
+  "allow_context_extraction": false,
+  "allow_adaptive_question": false
 }
 ```
 
-`kind` يقبل `answer` أو `question`. الافتراضات الثلاثة للموافقة `false`. يجوز السماح بصياغة جواب من مقتطفات المصادر عبر `allow_external`، أو باستخراج رسالة المستخدم عبر `allow_external_extraction`. لا يرسل السياق السابق إلا إذا كان استخراج النموذج مسموحًا وأُرسل `allow_context_extraction: true`. لا تعتبر مجرد إعداد Ollama أو المزود موافقة على نقل النص.
+`kind` يقبل `answer` أو `question`. الموافقة على `allow_local_model` لكل إرسال، وعلى `allow_context_extraction` منفصلة لذلك الإرسال؛ كلاهما معطل افتراضيًا. إعداد صياغة سؤال المتابعة محفوظ على مستوى الجلسة من endpoint المذكور، لكنه لا يعمل إلا إذا فعّل المشغل `ACCP_ADAPTIVE_MODEL_QUESTIONS=1` واختار المستخدم ذلك. طلب adaptive لا يرسل نص الرسالة أو الاقتباسات أو معرف الجلسة، بل حقل المقابلة وخصائصًا تصنيفية محدودة. إذا تعذر توليد سؤال مقبول، يعود العرض إلى سؤال القواعد. لا تعتبر مجرد إعداد Ollama موافقة على إرسال نص الرسالة.
 
-تحتوي نتيجة الرسالة على `session`, `report`, `message_plan`, `provider_call`, و`provider_calls` و`timings` بحسب المسار. التوجيه المقبول، والاستخراج المقبول، والرد المستند إلى مصادر، والرجوع إلى القواعد إشارات منفصلة؛ لا تعرض `answer` أو JSON صالح وحده على أنه نجاح استخراج.
+مثال تحديث موافقة الجلسة:
+
+```json
+{"expected_revision": 7, "enabled": true}
+```
+
+تحتوي نتيجة الرسالة على `session`, `report`, `message_plan`, `provider_call`, و`provider_calls` و`timings` بحسب المسار. التوجيه المقبول، والاستخراج المقبول، والرد المستند إلى مصادر، وصياغة السؤال المقبولة، والرجوع إلى القواعد إشارات منفصلة؛ لا تعرض `answer` أو JSON صالح وحده على أنه نجاح استخراج.
 
 ### مقاييس زمن الدور وآثار استدعاء النموذج
 
-يعيد `timings` أجزاءً من زمن طلب API بالمللي ثانية: `request_preflight_ms` لفحوص الطلب السابقة للتغيير، و`message_understanding_ms` لفهم أهداف الرسالة، و`retrieval_ms` لاسترجاع المصادر، و`answer_generation_ms` لتوليد الرد الإرشادي، و`save_ms` للحفظ، و`total_ms` للزمن الكلي المقاس داخل التطبيق. قد تكون مراحل غير مطلوبة صفرًا أو غير منفذة. `provider_preflight_ms` يقبل `null`، وتوضح `provider_preflight_performed` إن كان فحص اتصال منفصل قد حدث؛ لا تستنتج نجاح الاتصال من قياسه أو من الإعداد.
+يعيد `timings` أجزاءً من زمن طلب API بالمللي ثانية: `request_preflight_ms` لفحوص الطلب السابقة للتغيير، و`message_understanding_ms` لفهم أهداف الرسالة، و`retrieval_ms` لاسترجاع المصادر، و`answer_generation_ms` لتوليد الرد الإرشادي، و`adaptive_question_ms` لصياغة سؤال المتابعة، و`save_ms` للحفظ، و`total_ms` للزمن الكلي المقاس داخل التطبيق. قد تكون مراحل غير مطلوبة صفرًا أو غير منفذة. `provider_preflight_ms` يقبل `null`، وتوضح `provider_preflight_performed` إن كان فحص اتصال منفصل قد حدث؛ لا تستنتج نجاح الاتصال من قياسه أو من الإعداد.
 
-`provider_calls` قائمة مرتبة حسب تسلسل الاستدعاءات داخل الدور، وتحمل `purpose` مثل `interview_extraction` أو `grounded_answer`؛ أما فحص التوليد الثابت فيستخدم `provider_generation_test`. وتتضمن العناصر `attempted`, `status`, `result_accepted`, `fallback_used`, `latency_ms`, `failure_code`, `provider`, و`model` بحسب المسار. قد تظهر معلومات محدودة عن موافقة السياق وحجمه، وتظهر أهداف الرسالة المقبولة عند انطباقها. `provider_call` هو ملخص/أثر الاستدعاء الأخير؛ لا تستخدمه بدل القائمة عند وجود أكثر من استدعاء. قد يحتوي أثر آخر استدعاء على `turn_any_result_accepted` و`turn_fallback_used`، وهما يصفان الدور ككل، بينما `result_accepted` و`fallback_used` في كل عنصر يصفان ذلك الاستدعاء.
+`provider_calls` قائمة مرتبة حسب تسلسل الاستدعاءات داخل الدور، وتحمل `purpose` مثل `interview_extraction`, `grounded_answer`, `adaptive_question` أو `provider_generation_test`. وتتضمن العناصر `attempted`, `status`, `result_accepted`, `fallback_used`, `latency_ms`, `failure_code`, `provider`, و`model` بحسب المسار. لا يُحسب قبول سؤال تكيفي نجاحًا لاستخراج الوقائع؛ راجع `adaptive_question.accepted` و`local_model_result_accepted` كلًا على حدة. قد تظهر معلومات محدودة عن سياق adaptive دون القيم الفعلية. `provider_call` هو أثر استدعاء أساسي؛ لا تستخدمه بدل القائمة عند وجود أكثر من استدعاء.
 
 الأزمنة داخل التطبيق تقريبية، ولا تشمل زمن الشبكة بين .NET وPython أو واجهة المستخدم. اجمع `total_ms` مع قياس العميل إذا كان مطلوبًا زمن طرف إلى طرف، ولا تجمع أزمنة المراحل آليًا لأن أجزاء التنفيذ قد تتداخل أو لا تعمل في كل مسار. آثار المزود لا تحتوي نص الطلب أو الاستجابة الخام أو مفاتيح الجلسة أو بيانات الاعتماد؛ لا تضفها إلى سجلات .NET.
 

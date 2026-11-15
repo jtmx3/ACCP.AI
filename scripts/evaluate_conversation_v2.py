@@ -164,8 +164,7 @@ def run_suite(path: Path, mode: str, provider: dict[str, Any],
                     payload = {
                         "expected_revision": before["revision"], "text": turn["text"],
                         "kind": turn_kind,
-                        "allow_external": False,
-                        "allow_external_extraction": extraction_eligible,
+                        "allow_local_model": extraction_eligible,
                         "allow_context_extraction": extraction_eligible and include_bounded_context,
                     }
                     start = time.perf_counter()

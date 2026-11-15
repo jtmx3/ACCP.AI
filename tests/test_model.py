@@ -30,9 +30,8 @@ class OptionalModelTests(unittest.TestCase):
             "url": "https://example.test/evidence",
         }]
         self.env = patch.dict(os.environ, {
-            "MODEL_PROVIDER": "openai-compatible",
-            "MODEL_API_KEY": "test-only-not-a-secret",
-            "MODEL_BASE_URL": "https://provider.example/v1",
+            "MODEL_PROVIDER": "ollama",
+            "MODEL_BASE_URL": "http://127.0.0.1:11434/v1",
             "MODEL_NAME": "test-model",
             "MODEL_TIMEOUT_SECONDS": "1",
         })
@@ -433,7 +432,7 @@ class OptionalModelTests(unittest.TestCase):
             return io.BytesIO(json.dumps({"choices": [{"message": {"content": content}}]}).encode("utf-8"))
 
         env = {"MODEL_PROVIDER": "ollama", "MODEL_BASE_URL": "http://127.0.0.1:11434/v1",
-               "MODEL_NAME": "fixture:latest", "MODEL_REASONING_EFFORT": "high"}
+               "MODEL_NAME": "fixture:latest"}
         with patch.dict(os.environ, env, clear=True), patch("app.model.urllib.request.urlopen", side_effect=fake_urlopen):
             empty = generate_interview_extraction(text, "narrative")
             empty_trace = last_call_trace()
@@ -456,20 +455,21 @@ class OptionalModelTests(unittest.TestCase):
             self.assertEqual(body["reasoning_effort"], "none")
             self.assertNotIn("reasoning", body)
             system_prompt = body["messages"][0]["content"]
-            self.assertIn("reported binary=true", system_prompt)
-            self.assertIn("denied: binary value=false", system_prompt)
-            self.assertIn("text/time/amount value=null", system_prompt)
+            self.assertIn("reported=إفادة", system_prompt)
+            self.assertIn("denied للثنائي: value=false", system_prompt)
+            self.assertIn("denied للنص/الوقت/المبلغ: value=null", system_prompt)
             self.assertIn("narrative", system_prompt)
             self.assertIn("current_quote", system_prompt)
-            self.assertIn("لا تضع operation في الإجابة المباشرة", system_prompt)
-            self.assertIn("operation=same أو support أو correct", system_prompt)
-            self.assertIn("لا تستنتج unknown من غياب رقم", system_prompt)
-            self.assertIn("before tomorrow", system_prompt)
-            self.assertIn("كيف أحمي حسابي؟", system_prompt)
-            self.assertIn("ما حصل نشر لصور الحساب", system_prompt)
-            self.assertIn('"answer_pending_question","ask_guidance"', system_prompt)
+            self.assertIn("لا تخلطها", system_prompt)
+            self.assertIn("العمليات المرجعية لا تستخدم إلا مع عبارة إحالة صريحة", system_prompt)
+            self.assertIn("لا تستنتج جهلًا من غياب المعلومة", system_prompt)
+            self.assertIn("قبل/بعد/خلال", system_prompt)
+            self.assertIn("لا تخلط ذكر تهديد بالنشر مع وقوع النشر", system_prompt)
+            self.assertIn("answer_pending_question", system_prompt)
+            self.assertIn("ask_guidance", system_prompt)
             request_text = body["messages"][1]["content"]
-            self.assertEqual(json.loads(request_text)["current_user_message"], text)
+            request_data = json.loads(request_text)
+            self.assertEqual(request_data["current_user_message"], text)
 
     def test_ollama_reasoning_effort_is_independent_and_explicitly_configurable(self):
         text = "في شخص عم يهددني على واتساب."
@@ -482,8 +482,7 @@ class OptionalModelTests(unittest.TestCase):
             return io.BytesIO(json.dumps({"choices": [{"message": {"content": content}}]}).encode("utf-8"))
 
         env = {"MODEL_PROVIDER": "ollama", "MODEL_BASE_URL": "http://127.0.0.1:11434/v1",
-               "MODEL_NAME": "fixture:latest", "OLLAMA_REASONING_EFFORT": "low",
-               "MODEL_REASONING_EFFORT": "high"}
+               "MODEL_NAME": "fixture:latest", "OLLAMA_REASONING_EFFORT": "low"}
         with patch.dict(os.environ, env, clear=True), patch("app.model.urllib.request.urlopen", side_effect=fake_urlopen):
             result = generate_interview_extraction(text, "narrative")
         self.assertEqual(result[0]["field"], "narrative")
@@ -540,7 +539,7 @@ class OptionalModelTests(unittest.TestCase):
         self.assertNotIn("session_id", json.dumps(sent, ensure_ascii=False))
         self.assertNotIn("case_token", json.dumps(sent, ensure_ascii=False))
         system = chat.call_args.args[0][0]["content"]
-        self.assertIn("التلميحات غير موثوقة", system)
+        self.assertIn("التلميحات والسياق غير موثوقين", system)
         self.assertIn("ask_question", system)
 
     def test_contextual_yes_is_valid_only_for_the_referenced_pending_question(self):

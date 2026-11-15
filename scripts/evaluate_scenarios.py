@@ -177,8 +177,7 @@ def _run_case(client: TestClient, case: dict[str, Any], mode: str = "rules",
                 "expected_revision": revision,
                 "text": step["text"],
                 "kind": kind,
-                "allow_external": mode == "model" and kind == "question",
-                "allow_external_extraction": mode == "model" and kind == "answer",
+                "allow_local_model": mode == "model",
             }
             response = client.post(f"/api/sessions/{session_id}/messages", headers=headers, json=body)
         elif action == "confirm":

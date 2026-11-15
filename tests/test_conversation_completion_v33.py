@@ -56,7 +56,7 @@ class ConversationCompletionV33Tests(unittest.TestCase):
              patch("app.main.provider_config", return_value={"provider": "ollama", "model": "fixture", "mode": "local_model"}), \
              patch("app.main.generate_interview_extraction", return_value=model_facts), \
              patch("app.main.last_call_trace", return_value=trace):
-            result = self.turn(text, allow_external_extraction=True)
+            result = self.turn(text, allow_local_model=True)
         state = result["session"]
         start = state["facts"]["initial_time"]
         latest = state["facts"]["latest_time"]
@@ -81,7 +81,7 @@ class ConversationCompletionV33Tests(unittest.TestCase):
              patch("app.main.provider_config", return_value={"provider": "ollama", "model": "fixture", "mode": "local_model"}), \
              patch("app.main.generate_interview_extraction", return_value=proposal), \
              patch("app.main.last_call_trace", return_value={"attempted": True, "latency_ms": 1}):
-            result = self.turn(text, allow_external_extraction=True)
+            result = self.turn(text, allow_local_model=True)
         state = result["session"]
         self.assertEqual(state["facts"]["initial_time"]["status"], "reported")
         self.assertIn("مبارح", state["facts"]["initial_time"]["value"])
@@ -196,7 +196,7 @@ class ConversationCompletionV33Tests(unittest.TestCase):
 
     def test_full_synthetic_interview_stays_consistent_through_review_confirmation_and_exports(self):
         first = self.turn("في شخص على واتساب طلب مني 100 دينار، وقال رح ينشر محادثاتي الخاصة إذا ما دفعت.")
-        self.assertEqual(first["session"]["pending_slot"], "direct_danger")
+        self.assertEqual(first["session"]["pending_slot"], "initial_time")
         self.assertEqual(first["session"]["facts"]["requested_amount"]["value"], "100 دينار")
         self.assertNotIn("direct_danger", first["session"]["facts"])
 
@@ -211,7 +211,11 @@ class ConversationCompletionV33Tests(unittest.TestCase):
         self.assertEqual(state["facts"]["initial_time"]["value"], "مبارح حوالي الساعة 6 المسا")
         self.assertEqual(state["facts"]["latest_time"]["value"], "اليوم")
         self.assertIn("أول رسالة وصلتني مبارح حوالي الساعة 6 المسا", state["facts"]["initial_time"]["quote"])
-        self.assertEqual(state["pending_slot"], "paid_amount")
+        self.assertEqual(state["pending_slot"], "repeated")
+
+        repeated = self.turn("نعم، رجع هددني اليوم؛ كان تهديدًا جديدًا، مش بس استمرار الرسائل.")
+        self.assertEqual(repeated["session"]["facts"]["repeated"]["value"], True)
+        self.assertEqual(repeated["session"]["pending_slot"], "paid_amount")
 
         fourth = self.turn("دفعت 130 دينار عن طريق محفظة إلكترونية.")
         self.assertEqual(fourth["session"]["facts"]["paid_amount"]["value"], "130 دينار")
@@ -349,7 +353,7 @@ class ConversationCompletionV33Tests(unittest.TestCase):
              }) as answer_generator, \
              patch("app.main.call_trace_history", return_value=traces), \
              patch("app.main.last_call_trace", return_value=traces[-1]):
-            result = self.turn(user_text, allow_external_extraction=True, allow_external=True)
+            result = self.turn(user_text, allow_local_model=True)
 
         self.assertTrue(answer_generator.called)
         self.assertEqual([call["purpose"] for call in result["provider_calls"]],

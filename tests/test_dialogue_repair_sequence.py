@@ -115,6 +115,41 @@ class DialogueRepairSequenceTests(unittest.TestCase):
         self.assertEqual(state["facts"]["sensitive_photos"]["quote"], opening)
         self.assertEqual(state["facts"]["narrative"]["quote"], opening)
 
+    def test_fear_of_publication_clarifies_threat_before_time_without_inventing_evidence(self):
+        opening = "في شخص معي بالجامعة ومعه صوري وأنا خايفة كثير إنه ينشرها أو يبعثها لأهلي."
+        first = self._turn(opening)
+        state = first["session"]
+        self.assertEqual(state["pending_slot"], "publication_threat")
+        self.assertNotIn("evidence", state["facts"])
+        self.assertNotIn("publication_threat", state["facts"])
+        self.assertNotIn("published", state["facts"])
+        self.assertIn("هددك", state["messages"][-1]["text"])
+        self.assertNotIn("متى بدأ", state["messages"][-1]["text"])
+
+        clarified = self._turn("لا، ما هددني، بس خايفة لأنه معه الصور.")
+        state = clarified["session"]
+        self.assertEqual((state["facts"]["publication_threat"]["status"],
+                          state["facts"]["publication_threat"]["value"]), ("denied", False))
+        self.assertEqual(state["facts"]["threat"]["status"], "denied")
+        self.assertEqual(state["pending_slot"], "initial_time")
+
+        time_answer = self._turn("بدأ اليوم الصبح.")
+        state = time_answer["session"]
+        self.assertEqual(state["pending_slot"], "published")
+        self.assertNotIn("evidence", state["facts"])
+
+        publication_answer = self._turn("لا.")
+        state = publication_answer["session"]
+        self.assertEqual(state["facts"]["published"]["status"], "denied")
+        self.assertEqual(state["pending_slot"], "evidence")
+        self.assertNotEqual(state["stage"], "review")
+
+        evidence_answer = self._turn("ما عندي لقطات شاشة محفوظة.")
+        state = evidence_answer["session"]
+        self.assertEqual(state["facts"]["evidence"]["status"], "denied")
+        self.assertEqual(state["stage"], "review")
+        self.assertEqual(state["facts"]["narrative"]["quote"], opening)
+
     def test_unknown_actor_does_not_hide_a_saved_conversation_copy(self):
         text = "الفاعل مجهول بالنسبة إلي، لكن عندي نسخة احتياطية من المحادثة."
         result = self._turn(text)
@@ -123,6 +158,14 @@ class DialogueRepairSequenceTests(unittest.TestCase):
         self.assertEqual(facts["evidence"]["status"], "reported")
         self.assertIn("رسائل أو محادثات", facts["evidence"]["value"])
         self.assertEqual(facts["evidence"]["quote"], text)
+
+    def test_colloquial_spelling_does_not_turn_the_other_persons_photos_into_user_evidence(self):
+        text = "في شب معي بجآمعتي ومعو صوري، وأنا خايفة كير من آنو ينشرهم أو يبعتهم لأهلي."
+        result = self._turn(text)
+        state = result["session"]
+        self.assertEqual(state["pending_slot"], "publication_threat")
+        self.assertNotIn("evidence", state["facts"])
+        self.assertNotIn("published", state["facts"])
 
     def test_current_physical_danger_is_reactive_but_digital_extortion_and_past_events_are_not(self):
         self.assertIs(True, classify_current_danger("أنا بخطر مباشر الآن والشخص واقف قدام بيتي ومعه سكين."))

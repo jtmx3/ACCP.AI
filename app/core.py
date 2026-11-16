@@ -24,6 +24,7 @@ QUESTIONS: dict[str, str] = {
     "paid_amount_relation": "هل المبلغ الجديد دفعة إضافية، أم تصحيح لمبلغ الدفع السابق؟",
     "payment_method": "بأي وسيلة دفعت؟ لا ترسل كلمة مرور أو رمز تحقق.",
     "deadline": "هل حدد الشخص مهلة أو موعدًا للدفع؟",
+    "publication_threat": "هل هددك أو لمح صراحةً أنه سينشر الصور، أم أن الخوف من احتمال ذلك دون تهديد؟",
     "published": "هل نُشر شيء فعلًا، بحسب علمك؟",
     "identity": "هل بتعرف هوية الشخص، ولا المتوفر عندك بس اسم حساب أو رقم تواصل؟",
     "evidence": "شو الأدلة المتوفرة عندك بحسب إفادتك؟ لا ترفع أو ترسل محتوى حساس هون.",
@@ -64,6 +65,7 @@ QUESTION_RATIONALES = {
     "paid_amount_relation": ("لمنع تكرار احتساب التحويل نفسه", "العلاقة بين التحويل الجديد والدفع السابق غير محسومة"),
     "payment_method": ("لتوثيق الوسيلة المذكورة دون طلب بيانات دخول", "وسيلة الدفع غير مذكورة أو ما زالت متعارضة"),
     "deadline": ("للتمييز بين طلب المال ووجود مهلة", "لم تُذكر مهلة الدفع أو نفيها بوضوح"),
+    "publication_threat": ("للفصل بين الخوف من احتمال النشر وتهديد صدر فعلًا", "لم يُحسم هل هدد الشخص بالنشر أم أن القلق من احتمال ذلك فقط"),
     "published": ("للفصل بين التهديد بالنشر وحدوثه فعلًا", "حدوث النشر لم يُحسم بحسب الإفادة"),
     "identity": ("لتمييز هوية الفاعل عن قناة التواصل المتاحة", "هوية الفاعل أو معرف التواصل ما زال غير محسوم"),
     "evidence": ("لتوثيق ما ذكر المستخدم توفره دون طلب رفعه", "نوع الأدلة المتوفرة أو نفيها لم يُحسم"),
@@ -562,12 +564,13 @@ def _evidence_polarity(text: str, allow_bare: bool = False) -> tuple[bool, bool,
         else:
             evidence_terms = r"(?:ايصال|إيصال|حوالة|تحويل)"
         linked_possession = re.search(
-            rf"(?:عندي|معي|احتفظت|محتفظ(?:ة)?|حفظت|لدي)\s+(?:[^،؛.؟]{{0,18}})?{evidence_terms}",
+            rf"(?:عندي|معي|احتفظت|محتفظ(?:ة)?|حفظت|لدي)\s+(?:ب\s*)?"
+            rf"(?:(?:بعض|كم)\s+)?(?:ال)?{evidence_terms}",
             normalized_clause,
         )
         backup_possession = re.search(
-            r"(?:عندي|معي|احتفظت|محتفظ(?:ة)?|حفظت|لدي)\s+نسخة\s+"
-            r"(?:احتياطية\s+)?(?:من\s+)?(?:ال)?(?:محادث|رسائ)",
+            r"(?:عندي|معي|احتفظت|محتفظ(?:ة)?|حفظت|لدي)\s+(?:ب\s*)?(?:نسخة|نسخ)\s+"
+            r"(?:(?:احتياطية|احتياطيه|محفوظة|محفوظه)\s+)?(?:من\s+)?(?:ال)?(?:محادث|رسائ)",
             normalized_clause,
         )
         explicit_capture = any(marker in normalized_clause for marker in (
@@ -977,6 +980,15 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
                 _set_answer(state, "published", yn, "reported" if yn else "denied", text, mid, question_id, changed)
         if any(k in t for k in ("نشرها فعلا", "نشر فعلا", "نزلها", "انتشرت")):
             _set_answer(state, "published", True, "reported", text, mid, question_id, changed)
+    if pending == "publication_threat":
+        if pending_unknown_status:
+            _set_answer(state, "publication_threat", None, pending_unknown_status,
+                        text, mid, question_id, changed)
+        elif (yn := _yes_no(text)) is not None:
+            _set_answer(state, "publication_threat", yn,
+                        "reported" if yn else "denied", text, mid, question_id, changed)
+            if yn:
+                _set_answer(state, "threat", True, "reported", text, mid, question_id, changed)
     if unknown_status and _unknown_targets_publication(text):
         _set_answer(state, "published", None, unknown_status, text, mid, question_id, changed)
     elif any(k in t for k in ("ما نشر", "ما نزل", "لم ينشر", "لم تنشر", "ما اننشرت")):
@@ -1747,6 +1759,8 @@ def _relevant_slots(state: dict[str, Any]) -> list[str]:
         if state["facts"].get("narrative", {}).get("status") != "unresolved":
             slots.append("unclassified_details")
         slots.append("incident_type_review")
+    if profile["publication"] and not _has(state, "publication_threat"):
+        slots.append("publication_threat")
     if profile["threat"] or profile["account_access"] or profile["financial"]:
         slots.extend(("details", "initial_time"))
     elif profile["impersonation"]:

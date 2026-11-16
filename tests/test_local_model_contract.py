@@ -61,6 +61,14 @@ class LocalModelContractTests(unittest.TestCase):
             )
             self.assertEqual(response.status_code, 409, response.text)
 
+    def test_adaptive_option_is_available_with_local_ollama_but_can_be_disabled(self):
+        env = {"MODEL_PROVIDER": "ollama", "MODEL_BASE_URL": "http://127.0.0.1:11434/v1",
+               "MODEL_NAME": "synthetic-local-test"}
+        with patch.dict(os.environ, env, clear=True):
+            self.assertTrue(provider_config()["adaptive_question_generation_enabled"])
+        with patch.dict(os.environ, {**env, "ACCP_ADAPTIVE_MODEL_QUESTIONS": "0"}, clear=True):
+            self.assertFalse(provider_config()["adaptive_question_generation_enabled"])
+
     def test_provider_accepts_loopback_ollama_and_rejects_remote_provider_or_endpoint(self):
         for url in ("http://127.0.0.1:11434/v1", "http://localhost:11434/v1",
                     "http://[::1]:11434/v1"):
@@ -99,7 +107,7 @@ class LocalModelContractTests(unittest.TestCase):
             self.assertEqual(settings.status_code, 200, settings.text)
             revision = settings.json()["session"]["revision"]
 
-            generated = {"question": "متى بدأ أول تواصل تقريبًا؟"}
+            generated = {"question": "وبالنسبة لأول تواصل، متى بلش تقريبًا؟"}
             completion = {"choices": [{"message": {"content": json.dumps(generated, ensure_ascii=False)}}]}
             captured = {}
 
@@ -136,8 +144,15 @@ class LocalModelContractTests(unittest.TestCase):
             bounded = json.loads(user_content)
             self.assertEqual(bounded["pending_slot"], "initial_time")
             self.assertIn("features", bounded["safe_context"])
+            self.assertEqual(bounded["safe_context"]["field_label"], "وقت بدء التصرف أو أول تواصل")
+            self.assertTrue(bounded["safe_context"]["question_goal"])
+            self.assertTrue(bounded["safe_context"]["missing_condition"])
+            self.assertIn("لهجة أردنية", bounded["safe_context"]["language_style"])
             self.assertNotIn("messages", bounded["safe_context"])
             self.assertNotIn("quotes", bounded["safe_context"])
+            system_prompt = captured["body"]["messages"][0]["content"]
+            self.assertIn("لا أن تنسخ base_question", system_prompt)
+            self.assertIn("جزء الناقص", system_prompt)
 
     def test_adaptive_question_validator_blocks_safety_and_sensitive_identifier_requests(self):
         context = {"base_question": "ما وسيلة التواصل المتاحة؟", "recent_bot_questions": [],

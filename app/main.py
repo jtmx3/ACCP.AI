@@ -100,6 +100,7 @@ def _saved_platform_for_guidance(state: dict) -> tuple[str | None, bool]:
 def _sanitized_adaptive_question_context(state: dict, slot: str) -> dict:
     """No raw messages, quotes, session identifiers, names, amounts, or contact IDs."""
     features = _incident_features(state)
+    plan = question_plan(state, slot) or {}
     feature_allowlist = {
         "threat", "impersonation", "publication_threat", "published_status", "sensitive_photos",
         "ai_fabricated", "age_or_minor_mentioned", "local_payment_method_named", "deadline_known",
@@ -108,7 +109,11 @@ def _sanitized_adaptive_question_context(state: dict, slot: str) -> dict:
     question_history = state.get("question_history", [])
     recent_slots = [item.get("slot") for item in question_history[-4:] if isinstance(item, dict)]
     recent = [compose_question(state, previous) for previous in recent_slots if previous in QUESTIONS]
-    return {"base_question": compose_question(state, slot),
+    return {"field_label": plan.get("field_label"),
+            "question_goal": plan.get("reason"),
+            "missing_condition": plan.get("condition"),
+            "language_style": "لهجة أردنية محكية بسيطة ومحترمة",
+            "base_question": compose_question(state, slot),
             "recent_bot_questions": list(dict.fromkeys(recent[-3:])),
             "features": {key: features.get(key) for key in sorted(feature_allowlist)}}
 

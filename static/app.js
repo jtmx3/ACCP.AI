@@ -464,7 +464,7 @@
           const provider = providerLabel(result.provider_call?.provider || providerConfig?.provider);
           const adaptiveTrace = (result.provider_calls || []).find(call => call.purpose === 'adaptive_question');
           const purpose = result.local_model_purpose === 'adaptive_question'
-            ? 'اسم الحقل وخصائص تصنيفية محدودة لصياغة سؤال المتابعة، دون نص الرسالة أو الاقتباسات'
+            ? 'سبب الخانة والجزء الناقص وخصائص تصنيفية محدودة لصياغة سؤال المتابعة، دون نص الرسالة أو الاقتباسات'
             : result.local_model_purpose === 'grounded_question'
             ? 'نص السؤال الحالي ومقتطفات المصادر المختارة'
             : result.local_context_sent
@@ -484,7 +484,7 @@
           if (result.local_model_purpose === 'adaptive_question') {
             if (result.adaptive_question?.accepted) {
               $('runtime-mode').textContent = 'نموذج Ollama المحلي — صيغ سؤال متابعة بعد التحقق.';
-              setStatus('استُخدمت خصائص تصنيفية محدودة فقط لصياغة سؤال المتابعة؛ لم يُرسل نص الرسالة أو الاقتباسات.', true, ctx);
+              setStatus('صيغ السؤال حسب هدف الخانة والخصائص التصنيفية فقط؛ لم يُرسل نص الرسالة أو اقتباساتها.', true, ctx);
               $('runtime-detail').textContent = `سؤال المتابعة اجتاز التحقق. زمن الاستجابة ${latency} مللي ثانية؛ لا يمثل ذلك نجاح استخراج وقائع.`;
             } else {
               $('runtime-mode').textContent = 'القواعد المحلية — استُبعد اقتراح السؤال التكيفي.';

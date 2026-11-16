@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from app.model import ALLOWED_EXTRACTION_FIELDS
+from app.model import ALLOWED_EXTRACTION_FIELDS, _update_call_trace
 from scripts.evaluate_scenarios import (
     _candidate_matches,
     _candidate_oracle_class,
@@ -14,6 +14,14 @@ from scripts.evaluate_scenarios import (
     _safe_response_diagnostic,
     run,
 )
+
+
+def _mock_provider_attempt(value):
+    def respond(*_args, **_kwargs):
+        _update_call_trace(attempted=True, status="rejected" if value is None else "extracted",
+                           latency_ms=1.0, result_accepted=value is not None)
+        return value
+    return respond
 
 
 class ModelEvaluationPolicyTests(unittest.TestCase):
@@ -89,7 +97,7 @@ class ModelEvaluationPolicyTests(unittest.TestCase):
                      "service_reachable": True, "model_available": True}), \
                  patch("scripts.evaluate_scenarios.test_provider_generation", return_value={"success": True}), \
                  patch("app.main.model_configured", return_value=True), \
-                 patch("app.main.generate_interview_extraction", return_value=None), \
+                 patch("app.main.generate_interview_extraction", side_effect=_mock_provider_attempt(None)), \
                  patch("scripts.evaluate_scenarios.last_extraction_diagnostic", return_value={
                      "accepted": False, "json_valid": True, "schema_valid": True,
                      "rejection_code": "quote_mismatch", "rejection_detail": "synthetic quote mismatch",
@@ -128,8 +136,8 @@ class ModelEvaluationPolicyTests(unittest.TestCase):
                      "service_reachable": True, "model_available": True}), \
                  patch("scripts.evaluate_scenarios.test_provider_generation", return_value={"success": True}), \
                  patch("app.main.model_configured", return_value=True), \
-                 patch("app.main.generate_interview_extraction", return_value=[{
-                     "field": "threat", "status": "reported", "value": True, "quote": "هددني"}]), \
+                 patch("app.main.generate_interview_extraction", side_effect=_mock_provider_attempt([{
+                     "field": "threat", "status": "reported", "value": True, "quote": "هددني"}])), \
                  patch("scripts.evaluate_scenarios.last_extraction_diagnostic", return_value={
                      "accepted": True, "json_valid": True, "schema_valid": True,
                      "facts": [{"field": "threat", "status": "reported", "value": True, "quote": "هددني"}],

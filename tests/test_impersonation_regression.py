@@ -88,6 +88,19 @@ class ArabicImpersonationRegressionTests(unittest.TestCase):
                 self.assertEqual(state["facts"]["details"]["status"], "reported")
                 self.assert_fact_source(state, "impersonation", text)
 
+    def test_profile_talking_to_colleagues_as_if_it_were_the_user_is_impersonation(self):
+        state = new_state("synthetic-v2-e03-impersonation")
+        first = "اليوم لقيت حسابًا مزيفًا على إنستغرام حاط اسمي وصورتي وبيحكي مع زملائي كأنه أنا."
+        second = "الحساب يرسل لهم رسائل باسمي ويطلب منهم تحويل المال."
+        handle_turn(state, first)
+        handle_turn(state, second)
+        self.assertEqual(state["facts"]["impersonation"]["status"], "reported")
+        self.assertIs(state["facts"]["impersonation"]["value"], True)
+        self.assertEqual(state["facts"]["platform"]["value"], "إنستغرام")
+        self.assertEqual(state["facts"]["details"]["status"], "reported")
+        self.assertNotIn("account_access", state["facts"])
+        self.assert_fact_source(state, "impersonation", first)
+
     def test_name_photo_lookalike_and_fan_cases_are_not_auto_classified(self):
         for index, text in enumerate(CASES["negative_boundaries"]):
             with self.subTest(text=text):
@@ -101,19 +114,22 @@ class ArabicImpersonationRegressionTests(unittest.TestCase):
                     self.assertIsNone(fact, "name/photo similarity, an unknown claim, or fan account is not proof of impersonation")
                 self.assertNotIn("account_access", state["facts"])
 
-    def test_conflicting_mocked_model_facts_do_not_override_local_rule_results(self):
+    def test_conflicting_mocked_model_facts_create_user_resolvable_conflicts(self):
         state = new_state("synthetic-impersonation-mocked-merge")
         text = CASES["sequence"][0]
         handle_turn(state, text, model_facts=[
             {"field": "impersonation", "status": "denied", "value": False, "quote": text},
             {"field": "evidence", "status": "denied", "value": None, "quote": text},
         ])
-        self.assertIs(state["facts"]["impersonation"]["value"], True)
-        self.assertEqual(state["facts"]["evidence"]["status"], "reported")
+        for field in ("impersonation", "evidence"):
+            fact = state["facts"][field]
+            self.assertEqual(fact["status"], "conflict")
+            self.assertEqual({item["source"] for item in fact["alternatives"]}, {"rules", "model"})
+            self.assertEqual({item["status"] for item in fact["alternatives"]}, {"reported", "denied"})
         dispositions = {(item["field"], item["disposition"]) for item in last_model_merge_trace()}
-        self.assertIn(("impersonation", "superseded_by_rules"), dispositions)
-        self.assertIn(("evidence", "superseded_by_rules"), dispositions)
-        # Synthetic proposals above test merge precedence only, not a real provider call.
+        self.assertIn(("impersonation", "conflict_created"), dispositions)
+        self.assertIn(("evidence", "conflict_created"), dispositions)
+        # Synthetic proposals above test disagreement recording only, not a real provider call.
 
 
 if __name__ == "__main__":

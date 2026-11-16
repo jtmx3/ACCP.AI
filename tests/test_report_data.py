@@ -20,6 +20,14 @@ class ReportDataTests(unittest.TestCase):
                 "field": "identity", "status": "unknown", "value": None,
                 "quote": "ما بعرف هويته", "message_id": "m2", "updated_at": update_time,
             },
+            "contact_identifier_disclosure": {
+                "field": "contact_identifier_disclosure", "status": "declined", "value": None,
+                "quote": "ما بدي أكتبه هون", "message_id": "m2", "updated_at": update_time,
+            },
+            "payment_method": {
+                "field": "payment_method", "status": "not_remembered", "value": None,
+                "quote": "ما بتذكر وسيلة الدفع", "message_id": "m2", "updated_at": update_time,
+            },
         }
         state["money_events"] = [{
             "id": "money-1", "kind": "requested", "amount": "100 دينار", "relation": "unresolved",
@@ -30,6 +38,10 @@ class ReportDataTests(unittest.TestCase):
         exported = report_data(state)
         self.assertEqual(exported["field_labels"]["platform"], "المنصة")
         self.assertIn("identity", exported["unknown_fields"])
+        self.assertNotIn("contact_identifier_disclosure", exported["unknown_fields"])
+        self.assertIn("contact_identifier_disclosure", exported["declined_fields"])
+        self.assertNotIn("payment_method", exported["unknown_fields"])
+        self.assertIn("payment_method", exported["not_remembered_fields"])
         self.assertIn("platform", exported["conflicting_fields"])
         self.assertEqual(len(exported["unresolved_money_events"]), 1)
         self.assertEqual(exported["facts"]["platform"]["source_message_at"], source_time)
@@ -41,6 +53,9 @@ class ReportDataTests(unittest.TestCase):
         self.assertIn("- الحالة: تعارض فعلي يحتاج إلى توضيح", markdown)
         self.assertIn("- القيمة: لا توجد قيمة مثبتة لهذا الحقل", markdown)
         self.assertIn("التعارضات الفعلية: المنصة", markdown)
+        self.assertIn("غير معروفة للمستخدم: هوية الشخص", markdown)
+        self.assertIn("لا يتذكرها المستخدم: وسيلة الدفع", markdown)
+        self.assertIn("فضّل المستخدم عدم الإفصاح: الإفصاح عن معرّف التواصل", markdown)
         self.assertIn("علاقة مبلغ غير محسومة", markdown)
         self.assertIn(f"وقت الرسالة الأصلية: {source_time}", markdown)
         self.assertIn(f"وقت آخر تحديث للمعلومة: {update_time}", markdown)

@@ -31,7 +31,7 @@ class ConversationV2EvaluatorTests(unittest.TestCase):
                  "extraction_outcome": "extracted", "result_accepted": True}
         diagnostic = {"accepted": True, "filtered_facts": [], "filtered_fact_code_counts": {}}
         provider = {"provider": "synthetic", "model": "synthetic-fixture", "configuration_complete": True,
-                    "mode": "external_model"}
+                    "mode": "local_model"}
 
         with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as temp_dir:
             path = Path(temp_dir) / "suite.json"
@@ -56,7 +56,8 @@ class ConversationV2EvaluatorTests(unittest.TestCase):
         self.assertEqual(model_result["model_expected_fact_omissions"], 0)
         self.assertEqual(model_result["model_forbidden_additions"], 0)
         self.assertEqual(model_result["integrated_api_fallbacks_not_counted_as_model_success"], 0)
-        self.assertGreaterEqual(model_result["integrated_model_proposals_superseded_by_rules"], 1)
+        self.assertGreaterEqual(model_result["integrated_model_proposals_applied_as_conflicts"], 1)
+        self.assertEqual(model_result["integrated_model_proposals_superseded_by_rules"], 0)
         self.assertEqual(rules_result["mode"], "rules")
         self.assertEqual(rules_result["model_extraction_eligible_turns"], 0)
         self.assertEqual(rules_result["provider_calls_attempted"], 0)

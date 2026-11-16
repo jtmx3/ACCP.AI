@@ -164,8 +164,7 @@ def run_suite(path: Path, mode: str, provider: dict[str, Any],
                     payload = {
                         "expected_revision": before["revision"], "text": turn["text"],
                         "kind": turn_kind,
-                        "allow_external": False,
-                        "allow_external_extraction": extraction_eligible,
+                        "allow_local_model": extraction_eligible,
                         "allow_context_extraction": extraction_eligible and include_bounded_context,
                     }
                     start = time.perf_counter()
@@ -191,7 +190,7 @@ def run_suite(path: Path, mode: str, provider: dict[str, Any],
                         disposition = item.get("disposition")
                         if disposition in {"applied", "applied_correction"}:
                             merge_applied += 1
-                        elif disposition == "applied_conflict":
+                        elif disposition in {"applied_conflict", "conflict_created"}:
                             merge_applied += 1
                             merge_applied_conflict += 1
                         elif disposition == "agrees_with_rules":

@@ -1,0 +1,3771 @@
+{
+  "evaluation_version": "conversation-v3-3.1",
+  "mode": "rules",
+  "suite_id": "ACCP-CONVERSATION-V3-GUIDANCE-SCOPE-01",
+  "suite_version": "conversation-v3-3-guidance-scope-1",
+  "frozen_expectations_file": "tests/conversation_v3_guidance_scoped.json",
+  "synthetic_internal_cases": true,
+  "frozen_before_application_fixes": false,
+  "expectations_locked_before_evaluation": true,
+  "suite_provenance": "Separate synthetic edition prepared before evaluation. Derived from the frozen v3 acceptance suite; only the two platform-free account-security citation assumptions in V3-Q01 and V3-Q12 are corrected. The original suite and historical reports remain unchanged.",
+  "known_holdout_regressions_are_not_unseen": true,
+  "provider_configured": false,
+  "provider": {
+    "provider": "rules",
+    "mode": "rules",
+    "model": null
+  },
+  "with_bounded_context": false,
+  "model_eligible_turns": 0,
+  "provider_attempts": 0,
+  "provider_fallback_rate": null,
+  "provider_accepted_responses": 0,
+  "provider_rejected_responses": 0,
+  "provider_extractions_with_accepted_facts": 0,
+  "provider_accepted_fact_count": 0,
+  "provider_fallbacks": 0,
+  "provider_fallback_categories": {},
+  "provider_extraction_outcomes": {},
+  "accepted_fact_merge_dispositions": {},
+  "accepted_facts_ignored_by_merge": 0,
+  "accepted_facts_routed_to_rules": 0,
+  "accepted_facts_applied_as_corrections": 0,
+  "accepted_facts_preserved_as_conflicts": 0,
+  "turns_with_accepted_facts_ignored_by_merge": 0,
+  "integrated_system": {
+    "passed_cases": 14,
+    "total_cases": 18,
+    "case_rate": 0.7777777777777778,
+    "passed_assertions": 73,
+    "total_assertions": 78,
+    "assertion_rate": 0.9358974358974359
+  },
+  "model_extraction_only": {
+    "expected_fact_checks": 0,
+    "matched_facts": 0,
+    "omitted_or_mismatched_facts": 0,
+    "extraction_match_rate": null,
+    "forbidden_field_checks": 0,
+    "unsupported_forbidden_proposals": 0
+  },
+  "guidance": {
+    "answer_and_topic_checks_passed": 12,
+    "answer_and_topic_checks": 12,
+    "rate": 1.0
+  },
+  "repeat_question_checks": {
+    "checked": 3,
+    "repeated_or_unresolved": 0
+  },
+  "latency": {
+    "provider_latency_p50_ms": null,
+    "provider_latency_p95_ms": null,
+    "first_provider_request_ms": null,
+    "subsequent_provider_p50_ms": null,
+    "subsequent_provider_p95_ms": null,
+    "model_pipeline_elapsed_p50_ms": null,
+    "integration_elapsed_p50_ms": 8.111,
+    "integration_elapsed_p95_ms": 15.629,
+    "turn_total_elapsed_p50_ms": 8.111,
+    "turn_total_elapsed_p95_ms": 15.629
+  },
+  "turn_count": 25,
+  "results": [
+    {
+      "case_id": "V3-Q01-account-protection-no-question-mark",
+      "known_prior_holdout_regression": false,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "كيف أحمي حسابي",
+          "expected": {
+            "no_fact_fields": [
+              "narrative"
+            ],
+            "assistant_answer": true,
+            "no_citations": true,
+            "answer_contains": "أي تطبيق"
+          },
+          "http_status": 200,
+          "model_extraction": {
+            "eligible": false,
+            "elapsed_ms": null,
+            "provider_latency_ms": null,
+            "integration_elapsed_ms": 16.44,
+            "turn_total_elapsed_ms": 16.44,
+            "provider_call": {},
+            "diagnostic": {},
+            "proposals": []
+          },
+          "pending_slot": "narrative",
+          "stage": "interview",
+          "facts": {},
+          "money_events": [],
+          "money_corrections": [],
+          "new_assistant_messages": [
+            {
+              "id": "m3",
+              "role": "assistant",
+              "text": "لأي تطبيق تقصد؟ اذكر اسم التطبيق، مثل واتساب أو إنستغرام، لأعرض إرشادات موثقة تخصه فقط.",
+              "created_at": "2026-11-08T18:39:22+00:00",
+              "kind": "guidance_clarification",
+              "citations": [],
+              "external_model_used": false
+            }
+          ],
+          "external_data_sent": false,
+          "fallback_used": false,
+          "extraction_outcome": null,
+          "message_plan_applied": false,
+          "model_turn_metrics": {
+            "attempted": false,
+            "fallback_used": false,
+            "fallback_category": null,
+            "extraction_outcome": null,
+            "response_valid": null,
+            "facts_accepted": false,
+            "accepted_fact_count": 0,
+            "accepted_then_merge_rejected_fields": [],
+            "accepted_then_merge_rejected": false,
+            "accepted_fact_merge_dispositions": {},
+            "accepted_facts_routed_to_rules_fields": [],
+            "accepted_facts_applied_as_corrections_fields": [],
+            "accepted_facts_preserved_as_conflicts_fields": []
+          },
+          "model_merge_trace": [],
+          "checks": [
+            {
+              "check": "no_fact:narrative",
+              "passed": true,
+              "detail": "absent"
+            },
+            {
+              "check": "assistant_answer",
+              "passed": true,
+              "detail": [
+                {
+                  "kind": "guidance_clarification",
+                  "text": "لأي تطبيق تقصد؟ اذكر اسم التطبيق، مثل واتساب أو إنستغرام، لأعرض إرشادات موثقة تخصه فقط.",
+                  "citations": []
+                }
+              ]
+            },
+            {
+              "check": "answer_contains",
+              "passed": true,
+              "detail": "لأي تطبيق تقصد؟ اذكر اسم التطبيق، مثل واتساب أو إنستغرام، لأعرض إرشادات موثقة تخصه فقط."
+            },
+            {
+              "check": "no_citations",
+              "passed": true,
+              "detail": []
+            }
+          ],
+          "passed": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case_id": "V3-Q02-time-and-evidence-guidance-in-one-message",
+      "known_prior_holdout_regression": false,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "قبل ساعتين بدأت الواقعة، كيف أوثق الأدلة؟",
+          "expected": {
+            "facts": {
+              "initial_time": {
+                "status": "reported",
+                "value_contains": "قبل ساعتين"
+              }
+            },
+            "assistant_answer": true,
+            "citation_topic": "evidence",
+            "single_followup": true
+          },
+          "http_status": 200,
+          "model_extraction": {
+            "eligible": false,
+            "elapsed_ms": null,
+            "provider_latency_ms": null,
+            "integration_elapsed_ms": 16.704,
+            "turn_total_elapsed_ms": 16.704,
+            "provider_call": {},
+            "diagnostic": {},
+            "proposals": []
+          },
+          "pending_slot": "unclassified_details",
+          "stage": "interview",
+          "facts": {
+            "initial_time": {
+              "field": "initial_time",
+              "status": "reported",
+              "value": "قبل ساعتين",
+              "quote": "قبل ساعتين بدأت الواقعة",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "narrative": {
+              "field": "narrative",
+              "status": "reported",
+              "value": "قبل ساعتين بدأت الواقعة",
+              "quote": "قبل ساعتين بدأت الواقعة",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            }
+          },
+          "money_events": [],
+          "money_corrections": [],
+          "new_assistant_messages": [
+            {
+              "id": "m3",
+              "role": "assistant",
+              "text": "سجلت الجزء الذي ذكرته في مسودة الإفادة.\n\nخطوات مختصرة من مصادر موثقة؛ لا أفترض بلدك، والمصادر الوطنية لا تمثل مسارًا محليًا خارجه:\n1. دوّن اسم المنصة ورابط الحساب أو المحتوى واسم المستخدم والتاريخ والوقت والسياق.\n2. احتفظ بلقطات الشاشة التي توثق المحتوى والحساب، إن كان ذلك آمنًا ومسموحًا.\n3. المصدر أسترالي؛ هذه نقاط توثيق عامة وليست إجراء إبلاغ محليًا. لا ترفع الأدلة إلى التطبيق.\nنطاق المصادر: إرشاد عام من مصدر وطني؛ لا يمثل قانونًا أو جهة محلية.\nافتح تفاصيل المصدر لقراءة المقتطف والنطاق. هذه معلومات عامة لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية؛ لا أضيف استنتاجًا يتجاوز المصادر.",
+              "created_at": "2026-11-08T18:39:22+00:00",
+              "kind": "answer",
+              "citations": [
+                {
+                  "id": "AU-ESAFETY-EVIDENCE-2026",
+                  "title": "How to collect evidence",
+                  "publisher": "eSafety Commissioner, Australian Government",
+                  "url": "https://www.esafety.gov.au/report/how-to-collect-evidence",
+                  "published_or_updated": "2026-05-14",
+                  "ingested_at": "2026-11-06",
+                  "geography": "AU",
+                  "guidance_scope": "general_practice",
+                  "topics": [
+                    "evidence_preservation"
+                  ],
+                  "platforms": [],
+                  "scope_note": "إرشاد عام من مصدر وطني؛ لا يمثل قانونًا أو جهة محلية.",
+                  "content_version": "2026-11-06.1",
+                  "excerpt": "لحفظ الأدلة ومعلومات عن إساءة أو تواصل إلكتروني، توصي eSafety الأسترالية بتسجيل المنصة المستخدمة، وروابط المحتوى أو الحسابات، وأسماء المستخدمين، والتواريخ والأوقات، والسياق أو تكرار التواصل."
+                }
+              ],
+              "external_model_used": false
+            },
+            {
+              "id": "m4",
+              "role": "assistant",
+              "text": "ما قدرت أحدد نوع الواقعة من الوصف وحده. ممكن توضح شو حدث خطوة بخطوة أو شو الرسالة أو التصرف اللي وصلك؟",
+              "created_at": "2026-11-08T18:39:22+00:00",
+              "kind": "question",
+              "question_plan": {
+                "slot": "unclassified_details",
+                "field_label": "توضيح واقعة غير مصنفة",
+                "reason": "لتحديد نوع الواقعة من وصف المستخدم لا من التخمين",
+                "condition": "الوصف الحالي لا يحدد تصرفًا أو واقعة واضحة"
+              }
+            }
+          ],
+          "external_data_sent": false,
+          "fallback_used": false,
+          "extraction_outcome": null,
+          "message_plan_applied": false,
+          "model_turn_metrics": {
+            "attempted": false,
+            "fallback_used": false,
+            "fallback_category": null,
+            "extraction_outcome": null,
+            "response_valid": null,
+            "facts_accepted": false,
+            "accepted_fact_count": 0,
+            "accepted_then_merge_rejected_fields": [],
+            "accepted_then_merge_rejected": false,
+            "accepted_fact_merge_dispositions": {},
+            "accepted_facts_routed_to_rules_fields": [],
+            "accepted_facts_applied_as_corrections_fields": [],
+            "accepted_facts_preserved_as_conflicts_fields": []
+          },
+          "model_merge_trace": [],
+          "checks": [
+            {
+              "check": "fact:initial_time",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "assistant_answer",
+              "passed": true,
+              "detail": [
+                {
+                  "kind": "answer",
+                  "text": "سجلت الجزء الذي ذكرته في مسودة الإفادة.\n\nخطوات مختصرة من مصادر موثقة؛ لا أفترض بلدك، والمصادر الوطنية لا تمثل مسارًا محليًا خارجه:\n1. دوّن اسم المنصة ورابط الحساب أو المحتوى واسم المستخدم والتاريخ والوقت والسياق.\n2. احتفظ بلقطات الشاشة التي توثق المحتوى والحساب، إن كان ذلك آمنًا ومسموحًا.\n3. المصدر أسترالي؛ هذه نقاط توثيق عامة وليست إجراء إبلاغ محليًا. لا ترفع الأدلة إلى التطبيق.\nنطاق المصادر: إرشاد عام من مصدر وطني؛ لا يمثل قانونًا أو جهة محلية.\nافتح تفاصيل المصدر لقراءة المقتطف والنطاق. هذه معلومات عامة لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية؛ لا أضيف استنتاجًا يتجاوز المصادر.",
+                  "citations": [
+                    {
+                      "id": "AU-ESAFETY-EVIDENCE-2026",
+                      "title": "How to collect evidence",
+                      "publisher": "eSafety Commissioner, Australian Government",
+                      "url": "https://www.esafety.gov.au/report/how-to-collect-evidence",
+                      "published_or_updated": "2026-05-14",
+                      "ingested_at": "2026-11-06",
+                      "geography": "AU",
+                      "guidance_scope": "general_practice",
+                      "topics": [
+                        "evidence_preservation"
+                      ],
+                      "platforms": [],
+                      "scope_note": "إرشاد عام من مصدر وطني؛ لا يمثل قانونًا أو جهة محلية.",
+                      "content_version": "2026-11-06.1",
+                      "excerpt": "لحفظ الأدلة ومعلومات عن إساءة أو تواصل إلكتروني، توصي eSafety الأسترالية بتسجيل المنصة المستخدمة، وروابط المحتوى أو الحسابات، وأسماء المستخدمين، والتواريخ والأوقات، والسياق أو تكرار التواصل."
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "check": "single_followup",
+              "passed": true,
+              "detail": [
+                {
+                  "kind": "question",
+                  "text": "ما قدرت أحدد نوع الواقعة من الوصف وحده. ممكن توضح شو حدث خطوة بخطوة أو شو الرسالة أو التصرف اللي وصلك؟"
+                }
+              ]
+            },
+            {
+              "check": "citation_topic:evidence",
+              "passed": true,
+              "detail": [
+                "AU-ESAFETY-EVIDENCE-2026"
+              ]
+            }
+          ],
+          "passed": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case_id": "V3-Q03-recurrence-denial-and-guidance-mixed-turn",
+      "known_prior_holdout_regression": false,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
+          "expected": {
+            "facts": {
+              "platform": {
+                "status": "reported"
+              },
+              "requested_amount": {
+                "status": "reported",
+                "value_contains": "100"
+              },
+              "initial_time": {
+                "status": "reported"
+              },
+              "publication_threat": {
+                "status": "reported",
+                "value": true
+              }
+            },
+            "pending_slot": "direct_danger"
+          },
+          "http_status": 200,
+          "model_extraction": {
+            "eligible": false,
+            "elapsed_ms": null,
+            "provider_latency_ms": null,
+            "integration_elapsed_ms": 9.592,
+            "turn_total_elapsed_ms": 9.592,
+            "provider_call": {},
+            "diagnostic": {},
+            "proposals": []
+          },
+          "pending_slot": "direct_danger",
+          "stage": "interview",
+          "facts": {
+            "initial_time": {
+              "field": "initial_time",
+              "status": "reported",
+              "value": "مبارح",
+              "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "platform": {
+              "field": "platform",
+              "status": "reported",
+              "value": "واتساب",
+              "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "details": {
+              "field": "details",
+              "status": "reported",
+              "value": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
+              "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "publication_threat": {
+              "field": "publication_threat",
+              "status": "reported",
+              "value": true,
+              "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "threat": {
+              "field": "threat",
+              "status": "reported",
+              "value": true,
+              "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "narrative": {
+              "field": "narrative",
+              "status": "reported",
+              "value": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
+              "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "requested_amount": {
+              "field": "requested_amount",
+              "status": "reported",
+              "value": "100 دينار",
+              "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            }
+          },
+          "money_events": [
+            {
+              "id": "money-1",
+              "kind": "requested",
+              "amount": "100 دينار",
+              "relation": "initial",
+              "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
+              "message_id": "m2",
+              "question_id": "m1",
+              "created_at": "2026-11-08T18:39:22+00:00"
+            }
+          ],
+          "money_corrections": [],
+          "new_assistant_messages": [
+            {
+              "id": "m3",
+              "role": "assistant",
+              "text": "هل أنت بخطر مباشر الآن؟",
+              "created_at": "2026-11-08T18:39:22+00:00",
+              "kind": "question",
+              "question_plan": {
+                "slot": "direct_danger",
+                "field_label": "الخطر المباشر الحالي",
+                "reason": "للتحقق من الحاجة إلى مسار السلامة الآن",
+                "condition": "لم تُحسم حالة الخطر المباشر الحالي"
+              }
+            }
+          ],
+          "external_data_sent": false,
+          "fallback_used": false,
+          "extraction_outcome": null,
+          "message_plan_applied": false,
+          "model_turn_metrics": {
+            "attempted": false,
+            "fallback_used": false,
+            "fallback_category": null,
+            "extraction_outcome": null,
+            "response_valid": null,
+            "facts_accepted": false,
+            "accepted_fact_count": 0,
+            "accepted_then_merge_rejected_fields": [],
+            "accepted_then_merge_rejected": false,
+            "accepted_fact_merge_dispositions": {},
+            "accepted_facts_routed_to_rules_fields": [],
+            "accepted_facts_applied_as_corrections_fields": [],
+            "accepted_facts_preserved_as_conflicts_fields": []
+          },
+          "model_merge_trace": [],
+          "checks": [
+            {
+              "check": "fact:platform",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "fact:requested_amount",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "fact:initial_time",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "fact:publication_threat",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "pending_slot",
+              "passed": true,
+              "detail": "direct_danger"
+            }
+          ],
+          "passed": true
+        },
+        {
+          "turn": 2,
+          "text": "لا، ما في خطر مباشر علي الآن، بس اليوم رجع هددني. كيف أوثق الأدلة؟",
+          "expected": {
+            "facts": {
+              "direct_danger": {
+                "status": "denied",
+                "value": false
+              },
+              "repeated": {
+                "status": "reported",
+                "value": true
+              },
+              "latest_time": {
+                "status": "reported",
+                "value_contains": "اليوم"
+              }
+            },
+            "assistant_answer": true,
+            "citation_topic": "evidence",
+            "single_followup": true,
+            "not_pending": [
+              "direct_danger",
+              "repeated"
+            ]
+          },
+          "http_status": 200,
+          "model_extraction": {
+            "eligible": false,
+            "elapsed_ms": null,
+            "provider_latency_ms": null,
+            "integration_elapsed_ms": 12.385,
+            "turn_total_elapsed_ms": 12.385,
+            "provider_call": {},
+            "diagnostic": {},
+            "proposals": []
+          },
+          "pending_slot": "paid_amount",
+          "stage": "interview",
+          "facts": {
+            "initial_time": {
+              "field": "initial_time",
+              "status": "reported",
+              "value": "مبارح",
+              "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "platform": {
+              "field": "platform",
+              "status": "reported",
+              "value": "واتساب",
+              "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "details": {
+              "field": "details",
+              "status": "reported",
+              "value": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
+              "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "publication_threat": {
+              "field": "publication_threat",
+              "status": "reported",
+              "value": true,
+              "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "threat": {
+              "field": "threat",
+              "status": "reported",
+              "value": true,
+              "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": [],
+              "supporting_statements": [
+                {
+                  "quote": "لا، ما في خطر مباشر علي الآن، بس اليوم رجع هددني",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "at": "2026-11-08T18:39:22+00:00"
+                }
+              ]
+            },
+            "narrative": {
+              "field": "narrative",
+              "status": "reported",
+              "value": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
+              "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "requested_amount": {
+              "field": "requested_amount",
+              "status": "reported",
+              "value": "100 دينار",
+              "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "direct_danger": {
+              "field": "direct_danger",
+              "status": "denied",
+              "value": false,
+              "quote": "لا، ما في خطر مباشر علي الآن، بس اليوم رجع هددني. كيف أوثق الأدلة؟",
+              "message_id": "m4",
+              "question_id": "m3",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "latest_time": {
+              "field": "latest_time",
+              "status": "reported",
+              "value": "اليوم",
+              "quote": "بس اليوم رجع هددني",
+              "message_id": "m4",
+              "question_id": "m3",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "repeated": {
+              "field": "repeated",
+              "status": "reported",
+              "value": true,
+              "quote": "لا، ما في خطر مباشر علي الآن، بس اليوم رجع هددني",
+              "message_id": "m4",
+              "question_id": "m3",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            }
+          },
+          "money_events": [
+            {
+              "id": "money-1",
+              "kind": "requested",
+              "amount": "100 دينار",
+              "relation": "initial",
+              "quote": "مبارح أول مرة شخص على واتساب قال إذا ما حولتله 100 دينار رح ينشر محادثاتي الخاصة.",
+              "message_id": "m2",
+              "question_id": "m1",
+              "created_at": "2026-11-08T18:39:22+00:00"
+            }
+          ],
+          "money_corrections": [],
+          "new_assistant_messages": [
+            {
+              "id": "m5",
+              "role": "assistant",
+              "text": "سجلت الجزء الذي ذكرته في مسودة الإفادة.\n\nخطوات مختصرة من مصادر موثقة؛ لا أفترض بلدك، والمصادر الوطنية لا تمثل مسارًا محليًا خارجه:\n1. دوّن اسم المنصة ورابط الحساب أو المحتوى واسم المستخدم والتاريخ والوقت والسياق.\n2. احتفظ بلقطات الشاشة التي توثق المحتوى والحساب، إن كان ذلك آمنًا ومسموحًا.\n3. المصدر أسترالي؛ هذه نقاط توثيق عامة وليست إجراء إبلاغ محليًا. لا ترفع الأدلة إلى التطبيق.\nنطاق المصادر: إرشاد عام من مصدر وطني؛ لا يمثل قانونًا أو جهة محلية.\nافتح تفاصيل المصدر لقراءة المقتطف والنطاق. هذه معلومات عامة لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية؛ لا أضيف استنتاجًا يتجاوز المصادر.",
+              "created_at": "2026-11-08T18:39:22+00:00",
+              "kind": "answer",
+              "citations": [
+                {
+                  "id": "AU-ESAFETY-EVIDENCE-2026",
+                  "title": "How to collect evidence",
+                  "publisher": "eSafety Commissioner, Australian Government",
+                  "url": "https://www.esafety.gov.au/report/how-to-collect-evidence",
+                  "published_or_updated": "2026-05-14",
+                  "ingested_at": "2026-11-06",
+                  "geography": "AU",
+                  "guidance_scope": "general_practice",
+                  "topics": [
+                    "evidence_preservation"
+                  ],
+                  "platforms": [],
+                  "scope_note": "إرشاد عام من مصدر وطني؛ لا يمثل قانونًا أو جهة محلية.",
+                  "content_version": "2026-11-06.1",
+                  "excerpt": "لحفظ الأدلة ومعلومات عن إساءة أو تواصل إلكتروني، توصي eSafety الأسترالية بتسجيل المنصة المستخدمة، وروابط المحتوى أو الحسابات، وأسماء المستخدمين، والتواريخ والأوقات، والسياق أو تكرار التواصل."
+                }
+              ],
+              "external_model_used": false
+            },
+            {
+              "id": "m6",
+              "role": "assistant",
+              "text": "هل دفعت أو حولت أي مبلغ؟ إذا نعم، كم؟",
+              "created_at": "2026-11-08T18:39:22+00:00",
+              "kind": "question",
+              "question_plan": {
+                "slot": "paid_amount",
+                "field_label": "المبلغ المدفوع",
+                "reason": "لفصل ما دُفع فعليًا عن المبلغ المطلوب",
+                "condition": "لم يُحسم وقوع الدفع أو مقداره"
+              }
+            }
+          ],
+          "external_data_sent": false,
+          "fallback_used": false,
+          "extraction_outcome": null,
+          "message_plan_applied": false,
+          "model_turn_metrics": {
+            "attempted": false,
+            "fallback_used": false,
+            "fallback_category": null,
+            "extraction_outcome": null,
+            "response_valid": null,
+            "facts_accepted": false,
+            "accepted_fact_count": 0,
+            "accepted_then_merge_rejected_fields": [],
+            "accepted_then_merge_rejected": false,
+            "accepted_fact_merge_dispositions": {},
+            "accepted_facts_routed_to_rules_fields": [],
+            "accepted_facts_applied_as_corrections_fields": [],
+            "accepted_facts_preserved_as_conflicts_fields": []
+          },
+          "model_merge_trace": [],
+          "checks": [
+            {
+              "check": "fact:direct_danger",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "fact:repeated",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "fact:latest_time",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "not_pending:direct_danger",
+              "passed": true,
+              "detail": "paid_amount"
+            },
+            {
+              "check": "not_pending:repeated",
+              "passed": true,
+              "detail": "paid_amount"
+            },
+            {
+              "check": "assistant_answer",
+              "passed": true,
+              "detail": [
+                {
+                  "kind": "answer",
+                  "text": "سجلت الجزء الذي ذكرته في مسودة الإفادة.\n\nخطوات مختصرة من مصادر موثقة؛ لا أفترض بلدك، والمصادر الوطنية لا تمثل مسارًا محليًا خارجه:\n1. دوّن اسم المنصة ورابط الحساب أو المحتوى واسم المستخدم والتاريخ والوقت والسياق.\n2. احتفظ بلقطات الشاشة التي توثق المحتوى والحساب، إن كان ذلك آمنًا ومسموحًا.\n3. المصدر أسترالي؛ هذه نقاط توثيق عامة وليست إجراء إبلاغ محليًا. لا ترفع الأدلة إلى التطبيق.\nنطاق المصادر: إرشاد عام من مصدر وطني؛ لا يمثل قانونًا أو جهة محلية.\nافتح تفاصيل المصدر لقراءة المقتطف والنطاق. هذه معلومات عامة لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية؛ لا أضيف استنتاجًا يتجاوز المصادر.",
+                  "citations": [
+                    {
+                      "id": "AU-ESAFETY-EVIDENCE-2026",
+                      "title": "How to collect evidence",
+                      "publisher": "eSafety Commissioner, Australian Government",
+                      "url": "https://www.esafety.gov.au/report/how-to-collect-evidence",
+                      "published_or_updated": "2026-05-14",
+                      "ingested_at": "2026-11-06",
+                      "geography": "AU",
+                      "guidance_scope": "general_practice",
+                      "topics": [
+                        "evidence_preservation"
+                      ],
+                      "platforms": [],
+                      "scope_note": "إرشاد عام من مصدر وطني؛ لا يمثل قانونًا أو جهة محلية.",
+                      "content_version": "2026-11-06.1",
+                      "excerpt": "لحفظ الأدلة ومعلومات عن إساءة أو تواصل إلكتروني، توصي eSafety الأسترالية بتسجيل المنصة المستخدمة، وروابط المحتوى أو الحسابات، وأسماء المستخدمين، والتواريخ والأوقات، والسياق أو تكرار التواصل."
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "check": "single_followup",
+              "passed": true,
+              "detail": [
+                {
+                  "kind": "question",
+                  "text": "هل دفعت أو حولت أي مبلغ؟ إذا نعم، كم؟"
+                }
+              ]
+            },
+            {
+              "check": "citation_topic:evidence",
+              "passed": true,
+              "detail": [
+                "AU-ESAFETY-EVIDENCE-2026"
+              ]
+            }
+          ],
+          "passed": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case_id": "V3-KNOWN-V02-finding-account-versus-opening-date",
+      "known_prior_holdout_regression": true,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "انتبهت للحساب اليوم، لكن ما عندي فكرة عن موعد إنشائه",
+          "expected": {
+            "facts": {
+              "discovery_time": {
+                "status": "reported",
+                "value_contains": "اليوم"
+              },
+              "account_creation_time": {
+                "status": "unknown"
+              }
+            },
+            "no_fact_fields": [
+              "initial_time"
+            ]
+          },
+          "http_status": 200,
+          "model_extraction": {
+            "eligible": false,
+            "elapsed_ms": null,
+            "provider_latency_ms": null,
+            "integration_elapsed_ms": 9.859,
+            "turn_total_elapsed_ms": 9.859,
+            "provider_call": {},
+            "diagnostic": {},
+            "proposals": []
+          },
+          "pending_slot": "unclassified_details",
+          "stage": "interview",
+          "facts": {
+            "discovery_time": {
+              "field": "discovery_time",
+              "status": "reported",
+              "value": "اليوم",
+              "quote": "انتبهت للحساب اليوم",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "account_creation_time": {
+              "field": "account_creation_time",
+              "status": "unknown",
+              "value": null,
+              "quote": "ما عندي فكرة عن موعد إنشائه",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "narrative": {
+              "field": "narrative",
+              "status": "reported",
+              "value": "انتبهت للحساب اليوم، لكن ما عندي فكرة عن موعد إنشائه",
+              "quote": "انتبهت للحساب اليوم، لكن ما عندي فكرة عن موعد إنشائه",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            }
+          },
+          "money_events": [],
+          "money_corrections": [],
+          "new_assistant_messages": [
+            {
+              "id": "m3",
+              "role": "assistant",
+              "text": "ما قدرت أحدد نوع الواقعة من الوصف وحده. ممكن توضح شو حدث خطوة بخطوة أو شو الرسالة أو التصرف اللي وصلك؟",
+              "created_at": "2026-11-08T18:39:22+00:00",
+              "kind": "question",
+              "question_plan": {
+                "slot": "unclassified_details",
+                "field_label": "توضيح واقعة غير مصنفة",
+                "reason": "لتحديد نوع الواقعة من وصف المستخدم لا من التخمين",
+                "condition": "الوصف الحالي لا يحدد تصرفًا أو واقعة واضحة"
+              }
+            }
+          ],
+          "external_data_sent": false,
+          "fallback_used": false,
+          "extraction_outcome": null,
+          "message_plan_applied": false,
+          "model_turn_metrics": {
+            "attempted": false,
+            "fallback_used": false,
+            "fallback_category": null,
+            "extraction_outcome": null,
+            "response_valid": null,
+            "facts_accepted": false,
+            "accepted_fact_count": 0,
+            "accepted_then_merge_rejected_fields": [],
+            "accepted_then_merge_rejected": false,
+            "accepted_fact_merge_dispositions": {},
+            "accepted_facts_routed_to_rules_fields": [],
+            "accepted_facts_applied_as_corrections_fields": [],
+            "accepted_facts_preserved_as_conflicts_fields": []
+          },
+          "model_merge_trace": [],
+          "checks": [
+            {
+              "check": "fact:discovery_time",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "fact:account_creation_time",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "no_fact:initial_time",
+              "passed": true,
+              "detail": "absent"
+            }
+          ],
+          "passed": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case_id": "V3-KNOWN-V03-explicit-identity-claim-new-verb",
+      "known_prior_holdout_regression": true,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "الصفحة تنتحل دوري أمام الآخرين وتستعمل هويتي",
+          "expected": {
+            "facts": {
+              "impersonation": {
+                "status": "reported",
+                "value": true
+              },
+              "details": {
+                "status": "reported"
+              }
+            },
+            "no_fact_fields": [
+              "account_access"
+            ]
+          },
+          "http_status": 200,
+          "model_extraction": {
+            "eligible": false,
+            "elapsed_ms": null,
+            "provider_latency_ms": null,
+            "integration_elapsed_ms": 8.432,
+            "turn_total_elapsed_ms": 8.432,
+            "provider_call": {},
+            "diagnostic": {},
+            "proposals": []
+          },
+          "pending_slot": "identity",
+          "stage": "interview",
+          "facts": {
+            "impersonation": {
+              "field": "impersonation",
+              "status": "reported",
+              "value": true,
+              "quote": "الصفحة تنتحل دوري أمام الآخرين وتستعمل هويتي",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "details": {
+              "field": "details",
+              "status": "reported",
+              "value": "الصفحة تنتحل دوري أمام الآخرين وتستعمل هويتي",
+              "quote": "الصفحة تنتحل دوري أمام الآخرين وتستعمل هويتي",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "narrative": {
+              "field": "narrative",
+              "status": "reported",
+              "value": "الصفحة تنتحل دوري أمام الآخرين وتستعمل هويتي",
+              "quote": "الصفحة تنتحل دوري أمام الآخرين وتستعمل هويتي",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            }
+          },
+          "money_events": [],
+          "money_corrections": [],
+          "new_assistant_messages": [
+            {
+              "id": "m3",
+              "role": "assistant",
+              "text": "هل بتعرف هوية الشخص، ولا المتوفر عندك بس اسم حساب أو رقم تواصل؟",
+              "created_at": "2026-11-08T18:39:22+00:00",
+              "kind": "question",
+              "question_plan": {
+                "slot": "identity",
+                "field_label": "هوية الشخص",
+                "reason": "لتمييز هوية الفاعل عن قناة التواصل المتاحة",
+                "condition": "هوية الفاعل أو معرف التواصل ما زال غير محسوم"
+              }
+            }
+          ],
+          "external_data_sent": false,
+          "fallback_used": false,
+          "extraction_outcome": null,
+          "message_plan_applied": false,
+          "model_turn_metrics": {
+            "attempted": false,
+            "fallback_used": false,
+            "fallback_category": null,
+            "extraction_outcome": null,
+            "response_valid": null,
+            "facts_accepted": false,
+            "accepted_fact_count": 0,
+            "accepted_then_merge_rejected_fields": [],
+            "accepted_then_merge_rejected": false,
+            "accepted_fact_merge_dispositions": {},
+            "accepted_facts_routed_to_rules_fields": [],
+            "accepted_facts_applied_as_corrections_fields": [],
+            "accepted_facts_preserved_as_conflicts_fields": []
+          },
+          "model_merge_trace": [],
+          "checks": [
+            {
+              "check": "fact:impersonation",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "fact:details",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "no_fact:account_access",
+              "passed": true,
+              "detail": "absent"
+            }
+          ],
+          "passed": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case_id": "V3-KNOWN-V04-unknown-actor-independent-from-saved-chat",
+      "known_prior_holdout_regression": true,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "الفاعل مجهول بالنسبة إلي، لكن عندي نسخة احتياطية من المحادثة",
+          "expected": {
+            "facts": {
+              "identity": {
+                "status": "unknown"
+              },
+              "evidence": {
+                "status": "reported"
+              }
+            }
+          },
+          "http_status": 200,
+          "model_extraction": {
+            "eligible": false,
+            "elapsed_ms": null,
+            "provider_latency_ms": null,
+            "integration_elapsed_ms": 7.602,
+            "turn_total_elapsed_ms": 7.602,
+            "provider_call": {},
+            "diagnostic": {},
+            "proposals": []
+          },
+          "pending_slot": "unclassified_details",
+          "stage": "interview",
+          "facts": {
+            "narrative": {
+              "field": "narrative",
+              "status": "reported",
+              "value": "الفاعل مجهول بالنسبة إلي، لكن عندي نسخة احتياطية من المحادثة",
+              "quote": "الفاعل مجهول بالنسبة إلي، لكن عندي نسخة احتياطية من المحادثة",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "identity": {
+              "field": "identity",
+              "status": "unknown",
+              "value": null,
+              "quote": "الفاعل مجهول بالنسبة إلي، لكن عندي نسخة احتياطية من المحادثة",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "evidence": {
+              "field": "evidence",
+              "status": "reported",
+              "value": "رسائل أو محادثات",
+              "quote": "الفاعل مجهول بالنسبة إلي، لكن عندي نسخة احتياطية من المحادثة",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            }
+          },
+          "money_events": [],
+          "money_corrections": [],
+          "new_assistant_messages": [
+            {
+              "id": "m3",
+              "role": "assistant",
+              "text": "ما قدرت أحدد نوع الواقعة من الوصف وحده. ممكن توضح شو حدث خطوة بخطوة أو شو الرسالة أو التصرف اللي وصلك؟",
+              "created_at": "2026-11-08T18:39:22+00:00",
+              "kind": "question",
+              "question_plan": {
+                "slot": "unclassified_details",
+                "field_label": "توضيح واقعة غير مصنفة",
+                "reason": "لتحديد نوع الواقعة من وصف المستخدم لا من التخمين",
+                "condition": "الوصف الحالي لا يحدد تصرفًا أو واقعة واضحة"
+              }
+            }
+          ],
+          "external_data_sent": false,
+          "fallback_used": false,
+          "extraction_outcome": null,
+          "message_plan_applied": false,
+          "model_turn_metrics": {
+            "attempted": false,
+            "fallback_used": false,
+            "fallback_category": null,
+            "extraction_outcome": null,
+            "response_valid": null,
+            "facts_accepted": false,
+            "accepted_fact_count": 0,
+            "accepted_then_merge_rejected_fields": [],
+            "accepted_then_merge_rejected": false,
+            "accepted_fact_merge_dispositions": {},
+            "accepted_facts_routed_to_rules_fields": [],
+            "accepted_facts_applied_as_corrections_fields": [],
+            "accepted_facts_preserved_as_conflicts_fields": []
+          },
+          "model_merge_trace": [],
+          "checks": [
+            {
+              "check": "fact:identity",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "fact:evidence",
+              "passed": true,
+              "detail": "matched"
+            }
+          ],
+          "passed": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case_id": "V3-Q04-discovery-and-creation-distinct-times",
+      "known_prior_holdout_regression": false,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "اكتشفت الحساب اليوم، ويبدو أنه أُنشئ قبل أسبوع",
+          "expected": {
+            "facts": {
+              "discovery_time": {
+                "status": "reported",
+                "value_contains": "اليوم"
+              },
+              "account_creation_time": {
+                "status": "reported",
+                "value_contains": "قبل أسبوع"
+              }
+            },
+            "no_fact_fields": [
+              "initial_time"
+            ]
+          },
+          "http_status": 200,
+          "model_extraction": {
+            "eligible": false,
+            "elapsed_ms": null,
+            "provider_latency_ms": null,
+            "integration_elapsed_ms": 7.591,
+            "turn_total_elapsed_ms": 7.591,
+            "provider_call": {},
+            "diagnostic": {},
+            "proposals": []
+          },
+          "pending_slot": "unclassified_details",
+          "stage": "interview",
+          "facts": {
+            "discovery_time": {
+              "field": "discovery_time",
+              "status": "reported",
+              "value": "اليوم",
+              "quote": "اكتشفت الحساب اليوم",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "account_creation_time": {
+              "field": "account_creation_time",
+              "status": "reported",
+              "value": "قبل أسبوع",
+              "quote": "ويبدو أنه أُنشئ قبل أسبوع",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "narrative": {
+              "field": "narrative",
+              "status": "reported",
+              "value": "اكتشفت الحساب اليوم، ويبدو أنه أُنشئ قبل أسبوع",
+              "quote": "اكتشفت الحساب اليوم، ويبدو أنه أُنشئ قبل أسبوع",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            }
+          },
+          "money_events": [],
+          "money_corrections": [],
+          "new_assistant_messages": [
+            {
+              "id": "m3",
+              "role": "assistant",
+              "text": "ما قدرت أحدد نوع الواقعة من الوصف وحده. ممكن توضح شو حدث خطوة بخطوة أو شو الرسالة أو التصرف اللي وصلك؟",
+              "created_at": "2026-11-08T18:39:22+00:00",
+              "kind": "question",
+              "question_plan": {
+                "slot": "unclassified_details",
+                "field_label": "توضيح واقعة غير مصنفة",
+                "reason": "لتحديد نوع الواقعة من وصف المستخدم لا من التخمين",
+                "condition": "الوصف الحالي لا يحدد تصرفًا أو واقعة واضحة"
+              }
+            }
+          ],
+          "external_data_sent": false,
+          "fallback_used": false,
+          "extraction_outcome": null,
+          "message_plan_applied": false,
+          "model_turn_metrics": {
+            "attempted": false,
+            "fallback_used": false,
+            "fallback_category": null,
+            "extraction_outcome": null,
+            "response_valid": null,
+            "facts_accepted": false,
+            "accepted_fact_count": 0,
+            "accepted_then_merge_rejected_fields": [],
+            "accepted_then_merge_rejected": false,
+            "accepted_fact_merge_dispositions": {},
+            "accepted_facts_routed_to_rules_fields": [],
+            "accepted_facts_applied_as_corrections_fields": [],
+            "accepted_facts_preserved_as_conflicts_fields": []
+          },
+          "model_merge_trace": [],
+          "checks": [
+            {
+              "check": "fact:discovery_time",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "fact:account_creation_time",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "no_fact:initial_time",
+              "passed": true,
+              "detail": "absent"
+            }
+          ],
+          "passed": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case_id": "V3-Q05-original-account-access-does-not-imply-compromise",
+      "known_prior_holdout_regression": false,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "حسابي الأصلي معي وبقدر أدخل عليه",
+          "expected": {
+            "facts": {
+              "original_account_access_available": {
+                "status": "reported",
+                "value": true
+              }
+            },
+            "no_fact_fields": [
+              "account_access"
+            ]
+          },
+          "http_status": 200,
+          "model_extraction": {
+            "eligible": false,
+            "elapsed_ms": null,
+            "provider_latency_ms": null,
+            "integration_elapsed_ms": 7.428,
+            "turn_total_elapsed_ms": 7.428,
+            "provider_call": {},
+            "diagnostic": {},
+            "proposals": []
+          },
+          "pending_slot": "unclassified_details",
+          "stage": "interview",
+          "facts": {
+            "original_account_access_available": {
+              "field": "original_account_access_available",
+              "status": "reported",
+              "value": true,
+              "quote": "حسابي الأصلي معي وبقدر أدخل عليه",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "narrative": {
+              "field": "narrative",
+              "status": "reported",
+              "value": "حسابي الأصلي معي وبقدر أدخل عليه",
+              "quote": "حسابي الأصلي معي وبقدر أدخل عليه",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            }
+          },
+          "money_events": [],
+          "money_corrections": [],
+          "new_assistant_messages": [
+            {
+              "id": "m3",
+              "role": "assistant",
+              "text": "ما قدرت أحدد نوع الواقعة من الوصف وحده. ممكن توضح شو حدث خطوة بخطوة أو شو الرسالة أو التصرف اللي وصلك؟",
+              "created_at": "2026-11-08T18:39:22+00:00",
+              "kind": "question",
+              "question_plan": {
+                "slot": "unclassified_details",
+                "field_label": "توضيح واقعة غير مصنفة",
+                "reason": "لتحديد نوع الواقعة من وصف المستخدم لا من التخمين",
+                "condition": "الوصف الحالي لا يحدد تصرفًا أو واقعة واضحة"
+              }
+            }
+          ],
+          "external_data_sent": false,
+          "fallback_used": false,
+          "extraction_outcome": null,
+          "message_plan_applied": false,
+          "model_turn_metrics": {
+            "attempted": false,
+            "fallback_used": false,
+            "fallback_category": null,
+            "extraction_outcome": null,
+            "response_valid": null,
+            "facts_accepted": false,
+            "accepted_fact_count": 0,
+            "accepted_then_merge_rejected_fields": [],
+            "accepted_then_merge_rejected": false,
+            "accepted_fact_merge_dispositions": {},
+            "accepted_facts_routed_to_rules_fields": [],
+            "accepted_facts_applied_as_corrections_fields": [],
+            "accepted_facts_preserved_as_conflicts_fields": []
+          },
+          "model_merge_trace": [],
+          "checks": [
+            {
+              "check": "fact:original_account_access_available",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "no_fact:account_access",
+              "passed": true,
+              "detail": "absent"
+            }
+          ],
+          "passed": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case_id": "V3-Q06-reference-same-first-payment",
+      "known_prior_holdout_regression": false,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
+          "expected": {
+            "facts": {
+              "requested_amount": {
+                "status": "reported",
+                "value_contains": "100"
+              },
+              "paid_amount": {
+                "status": "reported",
+                "value_contains": "130"
+              },
+              "payment_method": {
+                "status": "reported"
+              }
+            }
+          },
+          "http_status": 200,
+          "model_extraction": {
+            "eligible": false,
+            "elapsed_ms": null,
+            "provider_latency_ms": null,
+            "integration_elapsed_ms": 7.888,
+            "turn_total_elapsed_ms": 7.888,
+            "provider_call": {},
+            "diagnostic": {},
+            "proposals": []
+          },
+          "pending_slot": "details",
+          "stage": "interview",
+          "facts": {
+            "narrative": {
+              "field": "narrative",
+              "status": "reported",
+              "value": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
+              "quote": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "requested_amount": {
+              "field": "requested_amount",
+              "status": "reported",
+              "value": "100 دينار",
+              "quote": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "paid_amount": {
+              "field": "paid_amount",
+              "status": "reported",
+              "value": "130 دينار",
+              "quote": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "payment_method": {
+              "field": "payment_method",
+              "status": "reported",
+              "value": "محفظة (النوع غير محدد)",
+              "quote": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            }
+          },
+          "money_events": [
+            {
+              "id": "money-1",
+              "kind": "requested",
+              "amount": "100 دينار",
+              "relation": "initial",
+              "quote": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
+              "message_id": "m2",
+              "question_id": "m1",
+              "created_at": "2026-11-08T18:39:22+00:00"
+            },
+            {
+              "id": "money-2",
+              "kind": "paid",
+              "amount": "130 دينار",
+              "relation": "initial",
+              "quote": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
+              "message_id": "m2",
+              "question_id": "m1",
+              "created_at": "2026-11-08T18:39:22+00:00"
+            }
+          ],
+          "money_corrections": [],
+          "new_assistant_messages": [
+            {
+              "id": "m3",
+              "role": "assistant",
+              "text": "شو قال لك تحديدًا أو شو صار؟",
+              "created_at": "2026-11-08T18:39:22+00:00",
+              "kind": "question",
+              "question_plan": {
+                "slot": "details",
+                "field_label": "تفاصيل الواقعة",
+                "reason": "لفهم التصرف أو الرسالة المحددة",
+                "condition": "نوع الواقعة معروف لكن تفاصيلها المؤثرة ما زالت ناقصة"
+              }
+            }
+          ],
+          "external_data_sent": false,
+          "fallback_used": false,
+          "extraction_outcome": null,
+          "message_plan_applied": false,
+          "model_turn_metrics": {
+            "attempted": false,
+            "fallback_used": false,
+            "fallback_category": null,
+            "extraction_outcome": null,
+            "response_valid": null,
+            "facts_accepted": false,
+            "accepted_fact_count": 0,
+            "accepted_then_merge_rejected_fields": [],
+            "accepted_then_merge_rejected": false,
+            "accepted_fact_merge_dispositions": {},
+            "accepted_facts_routed_to_rules_fields": [],
+            "accepted_facts_applied_as_corrections_fields": [],
+            "accepted_facts_preserved_as_conflicts_fields": []
+          },
+          "model_merge_trace": [],
+          "checks": [
+            {
+              "check": "fact:requested_amount",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "fact:paid_amount",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "fact:payment_method",
+              "passed": true,
+              "detail": "matched"
+            }
+          ],
+          "passed": true
+        },
+        {
+          "turn": 2,
+          "text": "الدفعة الثانية هي المبلغ الأول نفسه، ما حولت مرة ثانية",
+          "expected": {
+            "money_event_count": 1,
+            "facts": {
+              "paid_amount": {
+                "status": "reported",
+                "value_contains": "130"
+              }
+            }
+          },
+          "http_status": 200,
+          "model_extraction": {
+            "eligible": false,
+            "elapsed_ms": null,
+            "provider_latency_ms": null,
+            "integration_elapsed_ms": 9.186,
+            "turn_total_elapsed_ms": 9.186,
+            "provider_call": {},
+            "diagnostic": {},
+            "proposals": []
+          },
+          "pending_slot": "details",
+          "stage": "interview",
+          "facts": {
+            "narrative": {
+              "field": "narrative",
+              "status": "reported",
+              "value": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
+              "quote": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "requested_amount": {
+              "field": "requested_amount",
+              "status": "reported",
+              "value": "100 دينار",
+              "quote": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "paid_amount": {
+              "field": "paid_amount",
+              "status": "reported",
+              "value": "130 دينار",
+              "quote": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "payment_method": {
+              "field": "payment_method",
+              "status": "reported",
+              "value": "محفظة (النوع غير محدد)",
+              "quote": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "contact_repeated": {
+              "field": "contact_repeated",
+              "status": "reported",
+              "value": true,
+              "quote": "الدفعة الثانية هي المبلغ الأول نفسه، ما حولت مرة ثانية",
+              "message_id": "m4",
+              "question_id": "m3",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            }
+          },
+          "money_events": [
+            {
+              "id": "money-1",
+              "kind": "requested",
+              "amount": "100 دينار",
+              "relation": "initial",
+              "quote": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
+              "message_id": "m2",
+              "question_id": "m1",
+              "created_at": "2026-11-08T18:39:22+00:00"
+            },
+            {
+              "id": "money-2",
+              "kind": "paid",
+              "amount": "130 دينار",
+              "relation": "initial",
+              "quote": "طلب مني 100 دينار وحولت 130 دينار بالمحفظة",
+              "message_id": "m2",
+              "question_id": "m1",
+              "created_at": "2026-11-08T18:39:22+00:00"
+            }
+          ],
+          "money_corrections": [],
+          "new_assistant_messages": [
+            {
+              "id": "m5",
+              "role": "assistant",
+              "text": "سجلت المعلومات التي أجابت عن حقول أخرى. بقي عندي هذا السؤال للتوضيح: شو قال لك تحديدًا أو شو صار؟",
+              "created_at": "2026-11-08T18:39:22+00:00",
+              "kind": "clarification",
+              "question_plan": {
+                "slot": "details",
+                "field_label": "تفاصيل الواقعة",
+                "reason": "لفهم التصرف أو الرسالة المحددة",
+                "condition": "نوع الواقعة معروف لكن تفاصيلها المؤثرة ما زالت ناقصة"
+              }
+            }
+          ],
+          "external_data_sent": false,
+          "fallback_used": false,
+          "extraction_outcome": null,
+          "message_plan_applied": false,
+          "model_turn_metrics": {
+            "attempted": false,
+            "fallback_used": false,
+            "fallback_category": null,
+            "extraction_outcome": null,
+            "response_valid": null,
+            "facts_accepted": false,
+            "accepted_fact_count": 0,
+            "accepted_then_merge_rejected_fields": [],
+            "accepted_then_merge_rejected": false,
+            "accepted_fact_merge_dispositions": {},
+            "accepted_facts_routed_to_rules_fields": [],
+            "accepted_facts_applied_as_corrections_fields": [],
+            "accepted_facts_preserved_as_conflicts_fields": []
+          },
+          "model_merge_trace": [],
+          "checks": [
+            {
+              "check": "fact:paid_amount",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "money_event_count",
+              "passed": false,
+              "detail": 2
+            }
+          ],
+          "passed": false
+        }
+      ],
+      "passed": false
+    },
+    {
+      "case_id": "V3-Q07-guidance-post-transfer",
+      "known_prior_holdout_regression": false,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "بعد ما حولت المال، شو أعمل؟",
+          "expected": {
+            "assistant_answer": true,
+            "citation_topic": "payment_recovery"
+          },
+          "http_status": 200,
+          "model_extraction": {
+            "eligible": false,
+            "elapsed_ms": null,
+            "provider_latency_ms": null,
+            "integration_elapsed_ms": 9.097,
+            "turn_total_elapsed_ms": 9.097,
+            "provider_call": {},
+            "diagnostic": {},
+            "proposals": []
+          },
+          "pending_slot": "unclassified_details",
+          "stage": "interview",
+          "facts": {
+            "narrative": {
+              "field": "narrative",
+              "status": "reported",
+              "value": "بعد ما حولت المال",
+              "quote": "بعد ما حولت المال",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "paid_amount": {
+              "field": "paid_amount",
+              "status": "denied",
+              "value": null,
+              "quote": "بعد ما حولت المال",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            }
+          },
+          "money_events": [],
+          "money_corrections": [],
+          "new_assistant_messages": [
+            {
+              "id": "m3",
+              "role": "assistant",
+              "text": "سجلت الجزء الذي ذكرته في مسودة الإفادة.\n\nخطوات مختصرة من مصادر موثقة؛ لا أفترض بلدك، والمصادر الوطنية لا تمثل مسارًا محليًا خارجه:\n1. إذا كان التحويل مرتبطًا باحتيال أو دفع لمحتال، فتواصل سريعًا مع البنك أو التطبيق أو الشركة التي عالجت التحويل.\n2. اسألهم إن كان يمكن إيقاف العملية أو عكسها أو ما الخيارات المتاحة لوسيلة الدفع هذه.\n3. لا يوجد ضمان للاسترداد؛ تفاصيل الحقوق والقنوات في المصدر تخص الولايات المتحدة.\nنطاق المصادر: إرشاد عام من مصدر وطني؛ لا يمثل قانونًا أو جهة محلية.\nافتح تفاصيل المصدر لقراءة المقتطف والنطاق. هذه معلومات عامة لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية؛ لا أضيف استنتاجًا يتجاوز المصادر.",
+              "created_at": "2026-11-08T18:39:22+00:00",
+              "kind": "answer",
+              "citations": [
+                {
+                  "id": "US-FTC-SCAM-2026",
+                  "title": "What To Do if You Were Scammed",
+                  "publisher": "Federal Trade Commission, United States",
+                  "url": "https://consumer.ftc.gov/articles/what-do-if-you-were-scammed",
+                  "published_or_updated": "2026-06",
+                  "ingested_at": "2026-11-06",
+                  "geography": "US",
+                  "guidance_scope": "general_practice",
+                  "topics": [
+                    "payment_recovery"
+                  ],
+                  "platforms": [],
+                  "scope_note": "إرشاد عام من مصدر وطني؛ لا يمثل قانونًا أو جهة محلية.",
+                  "content_version": "2026-11-06.1",
+                  "excerpt": "توصي لجنة التجارة الفيدرالية الأمريكية من دفع لمحتال بالتواصل سريعًا مع البنك أو التطبيق أو الشركة التي عالجت الدفع وسؤالهم عن الخيارات المتاحة مثل إيقاف العملية أو عكسها إن أمكن."
+                }
+              ],
+              "external_model_used": false
+            },
+            {
+              "id": "m4",
+              "role": "assistant",
+              "text": "ما قدرت أحدد نوع الواقعة من الوصف وحده. ممكن توضح شو حدث خطوة بخطوة أو شو الرسالة أو التصرف اللي وصلك؟",
+              "created_at": "2026-11-08T18:39:22+00:00",
+              "kind": "question",
+              "question_plan": {
+                "slot": "unclassified_details",
+                "field_label": "توضيح واقعة غير مصنفة",
+                "reason": "لتحديد نوع الواقعة من وصف المستخدم لا من التخمين",
+                "condition": "الوصف الحالي لا يحدد تصرفًا أو واقعة واضحة"
+              }
+            }
+          ],
+          "external_data_sent": false,
+          "fallback_used": false,
+          "extraction_outcome": null,
+          "message_plan_applied": false,
+          "model_turn_metrics": {
+            "attempted": false,
+            "fallback_used": false,
+            "fallback_category": null,
+            "extraction_outcome": null,
+            "response_valid": null,
+            "facts_accepted": false,
+            "accepted_fact_count": 0,
+            "accepted_then_merge_rejected_fields": [],
+            "accepted_then_merge_rejected": false,
+            "accepted_fact_merge_dispositions": {},
+            "accepted_facts_routed_to_rules_fields": [],
+            "accepted_facts_applied_as_corrections_fields": [],
+            "accepted_facts_preserved_as_conflicts_fields": []
+          },
+          "model_merge_trace": [],
+          "checks": [
+            {
+              "check": "assistant_answer",
+              "passed": true,
+              "detail": [
+                {
+                  "kind": "answer",
+                  "text": "سجلت الجزء الذي ذكرته في مسودة الإفادة.\n\nخطوات مختصرة من مصادر موثقة؛ لا أفترض بلدك، والمصادر الوطنية لا تمثل مسارًا محليًا خارجه:\n1. إذا كان التحويل مرتبطًا باحتيال أو دفع لمحتال، فتواصل سريعًا مع البنك أو التطبيق أو الشركة التي عالجت التحويل.\n2. اسألهم إن كان يمكن إيقاف العملية أو عكسها أو ما الخيارات المتاحة لوسيلة الدفع هذه.\n3. لا يوجد ضمان للاسترداد؛ تفاصيل الحقوق والقنوات في المصدر تخص الولايات المتحدة.\nنطاق المصادر: إرشاد عام من مصدر وطني؛ لا يمثل قانونًا أو جهة محلية.\nافتح تفاصيل المصدر لقراءة المقتطف والنطاق. هذه معلومات عامة لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية؛ لا أضيف استنتاجًا يتجاوز المصادر.",
+                  "citations": [
+                    {
+                      "id": "US-FTC-SCAM-2026",
+                      "title": "What To Do if You Were Scammed",
+                      "publisher": "Federal Trade Commission, United States",
+                      "url": "https://consumer.ftc.gov/articles/what-do-if-you-were-scammed",
+                      "published_or_updated": "2026-06",
+                      "ingested_at": "2026-11-06",
+                      "geography": "US",
+                      "guidance_scope": "general_practice",
+                      "topics": [
+                        "payment_recovery"
+                      ],
+                      "platforms": [],
+                      "scope_note": "إرشاد عام من مصدر وطني؛ لا يمثل قانونًا أو جهة محلية.",
+                      "content_version": "2026-11-06.1",
+                      "excerpt": "توصي لجنة التجارة الفيدرالية الأمريكية من دفع لمحتال بالتواصل سريعًا مع البنك أو التطبيق أو الشركة التي عالجت الدفع وسؤالهم عن الخيارات المتاحة مثل إيقاف العملية أو عكسها إن أمكن."
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "check": "citation_topic:payment_recovery",
+              "passed": true,
+              "detail": [
+                "US-FTC-SCAM-2026"
+              ]
+            }
+          ],
+          "passed": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case_id": "V3-Q08-instagram-impersonation-reporting",
+      "known_prior_holdout_regression": false,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "كيف أبلّغ عن حساب ينتحل شخصيتي على إنستغرام",
+          "expected": {
+            "assistant_answer": true,
+            "citation_topic": "impersonation_reporting",
+            "no_fact_fields": [
+              "narrative"
+            ]
+          },
+          "http_status": 200,
+          "model_extraction": {
+            "eligible": false,
+            "elapsed_ms": null,
+            "provider_latency_ms": null,
+            "integration_elapsed_ms": 8.074,
+            "turn_total_elapsed_ms": 8.074,
+            "provider_call": {},
+            "diagnostic": {},
+            "proposals": []
+          },
+          "pending_slot": "narrative",
+          "stage": "interview",
+          "facts": {},
+          "money_events": [],
+          "money_corrections": [],
+          "new_assistant_messages": [
+            {
+              "id": "m3",
+              "role": "assistant",
+              "text": "خطوات مختصرة من مصادر موثقة؛ لا أفترض بلدك، والمصادر الوطنية لا تمثل مسارًا محليًا خارجه:\n1. من داخل Instagram اختر الإبلاغ عن الحساب.\n2. اختر سبب التظاهر بأنه شخص آخر واتبع الخطوات الرسمية الظاهرة في التطبيق.\n3. هذا بلاغ داخل المنصة؛ لا يقرر نتيجة المراجعة ولا يحل محل مسار قانوني محلي.\nنطاق المصادر: إرشادات خاصة بمنصة إنستغرام فقط.\nافتح تفاصيل المصدر لقراءة المقتطف والنطاق. هذه معلومات عامة لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية؛ لا أضيف استنتاجًا يتجاوز المصادر.",
+              "created_at": "2026-11-08T18:39:22+00:00",
+              "kind": "answer",
+              "citations": [
+                {
+                  "id": "GLOBAL-IG-IMPERSONATION-2026",
+                  "title": "Report an account that's impersonating you on Instagram",
+                  "publisher": "Instagram Help Center, Meta",
+                  "url": "https://help.instagram.com/1291391774792379/",
+                  "published_or_updated": null,
+                  "ingested_at": "2026-11-06",
+                  "geography": "GLOBAL",
+                  "guidance_scope": "global_platform",
+                  "topics": [
+                    "impersonation_reporting",
+                    "platform_reporting"
+                  ],
+                  "platforms": [
+                    "instagram"
+                  ],
+                  "scope_note": "إرشادات خاصة بمنصة إنستغرام فقط.",
+                  "content_version": "2026-11-06.1",
+                  "excerpt": "تشرح مساعدة Instagram أن الإبلاغ عن حساب يتظاهر بأنه المستخدم يتم من داخل المنصة باختيار الإبلاغ عن الحساب ثم التظاهر بأنه شخص آخر. هذه أداة خاصة بالمنصة؛ لا تثبت أن الحساب المذكور منتحل ولا تحدد نتيجة المراجعة أو الإجراء القانوني المحلي."
+                }
+              ],
+              "external_model_used": false
+            },
+            {
+              "id": "m4",
+              "role": "assistant",
+              "text": "نكمل من السؤال السابق: احكيلي شو صار معك.",
+              "created_at": "2026-11-08T18:39:22+00:00",
+              "kind": "question",
+              "question_plan": {
+                "slot": "narrative",
+                "field_label": "وصف الواقعة",
+                "reason": "لفهم الواقعة قبل طرح أسئلة أدق",
+                "condition": "لم يظهر بعد وصف كافٍ لما حدث"
+              }
+            }
+          ],
+          "external_data_sent": false,
+          "fallback_used": false,
+          "extraction_outcome": null,
+          "message_plan_applied": false,
+          "model_turn_metrics": {
+            "attempted": false,
+            "fallback_used": false,
+            "fallback_category": null,
+            "extraction_outcome": null,
+            "response_valid": null,
+            "facts_accepted": false,
+            "accepted_fact_count": 0,
+            "accepted_then_merge_rejected_fields": [],
+            "accepted_then_merge_rejected": false,
+            "accepted_fact_merge_dispositions": {},
+            "accepted_facts_routed_to_rules_fields": [],
+            "accepted_facts_applied_as_corrections_fields": [],
+            "accepted_facts_preserved_as_conflicts_fields": []
+          },
+          "model_merge_trace": [],
+          "checks": [
+            {
+              "check": "no_fact:narrative",
+              "passed": true,
+              "detail": "absent"
+            },
+            {
+              "check": "assistant_answer",
+              "passed": true,
+              "detail": [
+                {
+                  "kind": "answer",
+                  "text": "خطوات مختصرة من مصادر موثقة؛ لا أفترض بلدك، والمصادر الوطنية لا تمثل مسارًا محليًا خارجه:\n1. من داخل Instagram اختر الإبلاغ عن الحساب.\n2. اختر سبب التظاهر بأنه شخص آخر واتبع الخطوات الرسمية الظاهرة في التطبيق.\n3. هذا بلاغ داخل المنصة؛ لا يقرر نتيجة المراجعة ولا يحل محل مسار قانوني محلي.\nنطاق المصادر: إرشادات خاصة بمنصة إنستغرام فقط.\nافتح تفاصيل المصدر لقراءة المقتطف والنطاق. هذه معلومات عامة لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية؛ لا أضيف استنتاجًا يتجاوز المصادر.",
+                  "citations": [
+                    {
+                      "id": "GLOBAL-IG-IMPERSONATION-2026",
+                      "title": "Report an account that's impersonating you on Instagram",
+                      "publisher": "Instagram Help Center, Meta",
+                      "url": "https://help.instagram.com/1291391774792379/",
+                      "published_or_updated": null,
+                      "ingested_at": "2026-11-06",
+                      "geography": "GLOBAL",
+                      "guidance_scope": "global_platform",
+                      "topics": [
+                        "impersonation_reporting",
+                        "platform_reporting"
+                      ],
+                      "platforms": [
+                        "instagram"
+                      ],
+                      "scope_note": "إرشادات خاصة بمنصة إنستغرام فقط.",
+                      "content_version": "2026-11-06.1",
+                      "excerpt": "تشرح مساعدة Instagram أن الإبلاغ عن حساب يتظاهر بأنه المستخدم يتم من داخل المنصة باختيار الإبلاغ عن الحساب ثم التظاهر بأنه شخص آخر. هذه أداة خاصة بالمنصة؛ لا تثبت أن الحساب المذكور منتحل ولا تحدد نتيجة المراجعة أو الإجراء القانوني المحلي."
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "check": "citation_topic:impersonation_reporting",
+              "passed": true,
+              "detail": [
+                "GLOBAL-IG-IMPERSONATION-2026"
+              ]
+            }
+          ],
+          "passed": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case_id": "V3-Q09-similar-or-fan-account-is-not-automatic-impersonation",
+      "known_prior_holdout_regression": false,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "في حساب معجبين مشابه لاسمي وصورتي لكنه يوضح أنه حساب معجبين ولا يدعي أنه أنا",
+          "expected": {
+            "no_true_facts": [
+              "impersonation"
+            ],
+            "no_fact_fields": [
+              "account_access"
+            ]
+          },
+          "http_status": 200,
+          "model_extraction": {
+            "eligible": false,
+            "elapsed_ms": null,
+            "provider_latency_ms": null,
+            "integration_elapsed_ms": 7.496,
+            "turn_total_elapsed_ms": 7.496,
+            "provider_call": {},
+            "diagnostic": {},
+            "proposals": []
+          },
+          "pending_slot": "unclassified_details",
+          "stage": "interview",
+          "facts": {
+            "impersonation": {
+              "field": "impersonation",
+              "status": "denied",
+              "value": false,
+              "quote": "في حساب معجبين مشابه لاسمي وصورتي لكنه يوضح أنه حساب معجبين ولا يدعي أنه أنا",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "narrative": {
+              "field": "narrative",
+              "status": "reported",
+              "value": "في حساب معجبين مشابه لاسمي وصورتي لكنه يوضح أنه حساب معجبين ولا يدعي أنه أنا",
+              "quote": "في حساب معجبين مشابه لاسمي وصورتي لكنه يوضح أنه حساب معجبين ولا يدعي أنه أنا",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            }
+          },
+          "money_events": [],
+          "money_corrections": [],
+          "new_assistant_messages": [
+            {
+              "id": "m3",
+              "role": "assistant",
+              "text": "ما قدرت أحدد نوع الواقعة من الوصف وحده. ممكن توضح شو حدث خطوة بخطوة أو شو الرسالة أو التصرف اللي وصلك؟",
+              "created_at": "2026-11-08T18:39:22+00:00",
+              "kind": "question",
+              "question_plan": {
+                "slot": "unclassified_details",
+                "field_label": "توضيح واقعة غير مصنفة",
+                "reason": "لتحديد نوع الواقعة من وصف المستخدم لا من التخمين",
+                "condition": "الوصف الحالي لا يحدد تصرفًا أو واقعة واضحة"
+              }
+            }
+          ],
+          "external_data_sent": false,
+          "fallback_used": false,
+          "extraction_outcome": null,
+          "message_plan_applied": false,
+          "model_turn_metrics": {
+            "attempted": false,
+            "fallback_used": false,
+            "fallback_category": null,
+            "extraction_outcome": null,
+            "response_valid": null,
+            "facts_accepted": false,
+            "accepted_fact_count": 0,
+            "accepted_then_merge_rejected_fields": [],
+            "accepted_then_merge_rejected": false,
+            "accepted_fact_merge_dispositions": {},
+            "accepted_facts_routed_to_rules_fields": [],
+            "accepted_facts_applied_as_corrections_fields": [],
+            "accepted_facts_preserved_as_conflicts_fields": []
+          },
+          "model_merge_trace": [],
+          "checks": [
+            {
+              "check": "no_fact:account_access",
+              "passed": true,
+              "detail": "absent"
+            },
+            {
+              "check": "not_true:impersonation",
+              "passed": true,
+              "detail": {
+                "field": "impersonation",
+                "status": "denied",
+                "value": false,
+                "quote": "في حساب معجبين مشابه لاسمي وصورتي لكنه يوضح أنه حساب معجبين ولا يدعي أنه أنا",
+                "message_id": "m2",
+                "question_id": "m1",
+                "updated_at": "2026-11-08T18:39:22+00:00",
+                "source": "rules",
+                "history": []
+              }
+            }
+          ],
+          "passed": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case_id": "V3-Q10-confirmed-requested-amount-correction-preserves-paid-event",
+      "known_prior_holdout_regression": false,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+          "expected": {
+            "facts": {
+              "requested_amount": {
+                "status": "reported",
+                "value_contains": "100"
+              },
+              "paid_amount": {
+                "status": "reported",
+                "value_contains": "130"
+              }
+            },
+            "money_event_count": 2
+          },
+          "http_status": 200,
+          "model_extraction": {
+            "eligible": false,
+            "elapsed_ms": null,
+            "provider_latency_ms": null,
+            "integration_elapsed_ms": 8.445,
+            "turn_total_elapsed_ms": 8.445,
+            "provider_call": {},
+            "diagnostic": {},
+            "proposals": []
+          },
+          "pending_slot": "direct_danger",
+          "stage": "interview",
+          "facts": {
+            "narrative": {
+              "field": "narrative",
+              "status": "reported",
+              "value": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+              "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "threat": {
+              "field": "threat",
+              "status": "reported",
+              "value": true,
+              "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "requested_amount": {
+              "field": "requested_amount",
+              "status": "reported",
+              "value": "100 دينار",
+              "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "paid_amount": {
+              "field": "paid_amount",
+              "status": "reported",
+              "value": "130 دينار",
+              "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            }
+          },
+          "money_events": [
+            {
+              "id": "money-1",
+              "kind": "requested",
+              "amount": "100 دينار",
+              "relation": "initial",
+              "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+              "message_id": "m2",
+              "question_id": "m1",
+              "created_at": "2026-11-08T18:39:22+00:00"
+            },
+            {
+              "id": "money-2",
+              "kind": "paid",
+              "amount": "130 دينار",
+              "relation": "initial",
+              "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+              "message_id": "m2",
+              "question_id": "m1",
+              "created_at": "2026-11-08T18:39:22+00:00"
+            }
+          ],
+          "money_corrections": [],
+          "new_assistant_messages": [
+            {
+              "id": "m3",
+              "role": "assistant",
+              "text": "هل أنت بخطر مباشر الآن؟",
+              "created_at": "2026-11-08T18:39:22+00:00",
+              "kind": "question",
+              "question_plan": {
+                "slot": "direct_danger",
+                "field_label": "الخطر المباشر الحالي",
+                "reason": "للتحقق من الحاجة إلى مسار السلامة الآن",
+                "condition": "لم تُحسم حالة الخطر المباشر الحالي"
+              }
+            }
+          ],
+          "external_data_sent": false,
+          "fallback_used": false,
+          "extraction_outcome": null,
+          "message_plan_applied": false,
+          "model_turn_metrics": {
+            "attempted": false,
+            "fallback_used": false,
+            "fallback_category": null,
+            "extraction_outcome": null,
+            "response_valid": null,
+            "facts_accepted": false,
+            "accepted_fact_count": 0,
+            "accepted_then_merge_rejected_fields": [],
+            "accepted_then_merge_rejected": false,
+            "accepted_fact_merge_dispositions": {},
+            "accepted_facts_routed_to_rules_fields": [],
+            "accepted_facts_applied_as_corrections_fields": [],
+            "accepted_facts_preserved_as_conflicts_fields": []
+          },
+          "model_merge_trace": [],
+          "checks": [
+            {
+              "check": "fact:requested_amount",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "fact:paid_amount",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "money_event_count",
+              "passed": true,
+              "detail": 2
+            }
+          ],
+          "passed": true
+        },
+        {
+          "turn": 2,
+          "text": "المبلغ اللي طلبه كان 120 بدل 100، أما اللي حولته فهو 130، مش دفعة جديدة",
+          "expected": {
+            "facts": {
+              "requested_amount": {
+                "status": "reported",
+                "value_contains": "120"
+              },
+              "paid_amount": {
+                "status": "reported",
+                "value_contains": "130"
+              }
+            },
+            "money_event_count": 2,
+            "money_relations": {
+              "requested": [
+                "initial",
+                "correction"
+              ],
+              "paid": [
+                "initial"
+              ]
+            }
+          },
+          "http_status": 200,
+          "model_extraction": {
+            "eligible": false,
+            "elapsed_ms": null,
+            "provider_latency_ms": null,
+            "integration_elapsed_ms": 9.742,
+            "turn_total_elapsed_ms": 9.742,
+            "provider_call": {},
+            "diagnostic": {},
+            "proposals": []
+          },
+          "pending_slot": "direct_danger",
+          "stage": "interview",
+          "facts": {
+            "narrative": {
+              "field": "narrative",
+              "status": "reported",
+              "value": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+              "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "threat": {
+              "field": "threat",
+              "status": "reported",
+              "value": true,
+              "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:22+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "requested_amount": {
+              "field": "requested_amount",
+              "status": "reported",
+              "value": "120 دينار",
+              "quote": "المبلغ اللي طلبه كان 120 بدل 100، أما اللي حولته فهو 130، مش دفعة جديدة",
+              "message_id": "m4",
+              "question_id": "m3",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": [
+                {
+                  "status": "reported",
+                  "value": "100 دينار",
+                  "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+                  "message_id": "m2",
+                  "at": "2026-11-08T18:39:23+00:00",
+                  "reason": "explicit_correction"
+                }
+              ]
+            },
+            "paid_amount": {
+              "field": "paid_amount",
+              "status": "reported",
+              "value": "130 دينار",
+              "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": [],
+              "supporting_statements": [
+                {
+                  "quote": "المبلغ اللي طلبه كان 120 بدل 100، أما اللي حولته فهو 130، مش دفعة جديدة",
+                  "message_id": "m4",
+                  "question_id": "m3",
+                  "at": "2026-11-08T18:39:23+00:00"
+                }
+              ]
+            }
+          },
+          "money_events": [
+            {
+              "id": "money-1",
+              "kind": "requested",
+              "amount": "100 دينار",
+              "relation": "initial",
+              "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+              "message_id": "m2",
+              "question_id": "m1",
+              "created_at": "2026-11-08T18:39:22+00:00"
+            },
+            {
+              "id": "money-2",
+              "kind": "paid",
+              "amount": "130 دينار",
+              "relation": "initial",
+              "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+              "message_id": "m2",
+              "question_id": "m1",
+              "created_at": "2026-11-08T18:39:22+00:00"
+            },
+            {
+              "id": "money-3",
+              "kind": "requested",
+              "amount": "120 دينار",
+              "relation": "correction",
+              "quote": "المبلغ اللي طلبه كان 120 بدل 100، أما اللي حولته فهو 130، مش دفعة جديدة",
+              "message_id": "m4",
+              "question_id": "m3",
+              "created_at": "2026-11-08T18:39:23+00:00",
+              "target_event_id": "money-1"
+            }
+          ],
+          "money_corrections": [
+            {
+              "id": "money-correction-1",
+              "target_event_id": "money-1",
+              "kind": "requested",
+              "previous_amount": "100 دينار",
+              "amount": "120 دينار",
+              "relation": "correction",
+              "quote": "المبلغ اللي طلبه كان 120 بدل 100، أما اللي حولته فهو 130، مش دفعة جديدة",
+              "message_id": "m4",
+              "question_id": "m3",
+              "created_at": "2026-11-08T18:39:23+00:00"
+            }
+          ],
+          "new_assistant_messages": [
+            {
+              "id": "m5",
+              "role": "assistant",
+              "text": "سجلت المعلومات التي أجابت عن حقول أخرى. بقي عندي هذا السؤال للتوضيح: هل أنت بخطر مباشر الآن؟",
+              "created_at": "2026-11-08T18:39:23+00:00",
+              "kind": "clarification",
+              "question_plan": {
+                "slot": "direct_danger",
+                "field_label": "الخطر المباشر الحالي",
+                "reason": "للتحقق من الحاجة إلى مسار السلامة الآن",
+                "condition": "لم تُحسم حالة الخطر المباشر الحالي"
+              }
+            }
+          ],
+          "external_data_sent": false,
+          "fallback_used": false,
+          "extraction_outcome": null,
+          "message_plan_applied": false,
+          "model_turn_metrics": {
+            "attempted": false,
+            "fallback_used": false,
+            "fallback_category": null,
+            "extraction_outcome": null,
+            "response_valid": null,
+            "facts_accepted": false,
+            "accepted_fact_count": 0,
+            "accepted_then_merge_rejected_fields": [],
+            "accepted_then_merge_rejected": false,
+            "accepted_fact_merge_dispositions": {},
+            "accepted_facts_routed_to_rules_fields": [],
+            "accepted_facts_applied_as_corrections_fields": [],
+            "accepted_facts_preserved_as_conflicts_fields": []
+          },
+          "model_merge_trace": [],
+          "checks": [
+            {
+              "check": "fact:requested_amount",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "fact:paid_amount",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "money_event_count",
+              "passed": false,
+              "detail": 3
+            },
+            {
+              "check": "money_relations:requested",
+              "passed": true,
+              "detail": {
+                "expected": [
+                  "initial",
+                  "correction"
+                ],
+                "actual": [
+                  "initial",
+                  "correction"
+                ]
+              }
+            },
+            {
+              "check": "money_relations:paid",
+              "passed": true,
+              "detail": {
+                "expected": [
+                  "initial"
+                ],
+                "actual": [
+                  "initial"
+                ]
+              }
+            }
+          ],
+          "passed": false
+        }
+      ],
+      "passed": false
+    },
+    {
+      "case_id": "V3-Q11-country-required-only-for-local-reporting",
+      "known_prior_holdout_regression": false,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "كيف أقدم بلاغًا رسميًا عن جريمة إلكترونية؟",
+          "expected": {
+            "assistant_answer": true,
+            "ask_jurisdiction": true
+          },
+          "http_status": 200,
+          "model_extraction": {
+            "eligible": false,
+            "elapsed_ms": null,
+            "provider_latency_ms": null,
+            "integration_elapsed_ms": 6.717,
+            "turn_total_elapsed_ms": 6.717,
+            "provider_call": {},
+            "diagnostic": {},
+            "proposals": []
+          },
+          "pending_slot": "narrative",
+          "stage": "interview",
+          "facts": {},
+          "money_events": [],
+          "money_corrections": [],
+          "new_assistant_messages": [
+            {
+              "id": "m3",
+              "role": "assistant",
+              "text": "يعتمد مسار الإبلاغ أو رقم الطوارئ على البلد. اذكر البلد الذي تسأل عنه لأبحث في مصدر رسمي مناسب؛ لن أفترض موقعك.",
+              "created_at": "2026-11-08T18:39:23+00:00",
+              "kind": "answer",
+              "citations": [],
+              "external_model_used": false
+            },
+            {
+              "id": "m4",
+              "role": "assistant",
+              "text": "نكمل من السؤال السابق: احكيلي شو صار معك.",
+              "created_at": "2026-11-08T18:39:23+00:00",
+              "kind": "question",
+              "question_plan": {
+                "slot": "narrative",
+                "field_label": "وصف الواقعة",
+                "reason": "لفهم الواقعة قبل طرح أسئلة أدق",
+                "condition": "لم يظهر بعد وصف كافٍ لما حدث"
+              }
+            }
+          ],
+          "external_data_sent": false,
+          "fallback_used": false,
+          "extraction_outcome": null,
+          "message_plan_applied": false,
+          "model_turn_metrics": {
+            "attempted": false,
+            "fallback_used": false,
+            "fallback_category": null,
+            "extraction_outcome": null,
+            "response_valid": null,
+            "facts_accepted": false,
+            "accepted_fact_count": 0,
+            "accepted_then_merge_rejected_fields": [],
+            "accepted_then_merge_rejected": false,
+            "accepted_fact_merge_dispositions": {},
+            "accepted_facts_routed_to_rules_fields": [],
+            "accepted_facts_applied_as_corrections_fields": [],
+            "accepted_facts_preserved_as_conflicts_fields": []
+          },
+          "model_merge_trace": [],
+          "checks": [
+            {
+              "check": "assistant_answer",
+              "passed": true,
+              "detail": [
+                {
+                  "kind": "answer",
+                  "text": "يعتمد مسار الإبلاغ أو رقم الطوارئ على البلد. اذكر البلد الذي تسأل عنه لأبحث في مصدر رسمي مناسب؛ لن أفترض موقعك.",
+                  "citations": []
+                }
+              ]
+            },
+            {
+              "check": "ask_jurisdiction",
+              "passed": true,
+              "detail": "يعتمد مسار الإبلاغ أو رقم الطوارئ على البلد. اذكر البلد الذي تسأل عنه لأبحث في مصدر رسمي مناسب؛ لن أفترض موقعك."
+            }
+          ],
+          "passed": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case_id": "V3-Q12-spelling-variation-account-security",
+      "known_prior_holdout_regression": false,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "كيف احمي حسابي من الختراق",
+          "expected": {
+            "assistant_answer": true,
+            "no_fact_fields": [
+              "narrative"
+            ],
+            "no_citations": true,
+            "answer_contains": "أي تطبيق"
+          },
+          "http_status": 200,
+          "model_extraction": {
+            "eligible": false,
+            "elapsed_ms": null,
+            "provider_latency_ms": null,
+            "integration_elapsed_ms": 6.858,
+            "turn_total_elapsed_ms": 6.858,
+            "provider_call": {},
+            "diagnostic": {},
+            "proposals": []
+          },
+          "pending_slot": "narrative",
+          "stage": "interview",
+          "facts": {},
+          "money_events": [],
+          "money_corrections": [],
+          "new_assistant_messages": [
+            {
+              "id": "m3",
+              "role": "assistant",
+              "text": "لأي تطبيق تقصد؟ اذكر اسم التطبيق، مثل واتساب أو إنستغرام، لأعرض إرشادات موثقة تخصه فقط.",
+              "created_at": "2026-11-08T18:39:23+00:00",
+              "kind": "guidance_clarification",
+              "citations": [],
+              "external_model_used": false
+            }
+          ],
+          "external_data_sent": false,
+          "fallback_used": false,
+          "extraction_outcome": null,
+          "message_plan_applied": false,
+          "model_turn_metrics": {
+            "attempted": false,
+            "fallback_used": false,
+            "fallback_category": null,
+            "extraction_outcome": null,
+            "response_valid": null,
+            "facts_accepted": false,
+            "accepted_fact_count": 0,
+            "accepted_then_merge_rejected_fields": [],
+            "accepted_then_merge_rejected": false,
+            "accepted_fact_merge_dispositions": {},
+            "accepted_facts_routed_to_rules_fields": [],
+            "accepted_facts_applied_as_corrections_fields": [],
+            "accepted_facts_preserved_as_conflicts_fields": []
+          },
+          "model_merge_trace": [],
+          "checks": [
+            {
+              "check": "no_fact:narrative",
+              "passed": true,
+              "detail": "absent"
+            },
+            {
+              "check": "assistant_answer",
+              "passed": true,
+              "detail": [
+                {
+                  "kind": "guidance_clarification",
+                  "text": "لأي تطبيق تقصد؟ اذكر اسم التطبيق، مثل واتساب أو إنستغرام، لأعرض إرشادات موثقة تخصه فقط.",
+                  "citations": []
+                }
+              ]
+            },
+            {
+              "check": "answer_contains",
+              "passed": true,
+              "detail": "لأي تطبيق تقصد؟ اذكر اسم التطبيق، مثل واتساب أو إنستغرام، لأعرض إرشادات موثقة تخصه فقط."
+            },
+            {
+              "check": "no_citations",
+              "passed": true,
+              "detail": []
+            }
+          ],
+          "passed": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case_id": "V3-Q13-compound-negation-and-unknown-publication",
+      "known_prior_holdout_regression": false,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "شخص هددني على واتساب",
+          "expected": {
+            "facts": {
+              "threat": {
+                "status": "reported",
+                "value": true
+              }
+            }
+          },
+          "http_status": 200,
+          "model_extraction": {
+            "eligible": false,
+            "elapsed_ms": null,
+            "provider_latency_ms": null,
+            "integration_elapsed_ms": 7.962,
+            "turn_total_elapsed_ms": 7.962,
+            "provider_call": {},
+            "diagnostic": {},
+            "proposals": []
+          },
+          "pending_slot": "direct_danger",
+          "stage": "interview",
+          "facts": {
+            "narrative": {
+              "field": "narrative",
+              "status": "reported",
+              "value": "شخص هددني على واتساب",
+              "quote": "شخص هددني على واتساب",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "threat": {
+              "field": "threat",
+              "status": "reported",
+              "value": true,
+              "quote": "شخص هددني على واتساب",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "platform": {
+              "field": "platform",
+              "status": "reported",
+              "value": "واتساب",
+              "quote": "شخص هددني على واتساب",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": []
+            }
+          },
+          "money_events": [],
+          "money_corrections": [],
+          "new_assistant_messages": [
+            {
+              "id": "m3",
+              "role": "assistant",
+              "text": "هل أنت بخطر مباشر الآن؟",
+              "created_at": "2026-11-08T18:39:23+00:00",
+              "kind": "question",
+              "question_plan": {
+                "slot": "direct_danger",
+                "field_label": "الخطر المباشر الحالي",
+                "reason": "للتحقق من الحاجة إلى مسار السلامة الآن",
+                "condition": "لم تُحسم حالة الخطر المباشر الحالي"
+              }
+            }
+          ],
+          "external_data_sent": false,
+          "fallback_used": false,
+          "extraction_outcome": null,
+          "message_plan_applied": false,
+          "model_turn_metrics": {
+            "attempted": false,
+            "fallback_used": false,
+            "fallback_category": null,
+            "extraction_outcome": null,
+            "response_valid": null,
+            "facts_accepted": false,
+            "accepted_fact_count": 0,
+            "accepted_then_merge_rejected_fields": [],
+            "accepted_then_merge_rejected": false,
+            "accepted_fact_merge_dispositions": {},
+            "accepted_facts_routed_to_rules_fields": [],
+            "accepted_facts_applied_as_corrections_fields": [],
+            "accepted_facts_preserved_as_conflicts_fields": []
+          },
+          "model_merge_trace": [],
+          "checks": [
+            {
+              "check": "fact:threat",
+              "passed": true,
+              "detail": "matched"
+            }
+          ],
+          "passed": true
+        },
+        {
+          "turn": 2,
+          "text": "لا، ما في خطر مباشر علي الآن، وما بعرف إذا نشر المحادثات ولا لأ",
+          "expected": {
+            "facts": {
+              "direct_danger": {
+                "status": "denied",
+                "value": false
+              },
+              "published": {
+                "status": "unknown"
+              }
+            },
+            "single_followup": true
+          },
+          "http_status": 200,
+          "model_extraction": {
+            "eligible": false,
+            "elapsed_ms": null,
+            "provider_latency_ms": null,
+            "integration_elapsed_ms": 8.464,
+            "turn_total_elapsed_ms": 8.464,
+            "provider_call": {},
+            "diagnostic": {},
+            "proposals": []
+          },
+          "pending_slot": "details",
+          "stage": "interview",
+          "facts": {
+            "narrative": {
+              "field": "narrative",
+              "status": "reported",
+              "value": "شخص هددني على واتساب",
+              "quote": "شخص هددني على واتساب",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "threat": {
+              "field": "threat",
+              "status": "reported",
+              "value": true,
+              "quote": "شخص هددني على واتساب",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "platform": {
+              "field": "platform",
+              "status": "reported",
+              "value": "واتساب",
+              "quote": "شخص هددني على واتساب",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "direct_danger": {
+              "field": "direct_danger",
+              "status": "denied",
+              "value": false,
+              "quote": "لا، ما في خطر مباشر علي الآن، وما بعرف إذا نشر المحادثات ولا لأ",
+              "message_id": "m4",
+              "question_id": "m3",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "published": {
+              "field": "published",
+              "status": "unknown",
+              "value": null,
+              "quote": "لا، ما في خطر مباشر علي الآن، وما بعرف إذا نشر المحادثات ولا لأ",
+              "message_id": "m4",
+              "question_id": "m3",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": []
+            }
+          },
+          "money_events": [],
+          "money_corrections": [],
+          "new_assistant_messages": [
+            {
+              "id": "m5",
+              "role": "assistant",
+              "text": "شو قال لك تحديدًا أو شو صار؟",
+              "created_at": "2026-11-08T18:39:23+00:00",
+              "kind": "question",
+              "question_plan": {
+                "slot": "details",
+                "field_label": "تفاصيل الواقعة",
+                "reason": "لفهم التصرف أو الرسالة المحددة",
+                "condition": "نوع الواقعة معروف لكن تفاصيلها المؤثرة ما زالت ناقصة"
+              }
+            }
+          ],
+          "external_data_sent": false,
+          "fallback_used": false,
+          "extraction_outcome": null,
+          "message_plan_applied": false,
+          "model_turn_metrics": {
+            "attempted": false,
+            "fallback_used": false,
+            "fallback_category": null,
+            "extraction_outcome": null,
+            "response_valid": null,
+            "facts_accepted": false,
+            "accepted_fact_count": 0,
+            "accepted_then_merge_rejected_fields": [],
+            "accepted_then_merge_rejected": false,
+            "accepted_fact_merge_dispositions": {},
+            "accepted_facts_routed_to_rules_fields": [],
+            "accepted_facts_applied_as_corrections_fields": [],
+            "accepted_facts_preserved_as_conflicts_fields": []
+          },
+          "model_merge_trace": [],
+          "checks": [
+            {
+              "check": "fact:direct_danger",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "fact:published",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "single_followup",
+              "passed": true,
+              "detail": [
+                {
+                  "kind": "question",
+                  "text": "شو قال لك تحديدًا أو شو صار؟"
+                }
+              ]
+            }
+          ],
+          "passed": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case_id": "V3-Q14-yes-refers-to-pending-repeated-harm-question",
+      "known_prior_holdout_regression": false,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "شخص هددني على واتساب",
+          "expected": {
+            "facts": {
+              "threat": {
+                "status": "reported",
+                "value": true
+              }
+            }
+          },
+          "http_status": 200,
+          "model_extraction": {
+            "eligible": false,
+            "elapsed_ms": null,
+            "provider_latency_ms": null,
+            "integration_elapsed_ms": 7.475,
+            "turn_total_elapsed_ms": 7.475,
+            "provider_call": {},
+            "diagnostic": {},
+            "proposals": []
+          },
+          "pending_slot": "direct_danger",
+          "stage": "interview",
+          "facts": {
+            "narrative": {
+              "field": "narrative",
+              "status": "reported",
+              "value": "شخص هددني على واتساب",
+              "quote": "شخص هددني على واتساب",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "threat": {
+              "field": "threat",
+              "status": "reported",
+              "value": true,
+              "quote": "شخص هددني على واتساب",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "platform": {
+              "field": "platform",
+              "status": "reported",
+              "value": "واتساب",
+              "quote": "شخص هددني على واتساب",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": []
+            }
+          },
+          "money_events": [],
+          "money_corrections": [],
+          "new_assistant_messages": [
+            {
+              "id": "m3",
+              "role": "assistant",
+              "text": "هل أنت بخطر مباشر الآن؟",
+              "created_at": "2026-11-08T18:39:23+00:00",
+              "kind": "question",
+              "question_plan": {
+                "slot": "direct_danger",
+                "field_label": "الخطر المباشر الحالي",
+                "reason": "للتحقق من الحاجة إلى مسار السلامة الآن",
+                "condition": "لم تُحسم حالة الخطر المباشر الحالي"
+              }
+            }
+          ],
+          "external_data_sent": false,
+          "fallback_used": false,
+          "extraction_outcome": null,
+          "message_plan_applied": false,
+          "model_turn_metrics": {
+            "attempted": false,
+            "fallback_used": false,
+            "fallback_category": null,
+            "extraction_outcome": null,
+            "response_valid": null,
+            "facts_accepted": false,
+            "accepted_fact_count": 0,
+            "accepted_then_merge_rejected_fields": [],
+            "accepted_then_merge_rejected": false,
+            "accepted_fact_merge_dispositions": {},
+            "accepted_facts_routed_to_rules_fields": [],
+            "accepted_facts_applied_as_corrections_fields": [],
+            "accepted_facts_preserved_as_conflicts_fields": []
+          },
+          "model_merge_trace": [],
+          "checks": [
+            {
+              "check": "fact:threat",
+              "passed": true,
+              "detail": "matched"
+            }
+          ],
+          "passed": true
+        },
+        {
+          "turn": 2,
+          "text": "لا، ما في خطر مباشر علي الآن",
+          "expected": {
+            "facts": {
+              "direct_danger": {
+                "status": "denied",
+                "value": false
+              },
+              "pending_slot": "repeated"
+            }
+          },
+          "http_status": 200,
+          "model_extraction": {
+            "eligible": false,
+            "elapsed_ms": null,
+            "provider_latency_ms": null,
+            "integration_elapsed_ms": 7.763,
+            "turn_total_elapsed_ms": 7.763,
+            "provider_call": {},
+            "diagnostic": {},
+            "proposals": []
+          },
+          "pending_slot": "details",
+          "stage": "interview",
+          "facts": {
+            "narrative": {
+              "field": "narrative",
+              "status": "reported",
+              "value": "شخص هددني على واتساب",
+              "quote": "شخص هددني على واتساب",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "threat": {
+              "field": "threat",
+              "status": "reported",
+              "value": true,
+              "quote": "شخص هددني على واتساب",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "platform": {
+              "field": "platform",
+              "status": "reported",
+              "value": "واتساب",
+              "quote": "شخص هددني على واتساب",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "direct_danger": {
+              "field": "direct_danger",
+              "status": "denied",
+              "value": false,
+              "quote": "لا، ما في خطر مباشر علي الآن",
+              "message_id": "m4",
+              "question_id": "m3",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": []
+            }
+          },
+          "money_events": [],
+          "money_corrections": [],
+          "new_assistant_messages": [
+            {
+              "id": "m5",
+              "role": "assistant",
+              "text": "شو قال لك تحديدًا أو شو صار؟",
+              "created_at": "2026-11-08T18:39:23+00:00",
+              "kind": "question",
+              "question_plan": {
+                "slot": "details",
+                "field_label": "تفاصيل الواقعة",
+                "reason": "لفهم التصرف أو الرسالة المحددة",
+                "condition": "نوع الواقعة معروف لكن تفاصيلها المؤثرة ما زالت ناقصة"
+              }
+            }
+          ],
+          "external_data_sent": false,
+          "fallback_used": false,
+          "extraction_outcome": null,
+          "message_plan_applied": false,
+          "model_turn_metrics": {
+            "attempted": false,
+            "fallback_used": false,
+            "fallback_category": null,
+            "extraction_outcome": null,
+            "response_valid": null,
+            "facts_accepted": false,
+            "accepted_fact_count": 0,
+            "accepted_then_merge_rejected_fields": [],
+            "accepted_then_merge_rejected": false,
+            "accepted_fact_merge_dispositions": {},
+            "accepted_facts_routed_to_rules_fields": [],
+            "accepted_facts_applied_as_corrections_fields": [],
+            "accepted_facts_preserved_as_conflicts_fields": []
+          },
+          "model_merge_trace": [],
+          "checks": [
+            {
+              "check": "fact:direct_danger",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "pending_slot",
+              "passed": false,
+              "detail": "details"
+            }
+          ],
+          "passed": false
+        },
+        {
+          "turn": 3,
+          "text": "نعم",
+          "expected": {
+            "facts": {
+              "repeated": {
+                "status": "reported",
+                "value": true
+              }
+            },
+            "not_pending": [
+              "repeated"
+            ]
+          },
+          "http_status": 200,
+          "model_extraction": {
+            "eligible": false,
+            "elapsed_ms": null,
+            "provider_latency_ms": null,
+            "integration_elapsed_ms": 8.027,
+            "turn_total_elapsed_ms": 8.027,
+            "provider_call": {},
+            "diagnostic": {},
+            "proposals": []
+          },
+          "pending_slot": "details",
+          "stage": "interview",
+          "facts": {
+            "narrative": {
+              "field": "narrative",
+              "status": "reported",
+              "value": "شخص هددني على واتساب",
+              "quote": "شخص هددني على واتساب",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "threat": {
+              "field": "threat",
+              "status": "reported",
+              "value": true,
+              "quote": "شخص هددني على واتساب",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "platform": {
+              "field": "platform",
+              "status": "reported",
+              "value": "واتساب",
+              "quote": "شخص هددني على واتساب",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "direct_danger": {
+              "field": "direct_danger",
+              "status": "denied",
+              "value": false,
+              "quote": "لا، ما في خطر مباشر علي الآن",
+              "message_id": "m4",
+              "question_id": "m3",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": []
+            }
+          },
+          "money_events": [],
+          "money_corrections": [],
+          "new_assistant_messages": [
+            {
+              "id": "m7",
+              "role": "assistant",
+              "text": "سجلت المعلومة التي أضفتها. بقي عندي هذا السؤال للتوضيح: شو قال لك تحديدًا أو شو صار؟",
+              "created_at": "2026-11-08T18:39:23+00:00",
+              "kind": "clarification",
+              "question_plan": {
+                "slot": "details",
+                "field_label": "تفاصيل الواقعة",
+                "reason": "لفهم التصرف أو الرسالة المحددة",
+                "condition": "نوع الواقعة معروف لكن تفاصيلها المؤثرة ما زالت ناقصة"
+              }
+            }
+          ],
+          "external_data_sent": false,
+          "fallback_used": false,
+          "extraction_outcome": null,
+          "message_plan_applied": false,
+          "model_turn_metrics": {
+            "attempted": false,
+            "fallback_used": false,
+            "fallback_category": null,
+            "extraction_outcome": null,
+            "response_valid": null,
+            "facts_accepted": false,
+            "accepted_fact_count": 0,
+            "accepted_then_merge_rejected_fields": [],
+            "accepted_then_merge_rejected": false,
+            "accepted_fact_merge_dispositions": {},
+            "accepted_facts_routed_to_rules_fields": [],
+            "accepted_facts_applied_as_corrections_fields": [],
+            "accepted_facts_preserved_as_conflicts_fields": []
+          },
+          "model_merge_trace": [],
+          "checks": [
+            {
+              "check": "fact:repeated",
+              "passed": false,
+              "detail": "fact absent"
+            },
+            {
+              "check": "not_pending:repeated",
+              "passed": true,
+              "detail": "details"
+            }
+          ],
+          "passed": false
+        }
+      ],
+      "passed": false
+    },
+    {
+      "case_id": "V3-Q15-correction-and-why-question-together",
+      "known_prior_holdout_regression": false,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+          "expected": {
+            "facts": {
+              "requested_amount": {
+                "status": "reported",
+                "value_contains": "100"
+              },
+              "paid_amount": {
+                "status": "reported",
+                "value_contains": "130"
+              }
+            },
+            "money_event_count": 2
+          },
+          "http_status": 200,
+          "model_extraction": {
+            "eligible": false,
+            "elapsed_ms": null,
+            "provider_latency_ms": null,
+            "integration_elapsed_ms": 8.111,
+            "turn_total_elapsed_ms": 8.111,
+            "provider_call": {},
+            "diagnostic": {},
+            "proposals": []
+          },
+          "pending_slot": "direct_danger",
+          "stage": "interview",
+          "facts": {
+            "narrative": {
+              "field": "narrative",
+              "status": "reported",
+              "value": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+              "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "threat": {
+              "field": "threat",
+              "status": "reported",
+              "value": true,
+              "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "requested_amount": {
+              "field": "requested_amount",
+              "status": "reported",
+              "value": "100 دينار",
+              "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "paid_amount": {
+              "field": "paid_amount",
+              "status": "reported",
+              "value": "130 دينار",
+              "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": []
+            }
+          },
+          "money_events": [
+            {
+              "id": "money-1",
+              "kind": "requested",
+              "amount": "100 دينار",
+              "relation": "initial",
+              "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+              "message_id": "m2",
+              "question_id": "m1",
+              "created_at": "2026-11-08T18:39:23+00:00"
+            },
+            {
+              "id": "money-2",
+              "kind": "paid",
+              "amount": "130 دينار",
+              "relation": "initial",
+              "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+              "message_id": "m2",
+              "question_id": "m1",
+              "created_at": "2026-11-08T18:39:23+00:00"
+            }
+          ],
+          "money_corrections": [],
+          "new_assistant_messages": [
+            {
+              "id": "m3",
+              "role": "assistant",
+              "text": "هل أنت بخطر مباشر الآن؟",
+              "created_at": "2026-11-08T18:39:23+00:00",
+              "kind": "question",
+              "question_plan": {
+                "slot": "direct_danger",
+                "field_label": "الخطر المباشر الحالي",
+                "reason": "للتحقق من الحاجة إلى مسار السلامة الآن",
+                "condition": "لم تُحسم حالة الخطر المباشر الحالي"
+              }
+            }
+          ],
+          "external_data_sent": false,
+          "fallback_used": false,
+          "extraction_outcome": null,
+          "message_plan_applied": false,
+          "model_turn_metrics": {
+            "attempted": false,
+            "fallback_used": false,
+            "fallback_category": null,
+            "extraction_outcome": null,
+            "response_valid": null,
+            "facts_accepted": false,
+            "accepted_fact_count": 0,
+            "accepted_then_merge_rejected_fields": [],
+            "accepted_then_merge_rejected": false,
+            "accepted_fact_merge_dispositions": {},
+            "accepted_facts_routed_to_rules_fields": [],
+            "accepted_facts_applied_as_corrections_fields": [],
+            "accepted_facts_preserved_as_conflicts_fields": []
+          },
+          "model_merge_trace": [],
+          "checks": [
+            {
+              "check": "fact:requested_amount",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "fact:paid_amount",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "money_event_count",
+              "passed": true,
+              "detail": 2
+            }
+          ],
+          "passed": true
+        },
+        {
+          "turn": 2,
+          "text": "قصدي المبلغ المطلوب 120 بدل 100، ليش بتسأل عن المهلة؟",
+          "expected": {
+            "facts": {
+              "requested_amount": {
+                "status": "reported",
+                "value_contains": "120"
+              },
+              "paid_amount": {
+                "status": "reported",
+                "value_contains": "130"
+              }
+            },
+            "money_event_count": 2,
+            "assistant_answer": true,
+            "answer_contains": "الدفع مسجل",
+            "no_fact_fields": [
+              "deadline"
+            ]
+          },
+          "http_status": 200,
+          "model_extraction": {
+            "eligible": false,
+            "elapsed_ms": null,
+            "provider_latency_ms": null,
+            "integration_elapsed_ms": 9.669,
+            "turn_total_elapsed_ms": 9.669,
+            "provider_call": {},
+            "diagnostic": {},
+            "proposals": []
+          },
+          "pending_slot": "direct_danger",
+          "stage": "interview",
+          "facts": {
+            "narrative": {
+              "field": "narrative",
+              "status": "reported",
+              "value": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+              "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "threat": {
+              "field": "threat",
+              "status": "reported",
+              "value": true,
+              "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": []
+            },
+            "requested_amount": {
+              "field": "requested_amount",
+              "status": "reported",
+              "value": "120 دينار",
+              "quote": "قصدي المبلغ المطلوب 120 بدل 100",
+              "message_id": "m4",
+              "question_id": "m3",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": [
+                {
+                  "status": "reported",
+                  "value": "100 دينار",
+                  "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+                  "message_id": "m2",
+                  "at": "2026-11-08T18:39:23+00:00",
+                  "reason": "explicit_correction"
+                }
+              ]
+            },
+            "paid_amount": {
+              "field": "paid_amount",
+              "status": "reported",
+              "value": "130 دينار",
+              "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+              "message_id": "m2",
+              "question_id": "m1",
+              "updated_at": "2026-11-08T18:39:23+00:00",
+              "source": "rules",
+              "history": []
+            }
+          },
+          "money_events": [
+            {
+              "id": "money-1",
+              "kind": "requested",
+              "amount": "100 دينار",
+              "relation": "initial",
+              "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+              "message_id": "m2",
+              "question_id": "m1",
+              "created_at": "2026-11-08T18:39:23+00:00"
+            },
+            {
+              "id": "money-2",
+              "kind": "paid",
+              "amount": "130 دينار",
+              "relation": "initial",
+              "quote": "شخص هددني وطلب مني 100 دينار، وقد حولت 130 دينار",
+              "message_id": "m2",
+              "question_id": "m1",
+              "created_at": "2026-11-08T18:39:23+00:00"
+            },
+            {
+              "id": "money-3",
+              "kind": "requested",
+              "amount": "120 دينار",
+              "relation": "correction",
+              "quote": "قصدي المبلغ المطلوب 120 بدل 100",
+              "message_id": "m4",
+              "question_id": "m3",
+              "created_at": "2026-11-08T18:39:23+00:00",
+              "target_event_id": "money-1"
+            }
+          ],
+          "money_corrections": [
+            {
+              "id": "money-correction-1",
+              "target_event_id": "money-1",
+              "kind": "requested",
+              "previous_amount": "100 دينار",
+              "amount": "120 دينار",
+              "relation": "correction",
+              "quote": "قصدي المبلغ المطلوب 120 بدل 100",
+              "message_id": "m4",
+              "question_id": "m3",
+              "created_at": "2026-11-08T18:39:23+00:00"
+            }
+          ],
+          "new_assistant_messages": [
+            {
+              "id": "m5",
+              "role": "assistant",
+              "text": "سجلت الجزء الذي ذكرته في مسودة الإفادة.\n\nالدفع مسجل عندي؛ حتى نوثق إذا كان في مهلة محددة، وهذا مختلف عن مجرد حصول الدفع.",
+              "created_at": "2026-11-08T18:39:23+00:00",
+              "kind": "answer",
+              "citations": [],
+              "external_model_used": false
+            },
+            {
+              "id": "m6",
+              "role": "assistant",
+              "text": "سجلت المعلومات التي أجابت عن حقول أخرى. بقي عندي هذا السؤال للتوضيح: هل أنت بخطر مباشر الآن؟",
+              "created_at": "2026-11-08T18:39:23+00:00",
+              "kind": "clarification",
+              "question_plan": {
+                "slot": "direct_danger",
+                "field_label": "الخطر المباشر الحالي",
+                "reason": "للتحقق من الحاجة إلى مسار السلامة الآن",
+                "condition": "لم تُحسم حالة الخطر المباشر الحالي"
+              }
+            }
+          ],
+          "external_data_sent": false,
+          "fallback_used": false,
+          "extraction_outcome": null,
+          "message_plan_applied": false,
+          "model_turn_metrics": {
+            "attempted": false,
+            "fallback_used": false,
+            "fallback_category": null,
+            "extraction_outcome": null,
+            "response_valid": null,
+            "facts_accepted": false,
+            "accepted_fact_count": 0,
+            "accepted_then_merge_rejected_fields": [],
+            "accepted_then_merge_rejected": false,
+            "accepted_fact_merge_dispositions": {},
+            "accepted_facts_routed_to_rules_fields": [],
+            "accepted_facts_applied_as_corrections_fields": [],
+            "accepted_facts_preserved_as_conflicts_fields": []
+          },
+          "model_merge_trace": [],
+          "checks": [
+            {
+              "check": "fact:requested_amount",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "fact:paid_amount",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "no_fact:deadline",
+              "passed": true,
+              "detail": "absent"
+            },
+            {
+              "check": "money_event_count",
+              "passed": false,
+              "detail": 3
+            },
+            {
+              "check": "assistant_answer",
+              "passed": true,
+              "detail": [
+                {
+                  "kind": "answer",
+                  "text": "سجلت الجزء الذي ذكرته في مسودة الإفادة.\n\nالدفع مسجل عندي؛ حتى نوثق إذا كان في مهلة محددة، وهذا مختلف عن مجرد حصول الدفع.",
+                  "citations": []
+                }
+              ]
+            },
+            {
+              "check": "answer_contains",
+              "passed": true,
+              "detail": "سجلت الجزء الذي ذكرته في مسودة الإفادة.\n\nالدفع مسجل عندي؛ حتى نوثق إذا كان في مهلة محددة، وهذا مختلف عن مجرد حصول الدفع."
+            }
+          ],
+          "passed": false
+        }
+      ],
+      "passed": false
+    }
+  ],
+  "model_run_status": "not_applicable"
+}

@@ -7,6 +7,11 @@ import contextvars
 from datetime import datetime, timezone
 from typing import Any
 
+from app.dialogue import compose_fallback_question
+from app.nlu import analyze_message
+from app.stopping import evaluate_stopping_decision
+from app.triage import classify_track
+
 POLICY_VERSION = "ACCP-TRIAGE-0.1.0"
 SCHEMA_VERSION = 1
 
@@ -133,7 +138,7 @@ def new_state(session_id: str) -> dict[str, Any]:
             "pending_slot": "narrative", "clarifications": {}, "assessment": None,
             "confirmed": False, "confirmed_digest": None, "confirmation_history": [],
             "slot_states": {}, "question_history": [{"message_id": "m1", "slot": "narrative", "at": stamp, "kind": "question"}],
-            "adaptive_questions_enabled": False,
+            "adaptive_questions_enabled": False, "turn_signals": [],
             "summary_version": 1, "last_response": opening["text"]}
     _sync_slot_states(state)
     return state
@@ -529,7 +534,7 @@ def _detect_user_protest(text: str) -> bool:
 def _evidence_polarity(text: str, allow_bare: bool = False) -> tuple[bool, bool, list[str], bool]:
     positive: list[str] = []
     categories = {
-        "صور أو لقطات شاشة": ("صور", "صوري", "صورتي", "لقطات", "سكرين"),
+        "صور أو لقطات شاشة": ("صور", "صوري", "صورتي", "لقطات", "لقطة", "سكرين"),
         "رسائل أو محادثات": ("رسائل", "رسالة", "محادث", "مسجات"),
         "إيصال أو سجل دفع": ("ايصال", "إيصال", "حوالة", "تحويل"),
     }
@@ -544,7 +549,7 @@ def _evidence_polarity(text: str, allow_bare: bool = False) -> tuple[bool, bool,
             # image, not automatically to evidence held by the user.
             explicit_term = any(term in normalized_clause for term in terms)
             if label == "صور أو لقطات شاشة" and explicit_term and not any(
-                marker in normalized_clause for marker in ("لقطات", "سكرين", "صور شاشة", "صورة شاشة")
+                marker in normalized_clause for marker in ("لقطات", "لقطة", "سكرين", "صور شاشة", "صورة شاشة")
             ):
                 explicit_term = bool(re.search(r"(?<!\w)(?:صور|صورة|صوري|صورتي)(?!\w)", normalized_clause))
             if explicit_term:
@@ -640,8 +645,10 @@ def _impersonation_behavior_described(text: str) -> bool:
 
 
 def _identity_actor_unknown(text: str) -> bool:
-    identity_subject = re.compile(r"(?:مين|من)\s+(?:عامل|عمل|انشا|انشأ|مسوي|وراء|صاحب|يدير)|هوية\s+(?:الشخص|الفاعل)")
-    person_reference = re.compile(r"(?:الشخص|الفاعل|فاعل|هويته|هويتها|مين\s+هو|مين\s+هي|مينه|مينها)")
+    identity_subject = re.compile(r"(?:مين|من)(?:\s+(?:عامل|عمل|انشا|انشأ|مسوي|وراء|صاحب|يدير))?|"
+                                  r"صاحب\s+(?:الحساب|الرقم|الصفحة)|هوية\s+(?:الشخص|الفاعل)")
+    person_reference = re.compile(r"(?:الشخص|الفاعل|فاعل|هويته|هويتها|مين\s+هو|مين\s+هي|مينه|مينها|"
+                                  r"صاحب\s+(?:الحساب|الرقم|الصفحة))")
     for clause in _clauses(_strip_quoted_spans(text)):
         normalized = normalize(clause)
         if not _is_unknown(clause):
@@ -760,7 +767,7 @@ def _incident_detail_candidate(text: str) -> bool:
 
 
 _TIME_EXPRESSION_PATTERNS = (
-    r"(?<!\w)(?:اليوم|أمس|امس|البارحة|مبارح)(?:\s+(?:حوالي|تقريباً|تقريبا|نحو|قرابة))?(?:\s+(?:على\s+)?(?:الساعة\s*)?[0-9٠-٩]{1,2}(?::[0-9٠-٩]{2})?(?:\s*(?:المسا|مسا|مساء|الصبح|الصباح|صباحا|بالليل|ليلا))?)?(?!\w)",
+    r"(?<!\w)(?:اليوم|أمس|امس|البارحة|مبارح)(?:\s+(?:حوالي|تقريباً|تقريبا|نحو|قرابة))?(?:\s+(?:على\s+)?(?:الساعة\s*)?[0-9٠-٩]{1,2}(?::[0-9٠-٩]{2})?(?:\s*(?:المسا|مسا|مساء|الصبح|الصباح|صباحا|بالليل|ليلا))?)?(?:\s+(?:الصبح|الصباح|صباحا|بالمسا|مساء|بالليل|ليلا))?(?!\w)",
     r"(?<!\w)(?:الساعة\s*)?[0-9٠-٩]{1,2}:[0-9٠-٩]{2}(?!\w)",
     r"(?<!\w)(?:قبل|منذ)\s+(?:ساعتين|ساعة|ساعه|ساعات|دقائق|دقيقة|يومين|أسبوعين|اسبوعين|أسبوع|اسبوع|شهرين|سنتين|[0-9٠-٩]+\s*(?:ثانية|دقيقة|ساعة|ساعه|يوم|أيام|ايام|اسبوع|أسبوع|شهر|سنة)?)(?!\w)",
     r"(?<!\w)(?:صار\s*(?:له|لو|لها|لهم|لي|لنا)|صر\s*(?:له|لو))\s+(?:من\s+)?(?:ساعتين|ساعة|ساعه|ساعات|يومين|يوم|أسبوع|اسبوع|[0-9٠-٩]+\s*(?:ساعة|ساعه|يوم|أيام|ايام))(?!\w)",
@@ -937,6 +944,7 @@ def _discovery_is_only_known_time(text: str) -> bool:
 
 def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) -> set[str]:
     t = normalize(text)
+    turn_cues = analyze_message(text)
     changed: set[str] = set()
     unknown_status = _is_unknown(text)
     pending_unknown_status = _unknown_status_for_pending(text, pending, unknown_status)
@@ -965,6 +973,8 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
                     "reported" if impersonation_polarity else "denied", text, mid, question_id, changed)
         if impersonation_polarity and _impersonation_behavior_described(text) and _narrative_has_description(text):
             _set_answer(state, "details", text, "reported", text, mid, question_id, changed)
+    if turn_cues["verbal_abuse"] and turn_cues["digital_context"] and _narrative_has_description(text):
+        _set_answer(state, "details", text, "reported", text, mid, question_id, changed)
     platform_names = (("واتساب", "واتساب"), ("whatsapp", "واتساب"), ("انستغرام", "إنستغرام"), ("انستجرام", "إنستغرام"), ("instagram", "إنستغرام"), ("فيسبوك", "فيسبوك"), ("facebook", "فيسبوك"), ("سناب", "سناب شات"), ("snapchat", "سناب شات"), ("تيك توك", "تيك توك"), ("tiktok", "تيك توك"), ("تلغرام", "تلغرام"), ("تليجرام", "تلغرام"), ("تلجرام", "تلغرام"), ("telegram", "تلغرام"))
     platform = next((name for token, name in platform_names if token in t), None)
     if platform:
@@ -1234,10 +1244,16 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
             _set_answer(state, "contact_identifier_disclosure", None, "declined", text, mid, question_id, changed)
 
     explicit_identity_unknown = _identity_actor_unknown(text)
+    known_identity_without_identifier = bool(re.search(
+        r"(?:بعرف|اعرف|معروف عندي)\s+(?:صاحب|صاحبة|الشخص|الفاعل|حسابه|حسابها|هو)(?=$|[\s،؛.!؟?])|"
+        r"(?:بعرفه|بعرفها|اعرفه|اعرفها)(?=$|[\s،؛.!؟?])", normalize(text)))
     identity_unknown = explicit_identity_unknown or (pending == "identity" and pending_unknown_status is not None)
     if identity_unknown:
         _set_answer(state, "identity", None, "unknown" if explicit_identity_unknown else pending_unknown_status,
                     text, mid, question_id, changed)
+    elif known_identity_without_identifier:
+        _set_answer(state, "identity", "هوية أو حساب معروف بحسب الإفادة؛ لم يُدرج المعرّف",
+                    "reported", text, mid, question_id, changed)
     elif pending == "identity":
         if pending_unknown_status:
             _set_answer(state, "identity", None, pending_unknown_status, text, mid, question_id, changed)
@@ -1282,6 +1298,8 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
 
 def _user_intent(text: str) -> str | None:
     t = normalize(text)
+    if analyze_message(text).get("wrap_up"):
+        return "wrap_up"
     assessment_terms = ("اولوية", "الاولويه", "الدرجه", "التصنيف", "التصنيف", "الفرز", "التقييم")
     why_terms = ("ليش", "لماذا", "كيف احتسب", "سبب")
     if (any(normalize(w) in t for w in ("ليش الأولوية", "ليش الدرجة", "لماذا الدرجة", "كيف احتسبت الأولوية", "سبب التصنيف"))
@@ -1388,12 +1406,14 @@ def _is_request_clause(clause: str) -> bool:
 
 
 def _has_unquantified_request(text: str) -> bool:
-    request_markers = ("طلب", "طالب", "ادفع", "مطلوب", "اذا ما حولت", "اذا لم تحول",
+    request_markers = ("طلب مني مبلغ", "طلب مني مصاري", "طلب مني فلوس", "طالبني بمبلغ", "ادفع", "مطلوب", "اذا ما حولت", "اذا لم تحول",
                        "اذا ما دفعت", "اذا لم تدفع", "لو ما دفعت", "لو لم تدفع")
     for clause in _payment_clauses(text):
+        financial_request = any(marker in clause for marker in request_markers) or bool(re.search(
+            r"(?:طلب|طلبت|طالبني)\s+(?:مني|منه|منها)\s+(?:مبلغ|مصاري|فلوس|ادفع|احول|احوّل)", clause))
         denial_scopes_over_request = bool(re.search(
             r"^(?:و)?(?:ما في|لا يوجد|ما كان في|ما كان فيه|لم يكن هناك)\b.*(?:طلب|طالب|مطلوب)", clause))
-        if (_is_request_clause(clause) and not _denied_request(clause) and not denial_scopes_over_request
+        if (financial_request and _is_request_clause(clause) and not _denied_request(clause) and not denial_scopes_over_request
                 and not (_amount_after_marker(clause, request_markers) or _first_amount(clause))):
             return True
     return False
@@ -1728,6 +1748,20 @@ def _has(state: dict[str, Any], key: str) -> bool:
         return fact.get("status") == "reported" and _narrative_has_description(fact.get("value"))
     if key == "requested_amount" and fact and fact.get("status") == "reported" and fact.get("value") == "المبلغ المطلوب غير محدد بحسب الإفادة":
         return False
+    if key == "details" and (not fact or fact.get("status") not in TERMINAL):
+        narrative = str(state.get("facts", {}).get("narrative", {}).get("value") or "")
+        signals = analyze_message(narrative)
+        if _reported_true(state, "account_access") and any(marker in normalize(narrative) for marker in (
+                "غير كلمة المرور", "دخل على حساب", "غير بيانات الدخول", "استعاد الحساب")):
+            return True
+        if signals.get("financial_deception") and state.get("facts", {}).get("paid_amount", {}).get("status") == "reported":
+            return True
+        if signals.get("publication_threat") and any(state.get("facts", {}).get(key, {}).get("status") in TERMINAL
+                                                       for key in ("requested_amount", "paid_amount")):
+            return True
+        if signals.get("harassment_cue") and any(marker in normalize(narrative) for marker in (
+                "رسائل متكررة", "يلاحقني", "طلبت منه يوقف", "تواصل مستمر")):
+            return True
     return bool(fact and fact.get("status") in TERMINAL)
 
 
@@ -1739,35 +1773,53 @@ def _reported_true(state: dict[str, Any], key: str) -> bool:
 def _incident_profile(state: dict[str, Any]) -> dict[str, bool]:
     facts = state["facts"]
     context = normalize(" ".join(str(facts.get(key, {}).get("value", "")) for key in ("narrative", "details", "additional_details")))
-    threat = _reported_true(state, "threat")
-    impersonation = _reported_true(state, "impersonation")
-    harassment = _reported_true(state, "harassment")
-    account_access = _reported_true(state, "account_access")
+    narrative_cues = analyze_message(context)
+    threat = _reported_true(state, "threat") or narrative_cues.get("publication_threat", False)
+    impersonation = _reported_true(state, "impersonation") or narrative_cues.get("explicit_identity_claim", False)
+    harassment = _reported_true(state, "harassment") or narrative_cues.get("harassment_cue", False)
+    account_access = _reported_true(state, "account_access") or narrative_cues.get("account_takeover", False)
     financial = any(_reported_true(state, key) for key in ("active_unauthorized_funds", "fraud_description"))
+    financial = financial or narrative_cues.get("financial_deception", False)
     financial = financial or any(facts.get(key, {}).get("status") == "reported" for key in ("requested_amount", "paid_amount", "payment_method"))
-    publication = _reported_true(state, "publication_threat") or facts.get("published", {}).get("status") in {"reported", "denied"}
-    publication = publication or (_narrative_has_description(context) and any(word in context for word in ("ينشر", "نشر", "انتشرت", "صور خاصة", "محادثات خاصة")))
-    incident = threat or impersonation or harassment or account_access or financial or publication
+    publication = (_reported_true(state, "publication_threat") or narrative_cues.get("publication_threat", False)
+                   or facts.get("published", {}).get("status") == "reported")
+    possible_publication = any(marker in context for marker in ("خايف", "خايفه", "قلقان", "قلقانه")) \
+        and any(marker in context for marker in ("ينشر", "ينزل", "يبعتهم", "يرسلهم", "يفضح"))
+    defamation = classify_track(state) == "defamation_or_abuse"
+    incident = threat or impersonation or harassment or account_access or financial or publication or possible_publication or defamation
     return {"threat": threat, "impersonation": impersonation, "harassment": harassment, "account_access": account_access,
-            "financial": financial, "publication": publication, "incident": incident}
+            "financial": financial, "publication": publication, "possible_publication": possible_publication,
+            "defamation": defamation, "incident": incident}
 
 
 def _relevant_slots(state: dict[str, Any]) -> list[str]:
     profile = _incident_profile(state)
+    if profile.get("defamation"):
+        return ["narrative", "details", "platform", "identity", "evidence"]
     slots = ["narrative"]
+    if profile.get("possible_publication") and not _has(state, "publication_threat"):
+        slots.append("publication_threat")
     if not profile["incident"]:
         if state["facts"].get("narrative", {}).get("status") != "unresolved":
             slots.append("unclassified_details")
         slots.append("incident_type_review")
     if profile["publication"] and not _has(state, "publication_threat"):
         slots.append("publication_threat")
+    narrative_text = normalize(" ".join(str(state.get("facts", {}).get(key, {}).get("value") or "")
+                                         for key in ("narrative", "details", "additional_details")))
+    ongoing_harassment_only = profile["harassment"] and not profile["threat"] and not profile["impersonation"] \
+        and not profile["account_access"] and not profile["financial"]
+    clarify_contact_vs_harm = ongoing_harassment_only and any(marker in narrative_text for marker in (
+        "ما هددني", "ما في تهديد", "ما صار ضرر", "ولا صار ضرر", "ولا اذى"))
+    if clarify_contact_vs_harm:
+        slots.append("repeated")
     if profile["threat"] or profile["account_access"] or profile["financial"]:
         slots.extend(("details", "initial_time"))
     elif profile["impersonation"]:
-        slots.append("details")
+        slots.extend(("details", "platform"))
     elif profile["incident"]:
         slots.append("initial_time")
-    if profile["threat"] or profile["harassment"]:
+    if (profile["threat"] or profile["harassment"]) and not ongoing_harassment_only:
         slots.append("repeated")
     if profile["financial"]:
         slots.extend(("requested_amount", "paid_amount"))
@@ -1775,11 +1827,23 @@ def _relevant_slots(state: dict[str, Any]) -> list[str]:
             slots.append("payment_method")
         if state["facts"].get("requested_amount", {}).get("status") == "reported" and state["facts"].get("requested_amount", {}).get("value"):
             slots.append("deadline")
-    if profile["publication"]:
+    if profile["publication"] or (profile.get("possible_publication") and _has(state, "publication_threat")):
         slots.append("published")
+    threat_answer = str(state.get("facts", {}).get("publication_threat", {}).get("quote") or "")
+    brief_threat_answer = len(normalize(threat_answer).split()) <= 5
+    if profile.get("possible_publication") and _has(state, "publication_threat") and _has(state, "published") \
+            and state.get("facts", {}).get("publication_threat", {}).get("status") == "denied" \
+            and state.get("facts", {}).get("published", {}).get("status") == "denied" \
+            and brief_threat_answer and not state.get("facts", {}).get("additional_details"):
+        slots.append("unclassified_details")
     if profile["threat"] or profile["impersonation"] or profile["account_access"]:
         slots.append("identity")
-    if profile["incident"]:
+    if profile["incident"] and not (profile.get("possible_publication")
+                                     and _has(state, "publication_threat") and _has(state, "published")
+                                     and state.get("facts", {}).get("publication_threat", {}).get("status") == "denied"
+                                     and state.get("facts", {}).get("published", {}).get("status") == "denied"):
+        slots.append("evidence")
+    elif profile["incident"] and not brief_threat_answer:
         slots.append("evidence")
     unresolved_relation = _unresolved_money_relation(state)
     if unresolved_relation:
@@ -1844,19 +1908,45 @@ def _incident_features(state: dict[str, Any]) -> dict[str, Any]:
 def _compose_smart_question(state: dict[str, Any], slot: str, mode: str = "adaptive") -> str:
     """Choose one grounded prompt from safe, non-identifying session features."""
     features = _incident_features(state)
+    profile = _incident_profile(state)
+    narrative = normalize(" ".join(str(state.get("facts", {}).get(key, {}).get("value") or "")
+                                    for key in ("narrative", "details", "additional_details")))
+    cues = analyze_message(narrative)
+    if slot == "publication_threat":
+        fear_only = any(marker in narrative for marker in ("خايف", "خايفه", "قلقان", "قلقانه")) \
+            and not any(marker in narrative for marker in ("هدد", "قال انه ينشر", "طلب مني"))
+        if fear_only:
+            asked_count = sum(1 for item in state.get("question_history", [])
+                              if isinstance(item, dict) and item.get("slot") == slot)
+            if asked_count:
+                return "سجلت وقت البداية. بقي عندي تمييز واحد: هل صدر تهديد فعلي أو طلب منك شيئًا، أم أن القلق من احتمال النشر فقط؟ لا تشاركي الصور."
+            return "واضح أن احتمال نشر الصور مقلق لك. هل صدر منه تهديد صريح بالنشر، أي هل هددك بذلك فعلًا، أم أن هذا خوف من احتمال فقط؟ لا ترسلي الصور."
+        return "حتى أفهم الوضع بدقة: هل هددك الشخص صراحةً بالنشر، أم ذُكر احتمال النشر فقط؟ لا تشاركي أي صور أو ملفات."
+    if slot == "unclassified_details" and profile.get("possible_publication") \
+            and state.get("facts", {}).get("publication_threat", {}).get("status") == "denied" \
+            and state.get("facts", {}).get("published", {}).get("status") == "denied":
+        return "سجلت أنه لم يصدر تهديد صريح ولم يحصل نشر بحسب إفادتك. هل وقع تصرف رقمي آخر تريدين إضافته، أم هذا كل ما تعرفينه؟"
     if slot == "published" and features["publication_threat"]:
         return "ذكرت وجود تهديد بالنشر. هل نُشر المحتوى فعلًا بحسب ما تعرف، أم لا تعرف؟ لا ترفع أو ترسل أي محتوى."
     if slot == "identity" and features["contact_available"]:
         return "ذكرت أن قناة تواصل متاحة. هل تعرف هوية الشخص، أم تعرف قناة التواصل فقط؟ لا تكتب المعرّف."
     if slot == "initial_time" and features["discovery_known"]:
         return "متى بدأ التصرف أو وصلك أول تواصل؟ وقت الاكتشاف لا يحدد وقت البداية."
+    if slot == "initial_time" and cues.get("account_takeover"):
+        return "متى بدأ التصرف أو وصلك أول تواصل، مثل أول دخول للحساب أو تغيير بياناته؟ هذا غير وقت اكتشاف الواقعة."
+    if slot == "initial_time" and cues.get("financial_deception"):
+        return "متى بدأ التصرف أو وصلك أول تواصل، مثل وقت التحويل أو أول تواصل بخصوص البيع؟"
+    if slot == "initial_time" and cues.get("publication_threat"):
+        return "متى بدأ التصرف أو وصلك أول تواصل، مثل أول تهديد بالنشر؟"
+    if slot == "initial_time" and cues.get("harassment_cue"):
+        return "متى بدأ التصرف أو وصلك أول تواصل، مثل بداية الرسائل أو الملاحقة؟"
     if slot == "account_creation_time" and features["discovery_known"]:
         return "متى أُنشئ الحساب، إن كنت تعرف؟ وقت اكتشافه لا يحدد وقت إنشائه."
     if slot == "evidence":
         return "ما الأدلة التي تقول إنها متوفرة لديك؟ لا ترفعها أو ترسلها هنا."
     if slot == "repeated":
         return "هل تكرر التهديد أو الضرر نفسه، أم أن التواصل مستمر فقط؟ لا أعدّ استمرار الرسائل تكرارًا للتهديد."
-    return QUESTIONS.get(slot, "تقدر تضيف أي معلومة ذات صلة إذا رغبت.")
+    return compose_fallback_question(state, slot, QUESTIONS)
 
 
 def compose_question(state: dict[str, Any], slot: str, mode: str = "adaptive") -> str:
@@ -1932,6 +2022,7 @@ def _explain_why(slot: str) -> str:
 def _assessment(state: dict[str, Any]) -> dict[str, Any]:
     facts = state["facts"]
     profile = _incident_profile(state)
+    incident_track = classify_track(state)
     score: int | None = None
     priority_rule: str | None = None
     supporting_fields: list[str] = []
@@ -1968,6 +2059,14 @@ def _assessment(state: dict[str, Any]) -> dict[str, Any]:
         priority_rule = "R90_ACCOUNT_OR_FRAUD"
         supporting_fields = [key for key in ("account_access", "fraud_description") if _reported_true(state, key)]
         reasons.append("وصف مدعوم لدخول غير مصرح به أو خداع مالي")
+    elif incident_track == "defamation_or_abuse":
+        abuse_text = normalize(" ".join(str(facts.get(key, {}).get("value") or "") for key in ("narrative", "details")))
+        public = any(term in abuse_text for term in ("تعليق", "منشور", "بوست", "ستوري", "عام"))
+        score = 55 if _reported_true(state, "repeated") else 45 if public else 35
+        route = "مراجعة بشرية أولية لإساءة لفظية رقمية"
+        priority_rule = "R55_REPEATED_DIGITAL_ABUSE" if score == 55 else "R45_DIGITAL_VERBAL_ABUSE" if score == 45 else "R35_PRIVATE_DIGITAL_ABUSE"
+        supporting_fields = [key for key in ("narrative", "details", "platform") if facts.get(key)]
+        reasons.append("إساءة لفظية أو ذم/قدح رقمي بحسب إفادة المستخدم؛ التصنيف تجريبي وليس حكمًا قانونيًا")
     elif (profile["threat"] or profile["impersonation"]) and details.get("status") == "reported" and details.get("value") and any(normalize(term) in normalized_details for term in ("رسالة", "ينشر", "ينزل", "نشر", "محادثات", "حساب", "اسمي", "صورتي", "صوري", "هدد", "ابتزاز", "لاحق", "قتل", "سلاح", "دينار", "محفظة", "رقم", "سيؤذيني", "يؤذيني", "سيؤذي", "يضربني", "يقتلني")):
         score, route = 85, "مراجعة بشرية"
         priority_rule = "R85_DETAILED_THREAT_OR_IMPERSONATION"
@@ -2006,7 +2105,8 @@ def _assessment(state: dict[str, Any]) -> dict[str, Any]:
     # Completeness is about known fields, not confidence or proof.
     relevant = _relevant_slots(state)
     answered = sum(1 for k in relevant if _has_known(state, k))
-    return {"policy_version": POLICY_VERSION, "priority_score": score, "priority_rule": priority_rule, "supporting_fields": supporting_fields,
+    return {"policy_version": POLICY_VERSION, "incident_track": incident_track,
+            "priority_score": score, "priority_rule": priority_rule, "supporting_fields": supporting_fields,
             "priority_label": "عاجلة" if score == 100 else "مرتفعة" if score and score >= 90 else "عادية/تحتاج مراجعة" if score else "غير محددة",
             "route": route, "reasons": reasons, "risk_indicators": risk_indicators,
             "completeness_percent": round(100 * answered / len(relevant)),
@@ -2094,6 +2194,10 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
     pending = state.get("pending_slot")
     previous_stage = state.get("stage")
     user_msg = _add_message(state, "user", text)
+    turn_signal = analyze_message(text)
+    state.setdefault("turn_signals", []).append({key: bool(turn_signal.get(key)) for key in (
+        "wrap_up", "unknown", "not_remembered", "protest")} | {"slot": pending})
+    state["turn_signals"] = state["turn_signals"][-8:]
     if screen_current_danger(state, text, user_msg, pending):
         return state
     if previous_stage == "urgent_stop" and rescue_from_urgent(state, text):
@@ -2112,7 +2216,7 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
         return state
     if intent == "why":
         reason = _explain_why(_why_target_slot(text, pending))
-        prompt = QUESTIONS.get(pending or "", "احكيلي أي تفصيل بتحب تضيفه.")
+        prompt = compose_question(state, pending) if pending in QUESTIONS else "احكيلي أي تفصيل بتحب تضيفه."
         _add_question_message(state, pending if pending in QUESTIONS else "narrative",
                               f"{reason}\n\n{prompt}")
         return state
@@ -2242,7 +2346,7 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
         if changed - {pending}:
             _finalize_changed_facts(state, changed)
             state["pending_slot"] = pending
-            prompt = "سجلت المعلومات التي أجابت عن حقول أخرى. بقي عندي هذا السؤال للتوضيح: " + QUESTIONS[pending]
+            prompt = "سجلت المعلومات التي أجابت عن حقول أخرى. بقي عندي هذا السؤال للتوضيح: " + compose_question(state, pending)
             _add_question_message(state, pending, prompt, "clarification")
             return state
         # Do not let an unrelated useful fact move the conversation past its unresolved active question.
@@ -2251,7 +2355,7 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
             state["clarifications"][pending] = attempts + 1
             _finalize_changed_facts(state, changed)
             state["pending_slot"] = pending
-            prompt = "سجلت المعلومة التي أضفتها. بقي عندي هذا السؤال للتوضيح: " + QUESTIONS[pending]
+            prompt = "سجلت المعلومة التي أضفتها. بقي عندي هذا السؤال للتوضيح: " + compose_question(state, pending)
             _add_question_message(state, pending,
                                   (why_reply + "\n\n" if why_reply else "") + prompt,
                                   "clarification")
@@ -2280,6 +2384,37 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
         _add_message(state, "assistant", "سلامتك أولًا. إذا كنت بخطر مباشر، ابتعد لمكان آمن إن أمكن، وتواصل مع خدمات الطوارئ المحلية أو شخص موثوق قريب منك الآن. ما بقدر أحدد رقم طوارئ من دون معرفة بلدك. حفظت إفادتك ويمكن استكمالها لاحقًا.", "safety")
         return state
 
+    stop = evaluate_stopping_decision(state, turn_signal)
+    state["incident_track"] = stop.incident_track
+    state["stopping_decision"] = stop.as_dict()
+    if stop.should_stop:
+        if stop.stop_reason == "user_wrap_up" and pending in QUESTIONS and pending not in changed \
+                and pending in _relevant_slots(state) and not _has(state, pending):
+            _record(state, pending, "unresolved", None, text, user_msg["id"], question_id, "user_wrap_up")
+            changed.add(pending)
+            _finalize_changed_facts(state, changed)
+            stop = evaluate_stopping_decision(state, turn_signal)
+            state["stopping_decision"] = stop.as_dict()
+        state["stage"] = "review"
+        state["pending_slot"] = None
+        state["assessment"] = _assessment(state)
+        track_label = {
+            "defamation_or_abuse": "إساءة لفظية رقمية",
+            "impersonation_or_harassment": "انتحال أو مضايقة",
+            "extortion_fraud_takeover": "ابتزاز أو احتيال أو دخول غير مأذون",
+            "exploratory_intake": "استيضاح أولي",
+            "direct_danger": "سلامة عاجلة",
+        }.get(stop.incident_track, "استيضاح أولي")
+        reason_text = {
+            "track_core_complete": "جمعت العناصر الجوهرية المتاحة لهذه الإفادة.",
+            "user_wrap_up": "وصلتني رغبتك بالاكتفاء، ولن أضيف أسئلة أخرى الآن.",
+            "adaptive_turn_budget": "وصلنا إلى سقف الأسئلة المناسب لهذه المقابلة.",
+            "diminishing_returns": "ما دام التفصيل غير متذكر أو غير معلوم، لن أضغط عليك لإعادة الإجابة.",
+            "user_fatigue_or_repeat_protest": "سأتجنب إعادة السؤال وأحترم رغبتك في التوقف.",
+        }.get(stop.stop_reason, "يمكنك مراجعة المعلومات المتاحة الآن.")
+        _add_message(state, "assistant", f"{reason_text} المسار الأولي: {track_label}. راجع الملخص وصحح أو أضف أي تفصيل قبل التأكيد؛ ما بقي مجهولًا سيظل ظاهرًا دون تخمين.", "review")
+        return state
+
     next_slot = ("requested_amount" if unquantified_request and not _has(state, "requested_amount")
                  else _next_slot(state))
     if next_slot is None and not _validate_interview_completion(state):
@@ -2298,7 +2433,7 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
         unresolved_money = _unresolved_money_relation(state)
         temporal_conflict = (state.get("facts", {}).get(next_slot, {}).get("status") == "conflict"
                              and next_slot in {"initial_time", "latest_time", "discovery_time", "account_creation_time"})
-        question_text = None if temporal_conflict else QUESTIONS[next_slot]
+        question_text = None if temporal_conflict else compose_question(state, next_slot)
         if unresolved_money and unresolved_money[0].get("correction_target_ambiguous"):
             kind_label = "مبلغًا مطلوبًا" if unresolved_money[0].get("kind") == "requested" else "دفعة"
             question_text = f"ذكرت أكثر من {kind_label}. أي مبلغ سابق تقصد تصحيحه؟ اذكر المبلغ أو ترتيبه، من دون إعادة إرسال معلومات غير لازمة."
@@ -2437,15 +2572,19 @@ def report_data(state: dict[str, Any]) -> dict[str, Any]:
             "is_correction_record": event.get("relation") == "correction",
             "source_message_at": message_times.get(event.get("message_id")),
             "relation_message_at": message_times.get(corrections[-1].get("message_id")) if corrections else message_times.get(event.get("relation_message_id"))})
-    missing_fields = [key for key in _relevant_slots(state) if not _has(state, key)]
     unknown_fields = [key for key, fact in facts.items() if fact.get("status") == "unknown"]
     not_remembered_fields = [key for key, fact in facts.items() if fact.get("status") == "not_remembered"]
     declined_fields = [key for key, fact in facts.items() if fact.get("status") == "declined"]
     unresolved_fields = [key for key, fact in facts.items() if fact.get("status") == "unresolved"]
     conflicting_fields = [key for key, fact in facts.items() if fact.get("status") == "conflict"]
-    field_keys = sorted(set(facts) | set(_relevant_slots(state)))
     unresolved_money_events = [event for event in money_events
                                if event.get("relation") in {"unresolved", "unresolved_after_clarification"}]
+    missing_fields = [key for key in _relevant_slots(state) if not _has(state, key)]
+    for event in unresolved_money_events:
+        relation_field = "requested_amount_relation" if event.get("kind") == "requested" else "paid_amount_relation"
+        if relation_field not in missing_fields:
+            missing_fields.append(relation_field)
+    field_keys = sorted(set(facts) | set(_relevant_slots(state)) | set(missing_fields))
     history = list(state.get("confirmation_history") or [])
     old_digest = state.get("confirmed_digest")
     if state.get("confirmed") and old_digest and not current_confirmation and not any(item.get("digest") == old_digest for item in history):

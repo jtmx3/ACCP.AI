@@ -99,11 +99,14 @@ class Store:
         state["updated_at"] = row["updated_at"]
         return state
 
-    def create(self) -> tuple[dict[str, Any], str]:
+    def create(self, session_defaults: dict[str, Any] | None = None) -> tuple[dict[str, Any], str]:
         import uuid
         session_id = str(uuid.uuid4())
         token = secrets.token_urlsafe(32)
         state = new_state(session_id)
+        if session_defaults:
+            # Caller supplies only application-owned, non-secret session settings.
+            state.update(session_defaults)
         stamp = now_iso()
         with self._connection() as conn:
             conn.execute("BEGIN IMMEDIATE")

@@ -88,6 +88,7 @@
     $('resume-case').disabled = !$('case-list').value;
     $('start-case').disabled = creating;
     $('new-case').disabled = creating;
+    $('local-model-enabled').disabled = !ready || locked || !localModelConfigured;
   }
   function nextRequest(ctx) {
     const value = (requestSequence.get(ctx.id) || 0) + 1;
@@ -364,7 +365,7 @@
     $('welcome').classList.add('hidden');
     $('case-view').classList.remove('hidden');
     $('case-title').textContent = `الحالة ${state.session_id.slice(0, 8)}`;
-    $('session-local-auto').checked = Boolean(state.adaptive_questions_enabled);
+    $('local-model-enabled').checked = Boolean(state.local_model_enabled);
     $('case-updated-at').textContent = `آخر تحديث للحالة: ${formatTime(state.updated_at)}`;
     $('stage-badge').textContent = ({ interview: 'مقابلة', paused: 'محفوظة', review: 'مراجعة', urgent_stop: 'سلامة أولًا' })[state.stage] || 'جلسة';
     $('pause-case').textContent = state.stage === 'paused' ? 'استكمال المقابلة' : 'حفظ ومتابعة لاحقًا';
@@ -447,15 +448,10 @@
     const textarea = $('message');
     const text = textarea.value;
     if (!text.trim()) { endMutation(ctx, owner); return; }
-      const consent = $('model-consent').checked;
-      const contextConsent = $('context-consent').checked;
     const sequence = nextRequest(ctx);
     setStatus('جارٍ الحفظ…', true, ctx);
     try {
-      const payload = { expected_revision: ctx.revision, text, kind,
-        allow_local_model: consent,
-        allow_context_extraction: kind === 'answer' && consent && contextConsent,
-        allow_adaptive_question: $('session-local-auto').checked };
+      const payload = { expected_revision: ctx.revision, text, kind };
       const result = await api(`/api/sessions/${ctx.id}/messages`, { method: 'POST', body: JSON.stringify(payload) }, ctx);
       const rendered = commitState(ctx, result.session, sequence);
       if (rendered && $('message').value === text) $('message').value = '';
@@ -525,17 +521,17 @@
           } else if (result.local_model_result_accepted) {
             const filteredCount = Number(result.provider_call?.filtered_fact_count || 0);
             const runtimeLabel = result.runtime_mode === 'local_model' ? 'نموذج Ollama المحلي' : 'القواعد المحلية';
-            $('runtime-mode').textContent = `${runtimeLabel} — استُخدم في آخر إرسال بموافقتك.`;
+            $('runtime-mode').textContent = `${runtimeLabel} — استُخدم في آخر إرسال وفق إعداد الجلسة.`;
             const filterNote = filteredCount ? `؛ واستبعد النظام ${filteredCount} من الحقائق غير المسندة عن الحالة` : '';
             const extractedCount = Number(result.provider_call?.fact_fields?.length || 0);
             const acceptedSummary = extractionCall ? `عدد الوقائع المقبولة: ${extractedCount}` : 'قُبل جواب الاستناد إلى المصادر';
-            setStatus(`أُرسل ${purpose} بموافقتك إلى ${provider}؛ ${acceptedSummary}${filterNote}${adaptiveNote}${unsupportedGoalNote}.`, true, ctx);
+            setStatus(`استُخدم ${purpose} عبر إعداد النموذج المحلي لهذه الجلسة إلى ${provider}؛ ${acceptedSummary}${filterNote}${adaptiveNote}${unsupportedGoalNote}.`, true, ctx);
             $('runtime-detail').textContent = filteredCount
               ? `آخر عملية: ${extractionCall ? `استخراج من ${provider}؛ عدد الوقائع المقبولة ${extractedCount}، وعدد المقترحات المصفاة ${filteredCount}` : `قُبل الجواب الموثق من ${provider}`}${unsupportedGoalNote}؛ زمن الاستجابة ${latency} مللي ثانية.`
               : `آخر عملية: ${extractionCall ? `استخراج من ${provider}؛ عدد الوقائع المقبولة ${extractedCount}` : `قُبل الجواب الموثق من ${provider}`}${unsupportedGoalNote}؛ زمن الاستجابة ${latency} مللي ثانية.`;
           } else {
             $('runtime-mode').textContent = `القواعد المحلية — عاد الطلب إليها بعد تعذر قبول نتيجة ${provider}.`;
-            setStatus(`لم تُقبل نتيجة ${provider} بعد إرسال ${purpose} بموافقتك؛ فعاد الطلب إلى ${result.fallback_to === 'local_rag' ? 'الإجابة المحلية المستندة إلى المصادر' : 'القواعد المحلية'}.`, false, ctx);
+            setStatus(`لم تُقبل نتيجة ${provider} بعد استخدام النموذج المحلي لهذه الجلسة؛ فعاد الطلب إلى ${result.fallback_to === 'local_rag' ? 'الإجابة المحلية المستندة إلى المصادر' : 'القواعد المحلية'}.`, false, ctx);
             $('runtime-detail').textContent = `آخر عملية: فشل أو رُفضت نتيجة ${provider}؛ الرجوع إلى ${result.fallback_to === 'local_rag' ? 'الإجابة المحلية' : 'القواعد المحلية'}.`;
           }
         } else if (result.question_detected) {
@@ -557,7 +553,6 @@
         setStatus(`تعذر تأكيد نتيجة الحفظ: ${error.message} بقي نصك في الحقل؛ راجع الحالة الأحدث قبل إعادة المحاولة.`, false, ctx);
       }
     } finally {
-      $('model-consent').checked = false;
       endMutation(ctx, owner);
     }
   }
@@ -680,8 +675,7 @@
       $('runtime-mode').textContent = `إعداد ${providerLabel(providerConfig.provider)} · النموذج: ${providerConfig.model} — لم يُثبت الاتصال بعد.`;
       $('runtime-detail').textContent = `الإعداد موجود فقط؛ لم يُفحص اتصال الخدمة أو وجود النموذج أو نجاح التوليد.${reasoning}`;
     }
-    $('model-consent-row').dataset.configured = String(localModelConfigured);
-    updateConsentVisibility();
+    updateSessionModelSettingVisibility();
   }
   function renderProviderProbe(probe) {
     providerProbe = probe || null;
@@ -747,19 +741,15 @@
       $('runtime-detail').textContent = 'تعذر الوصول إلى واجهة التطبيق؛ لم يُفحص مزود النموذج.';
     }
   }
-  function updateConsentVisibility() {
-    $('model-consent-row').classList.toggle('hidden', !localModelConfigured);
-    $('context-consent-row').classList.toggle('hidden', kind !== 'answer' || !localModelConfigured);
-    const adaptiveEnabled = !!providerConfig?.adaptive_question_generation_enabled && localModelConfigured;
-    $('session-local-auto-row').classList.toggle('hidden', !adaptiveEnabled);
-    $('session-local-auto').disabled = !adaptiveEnabled;
-    $('model-consent').checked = false;
-    $('context-consent').checked = false;
-    const target = 'نموذج Ollama المحلي المضبوط';
-    $('model-consent-copy').textContent = kind === 'question'
-      ? `أوافق على إرسال نص هذا السؤال الحالي ومقتطفات المصادر المختارة فقط إلى ${target} لهذا الرد. لن يُرسل سجل المقابلة.`
-      : `أوافق على إرسال نص رسالتي الحالية فقط إلى ${target} لاستخراج الوقائع في هذا الطلب. لا يشمل ذلك الرسائل السابقة.`;
-    $('context-consent-copy').textContent = `موافقة منفصلة اختيارية: أسمح بإرسال سياق محدود (السؤال المعلّق وحتى أربع رسائل وحقائق ذات صلة، بحد 4500 حرف) إلى ${target} مع الرسالة الحالية، فقط عند تفعيل موافقة استخراج الرسالة أعلاه.`;
+  function updateSessionModelSettingVisibility() {
+    const row = $('local-model-setting-row');
+    row.classList.toggle('hidden', !localModelConfigured);
+    const state = active?.session;
+    const enabled = !!state?.local_model_enabled;
+    $('local-model-enabled').checked = enabled;
+    $('local-model-setting-copy').textContent = enabled
+      ? 'Ollama المحلي مفعّل لهذه الجلسة لفهم الرسائل وصياغة الحوار؛ أوقف المفتاح للعودة إلى القواعد المحلية فقط.'
+      : 'استخدام Ollama المحلي لهذه الجلسة لفهم الرسائل وصياغة الحوار. قد تُرسل الرسالة الحالية وسياق محدود ذي صلة إلى خدمة loopback على جهازك.';
   }
 
   $('start-case').addEventListener('click', createCase);
@@ -773,20 +763,20 @@
   $('check-provider').addEventListener('click', checkProvider);
   $('test-provider-generation').addEventListener('click', testProviderGeneration);
   $('jurisdiction').addEventListener('change', changeJurisdiction);
-  $('session-local-auto').addEventListener('change', async () => {
+  $('local-model-enabled').addEventListener('change', async () => {
     const ctx = snapshotActive();
     if (!ctx) return;
     const owner = beginMutation(ctx);
     if (!owner) return;
-    const enabled = $('session-local-auto').checked;
+    const enabled = $('local-model-enabled').checked;
     try {
-      const result = await api(`/api/sessions/${ctx.id}/adaptive-question-settings`, {
+      const result = await api(`/api/sessions/${ctx.id}/local-model-settings`, {
         method: 'PUT', body: JSON.stringify({ expected_revision: ctx.revision, enabled })
       }, ctx);
       commitState(ctx, result.session, nextRequest(ctx));
-      setStatus(enabled ? 'تم تفعيل صياغة السؤال التكيفي لهذه الجلسة.' : 'تم إيقاف صياغة السؤال التكيفي لهذه الجلسة.', true, ctx);
+      setStatus(enabled ? 'تم تفعيل استخدام Ollama المحلي لهذه الجلسة.' : 'تم إيقاف النموذج؛ ستُعالج الرسائل بالقواعد المحلية.', true, ctx);
     } catch (error) {
-      $('session-local-auto').checked = !enabled;
+      $('local-model-enabled').checked = !enabled;
       setStatus(error.message, false, ctx);
     } finally { endMutation(ctx, owner); }
   });
@@ -797,7 +787,7 @@
     $('mode-label').textContent = kind === 'answer' ? 'وضع المقابلة: إجابة' : 'وضع السؤال للبوت';
     $('toggle-mode').textContent = kind === 'answer' ? 'عندي سؤال للبوت' : 'العودة للإجابة';
     $('message').placeholder = kind === 'answer' ? 'اكتب إجابتك هنا…' : 'اكتب سؤالك هنا…';
-    updateConsentVisibility();
+    updateSessionModelSettingVisibility();
   });
   renderCaseList();
   updateControls();

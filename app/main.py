@@ -62,6 +62,11 @@ class AdaptiveQuestionSettingsRequest(BaseModel):
     enabled: bool = False
 
 
+class LocalModelSettingsRequest(BaseModel):
+    expected_revision: int = Field(ge=0)
+    enabled: bool = False
+
+
 class TemporalConflictResolutionRequest(BaseModel):
     expected_revision: int = Field(ge=0)
     field: str
@@ -200,7 +205,14 @@ def metadata():
 
 @app.post("/api/sessions")
 def create_session():
-    state, token = store.create()
+    defaults = None
+    config = provider_config()
+    if config.get("configured"):
+        probe = probe_provider(timeout=1.0)
+        enabled = bool(probe.get("service_reachable") and probe.get("model_available"))
+        defaults = {"local_model_enabled": enabled, "model_settings_version": 1,
+                    "adaptive_questions_enabled": bool(enabled and config.get("adaptive_question_generation_enabled"))}
+    state, token = store.create(defaults)
     state["jurisdiction"] = None
     return {"session": state, "token": token, "token_notice": "هذا الرمز خاص بالحالة. لا تشاركه؛ لا يمكن استعادته من الخادم."}
 
@@ -228,6 +240,25 @@ def set_adaptive_question_settings(session_id: str, body: AdaptiveQuestionSettin
 
     state = _mutate(session_id, x_case_token, body.expected_revision, "adaptive_question_setting_changed", mutate)
     return {"session": state, "adaptive_questions_enabled": state["adaptive_questions_enabled"]}
+
+
+@app.put("/api/sessions/{session_id}/local-model-settings")
+def set_local_model_settings(session_id: str, body: LocalModelSettingsRequest,
+                             x_case_token: str = Header(default="")):
+    config = provider_config()
+    if body.enabled and not config.get("configured"):
+        raise HTTPException(409, "لا يمكن تفعيل النموذج إلا مع Ollama محلي مضبوط على loopback.")
+
+    def mutate(state):
+        state["local_model_enabled"] = bool(body.enabled)
+        state["model_settings_version"] = 1
+        state["adaptive_questions_enabled"] = bool(
+            body.enabled and config.get("adaptive_question_generation_enabled"))
+
+    state = _mutate(session_id, x_case_token, body.expected_revision, "local_model_setting_changed", mutate)
+    return {"session": state, "local_model_enabled": state["local_model_enabled"],
+            "adaptive_questions_enabled": state["adaptive_questions_enabled"],
+            "provider": config["provider"], "model": config["model"]}
 
 
 def _append_answer_before_followup(state: dict, text: str, citations: list[dict] | None = None,
@@ -276,6 +307,10 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
     preflight_started = time.perf_counter()
     snapshot = _preflight(session_id, x_case_token, body.expected_revision)
     request_preflight_ms = round((time.perf_counter() - preflight_started) * 1000, 3)
+    session_setting_present = "local_model_enabled" in snapshot
+    model_enabled_for_turn = (bool(snapshot.get("local_model_enabled")) if session_setting_present
+                              else bool(body.allow_local_model))
+    context_enabled_for_turn = model_enabled_for_turn and (session_setting_present or body.allow_context_extraction)
     pending = snapshot.get("pending_slot")
     pending_guidance = snapshot.get("pending_guidance")
     resolving_pending_guidance = bool(isinstance(pending_guidance, dict)
@@ -333,10 +368,10 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
     initial_auto_question = (not resolving_pending_guidance and body.kind == "answer"
                              and is_clear_user_question(text) and not initial_actionable_fact)
     extraction_text = guidance_fact_text if mixed_pending_guidance else text
-    if (body.kind == "answer" and not initial_auto_question and body.allow_local_model
+    if (body.kind == "answer" and not initial_auto_question and model_enabled_for_turn
             and model_configured() and not urgent and intent is None and not resolving_pending_guidance):
         local_extraction_sent = True
-        if body.allow_context_extraction:
+        if context_enabled_for_turn:
             extraction_context = build_bounded_context(snapshot, extraction_text, pending)
             model_facts = generate_interview_extraction(extraction_text, pending, extraction_context,
                                                         message_interpretation)
@@ -416,7 +451,7 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
         retrieval_ms = round((time.perf_counter() - retrieval_started) * 1000, 3)
     answer_generation_ms = 0.0
     if (question_mode or mixed_guidance) and not urgent and intent not in {"why", "assessment_why"}:
-        if body.allow_local_model and model_configured() and local_qa and local_qa.get("citations"):
+        if model_enabled_for_turn and model_configured() and local_qa and local_qa.get("citations"):
             local_question_sent = True
             corpus = load_corpus()
             source_map = {item["id"]: item for item in corpus["sources"]}
@@ -430,9 +465,9 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
             answer_generation_ms = round((time.perf_counter() - answer_started) * 1000, 3)
 
     def mutate(state):
-        adaptive_setting_enabled = (body.allow_adaptive_question
-                                    and provider_config().get("adaptive_question_generation_enabled", False))
-        state["adaptive_questions_enabled"] = bool(adaptive_setting_enabled)
+        if not session_setting_present:
+            state["adaptive_questions_enabled"] = bool(
+                body.allow_adaptive_question and provider_config().get("adaptive_question_generation_enabled", False))
         if urgent:
             user_msg = _add_message(state, "user", text, "answer")
             state["updated_at"] = user_msg["created_at"]
@@ -543,7 +578,7 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
     save_ms = round((time.perf_counter() - save_started) * 1000, 3)
     adaptive_question_result = {"attempted": False, "accepted": False, "rejection_code": None}
     adaptive_question_ms = 0.0
-    adaptive_enabled = bool(body.allow_adaptive_question and state.get("adaptive_questions_enabled")
+    adaptive_enabled = bool(model_enabled_for_turn and state.get("adaptive_questions_enabled")
                             and provider_config().get("adaptive_question_generation_enabled")
                             and model_configured() and not urgent and not question_mode
                             and state.get("stage") == "interview")
@@ -709,7 +744,9 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
             "question_detected": auto_question or resolving_pending_guidance,
             "runtime_mode": provider["mode"] if call_accepted or message_plan_applied else "rules",
             "provider_call": provider_call, "provider_calls": provider_calls, "timings": timings,
-            "model_diagnostics": model_diagnostics}
+            "model_diagnostics": model_diagnostics,
+            "incident_track": state.get("incident_track") or state.get("assessment", {}).get("incident_track"),
+            "stopping_decision": state.get("stopping_decision")}
 
 
 @app.post("/api/sessions/{session_id}/resume")

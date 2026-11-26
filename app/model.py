@@ -330,27 +330,39 @@ def test_provider_generation() -> dict[str, Any]:
     }
 
 
-ADAPTIVE_SLOT_REQUIRED_MARKERS = {
-    "platform": ("منصه", "تطبيق", "على اي تطبيق"),
-    "details": ("تفاصيل الواقعه", "شو صار", "شو اللي صار"),
-    "initial_time": ("بدا", "اول تواصل", "اول رساله", "بدايه التواصل", "متى بلش التواصل"),
-    "discovery_time": ("اكتشاف", "اكتشفت", "لاحظت", "انتبهت", "وقت ما انتبهت"),
-    "account_creation_time": ("انشاء", "انعمل الحساب", "انشا الحساب", "وقت انعمل الحساب"),
-    "latest_time": ("احدث تواصل", "اخر تواصل", "اخر مره", "اخر رساله"),
-    "ongoing_contact": ("مستمر", "ما زال يتواصل", "ما زال يراسل", "لسه بتواصل"),
-    "repeated": ("تكرر", "التهديد", "الضرر", "رجع هدد", "مره ثانيه"),
-    "requested_amount": ("المبلغ المطلوب", "كم طلب", "قديش طلب"),
-    "paid_amount": ("المبلغ المدفوع", "دفعت", "قديش حولت", "كم دفعت"),
-    "payment_method": ("وسيله الدفع", "طريقه الدفع", "بأي طريقة دفعت", "كيف حولت"),
-    "deadline": ("مهله", "موعد الدفع", "متى طلب الدفع"),
-    "published": ("نشر", "نزل المحتوى", "انتشر"),
-    "publication_threat": ("تهديد بالنشر", "هدد بالنشر", "لوح بالنشر"),
-    "identity": ("هويه", "تعرف", "بتعرف مين"),
-    "contact": ("قناه التواصل", "وسيله التواصل", "طريقه التواصل"),
-    "evidence": ("ادله", "لقطات", "دليل"),
-    "impersonation": ("انتحال", "ادعاء انه انت", "يدعي انه انت", "بتظاهر انه انت"),
-    "requested_amount_relation": ("مبلغ", "تصحيح"),
-    "paid_amount_relation": ("دفعة", "مبلغ"),
+# Flexible semantic anchors for relevance validation, not prescribed question templates.
+# Each inner tuple is a concept group; a valid question must touch every group for its slot.
+ADAPTIVE_SLOT_CONCEPT_GROUPS = {
+    "platform": (("منصه", "تطبيق", "برنامج", "موقع", "شبكه"),),
+    "details": (("شو", "ايش", "ماذا", "كيف", "وضح", "اشرح"),
+                ("صار", "حدث", "عمل", "تصرف", "واقعه", "مشكله")),
+    "initial_time": (("متي", "امتي", "قديش", "كم", "وقت", "يوم", "صار"),
+                     ("بدا", "بلش", "تواصل", "اتصال", "رساله", "تصرف", "واقعه")),
+    "discovery_time": (("متي", "امتي", "وقت", "يوم"),
+                       ("اكتشف", "لاحظ", "انتبه", "عرف", "شاف")),
+    "account_creation_time": (("متي", "امتي", "وقت", "يوم"),
+                              ("انشا", "انشاء", "عمل", "انعمل", "انفتح", "تاسس", "حساب")),
+    "latest_time": (("متي", "امتي", "وقت", "اخر", "احدث", "اخر مره"),
+                    ("تواصل", "اتصال", "رساله", "مراسله", "حكي")),
+    "ongoing_contact": (("لسه", "ما زال", "بعد", "مستمر", "استمر"),
+                        ("تواصل", "يراسل", "يبعت", "يحكي", "اتصال", "رساله")),
+    "repeated": (("تكرر", "مره ثانيه", "كم مره", "رجع", "عاد"),
+                 ("تهديد", "ضرر", "تواصل", "رساله", "فعل", "تصرف")),
+    "requested_amount": (("مبلغ", "كم", "قديش", "قيمة"), ("طلب", "مطلوب", "طلبه")),
+    "paid_amount": (("مبلغ", "كم", "قديش", "قيمة"), ("دفع", "حول", "سدد", "مدفوع")),
+    "payment_method": (("كيف", "طريقه", "وسيله", "بماذا"), ("دفع", "حول", "سدد", "تحويل")),
+    "deadline": (("متي", "امتي", "موعد", "مهله", "قبل", "بعد"),
+                 ("دفع", "سداد", "حول", "مهله", "موعد")),
+    "published": (("نشر", "نزل", "رفع", "انتشر", "انرسل", "بعت"),),
+    "publication_threat": (("هدد", "تهديد", "لوح", "خوف"),
+                            ("نشر", "نزل", "رفع", "صور", "محتوي", "معلومات")),
+    "identity": (("مين", "هويه", "شخص", "فاعل", "اسم", "تعرف", "معرفه"),),
+    "contact": (("تواصل", "اتصال", "قناه", "وسيله", "طريقه", "يراسل"),),
+    "evidence": (("دليل", "ادله", "اثبات", "لقطات", "صور", "رسائل", "مراسلات", "سجل"),),
+    "impersonation": (("انتحال", "شخصيه", "اسم", "صوره", "حساب"),
+                      ("يدعي", "ينتحل", "يتظاهر", "يوهم", "يقول", "يمثل")),
+    "requested_amount_relation": (("مبلغ", "قيمة"), ("تصحيح", "تعديل", "فرق", "المعتمد")),
+    "paid_amount_relation": (("دفعة", "مبلغ", "قيمة"), ("علاقه", "مقابل", "تصحيح", "تعديل", "نفس")),
 }
 _PROTECTED_ADAPTIVE_SLOTS = {"direct_danger", "narrative", "unclassified_details"}
 _FORBIDDEN_SOLICIT_RE = re.compile(
@@ -380,9 +392,36 @@ def _clean_adaptive_question(payload: str) -> str | None:
     return question or None
 
 
+def _adaptive_question_tokens(normalized: str) -> set[str]:
+    """Produce conservative Arabic token variants for topic relevance checks."""
+    cleaned = re.sub(r"[^\w\s]", " ", normalized, flags=re.UNICODE)
+    tokens = set(re.findall(r"[\u0621-\u064a\u066e-\u06d3]+|[a-z0-9]+", cleaned))
+    prefixes = ("وال", "بال", "كال", "فال", "لل", "ال", "و", "ف", "ب", "ك", "ل", "س", "ي", "ت", "ن", "ا")
+    suffixes = ("هما", "كما", "هم", "هن", "ها", "نا", "ني", "كم", "كن", "هم", "ون", "ين", "ات", "ان", "ه", "ة", "ي", "ك")
+    variants = set(tokens)
+    for token in tokens:
+        current = token
+        for prefix in prefixes:
+            if current.startswith(prefix) and len(current) - len(prefix) >= 3:
+                current = current[len(prefix):]
+                variants.add(current)
+                break
+        for suffix in suffixes:
+            if current.endswith(suffix) and len(current) - len(suffix) >= 3:
+                variants.add(current[:-len(suffix)])
+    return variants
+
+
+def _adaptive_concept_matches(concept: str, question_tokens: set[str]) -> bool:
+    normalized_concept = _normalize_arabic(concept)
+    if " " in normalized_concept:
+        return all(token in question_tokens for token in normalized_concept.split())
+    return normalized_concept in question_tokens
+
+
 def _validate_adaptive_question(question: str, slot: str, context: dict[str, Any]) -> tuple[bool, str | None]:
     normalized = _normalize_arabic(question)
-    if slot in _PROTECTED_ADAPTIVE_SLOTS or slot not in ADAPTIVE_SLOT_REQUIRED_MARKERS:
+    if slot in _PROTECTED_ADAPTIVE_SLOTS or slot not in ADAPTIVE_SLOT_CONCEPT_GROUPS:
         return False, "protected_or_unsupported_slot"
     if not (8 <= len(question) <= 260) or question.count("؟") + question.count("?") != 1 or not question.rstrip().endswith(("؟", "?")):
         return False, "not_one_bounded_question"
@@ -392,8 +431,11 @@ def _validate_adaptive_question(question: str, slot: str, context: dict[str, Any
         return False, "unsupported_external_action_claim"
     if _FORBIDDEN_EMERGENCY_RE.search(normalized):
         return False, "forbidden_emergency_prompt"
-    if not any(_normalize_arabic(marker) in normalized for marker in ADAPTIVE_SLOT_REQUIRED_MARKERS[slot]):
-        return False, "required_slot_marker_missing"
+    question_tokens = _adaptive_question_tokens(normalized)
+    if not all(any(_adaptive_concept_matches(concept, question_tokens)
+                   for concept in group)
+               for group in ADAPTIVE_SLOT_CONCEPT_GROUPS[slot]):
+        return False, "slot_topic_mismatch"
     base = str(context.get("base_question") or "")
     recent = context.get("recent_bot_questions") if isinstance(context.get("recent_bot_questions"), list) else []
     previous = [base, *(item for item in recent if isinstance(item, str))]
@@ -408,7 +450,7 @@ def _validate_adaptive_question(question: str, slot: str, context: dict[str, Any
 def generate_adaptive_question(slot: str, safe_context: dict[str, Any]) -> dict[str, Any]:
     """Generate and strictly validate one local, context-bounded non-safety question."""
     result: dict[str, Any] = {"accepted": False, "question": None, "rejection_code": None}
-    if slot in _PROTECTED_ADAPTIVE_SLOTS or slot not in ADAPTIVE_SLOT_REQUIRED_MARKERS:
+    if slot in _PROTECTED_ADAPTIVE_SLOTS or slot not in ADAPTIVE_SLOT_CONCEPT_GROUPS:
         result["rejection_code"] = "protected_or_unsupported_slot"
         return result
     if not model_configured():

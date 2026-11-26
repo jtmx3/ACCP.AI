@@ -15,3 +15,5 @@
 
 .question-plan{font-size:11px;color:#536d79;background:#f7faf9;border-right:2px solid #89b6b0;border-radius:6px;padding:5px 8px;margin-top:8px;overflow-wrap:anywhere}
 @media print{.question-plan{display:none}}
+
+.review-guidance{display:grid;grid-template-columns:1fr 1.4fr;gap:10px;margin:12px 0}.review-guidance p{margin:0;padding:10px 12px;border-radius:9px;font-size:13px}.review-track{background:#edf5f4;color:#075a56;border-right:3px solid #0c756f}.stopping-note{background:#f5f7f8;color:#435c6a;border-right:3px solid #9cb4bd}@media(max-width:580px){.review-guidance{grid-template-columns:1fr}}

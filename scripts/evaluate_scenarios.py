@@ -412,11 +412,12 @@ def run(dataset_path: Path, output_path: Path, mode: str = "rules") -> dict[str,
     candidate_log: list[dict[str, Any]] = []
     merge_log: list[dict[str, Any]] = []
     evaluation_context: dict[str, Any] = {"step": None}
-    original_generator = main.generate_interview_extraction
+    original_generator = main.generate_interactive_dialogue_turn
     original_handle_turn = main.handle_turn
 
-    def capture_generator(text: str, pending_slot: str | None):
-        facts = original_generator(text, pending_slot)
+    def capture_generator(text: str, dialogue_context: dict[str, Any], pending_slot: str | None):
+        turn = original_generator(text, dialogue_context, pending_slot)
+        facts = turn.get("facts") if isinstance(turn, dict) else None
         diagnostic = last_extraction_diagnostic() or {}
         entry = {"step": evaluation_context.get("step"), "accepted": facts is not None,
                  "facts": facts or [], "diagnostic": {k: v for k, v in diagnostic.items() if k != "raw_response"}}
@@ -424,7 +425,7 @@ def run(dataset_path: Path, output_path: Path, mode: str = "rules") -> dict[str,
             entry["diagnostic"]["rejected_fact_proposals"] = _response_fact_proposals(diagnostic["raw_response"])
             entry["diagnostic"].update(_safe_response_diagnostic(diagnostic["raw_response"]))
         candidate_log.append(entry)
-        return facts
+        return turn
 
     def capture_handle_turn(state, text: str, model_facts=None, **kwargs):
         result = original_handle_turn(state, text, model_facts=model_facts, **kwargs)
@@ -438,7 +439,7 @@ def run(dataset_path: Path, output_path: Path, mode: str = "rules") -> dict[str,
             if blocked_reason:
                 results = []
             elif mode == "model":
-                with patch("app.main.generate_interview_extraction", side_effect=capture_generator), \
+                with patch("app.main.generate_interactive_dialogue_turn", side_effect=capture_generator), \
                      patch("app.main.handle_turn", side_effect=capture_handle_turn):
                     results = [_run_case(client, case, mode=mode, candidate_log=candidate_log,
                                          merge_log=merge_log, evaluation_context=evaluation_context)

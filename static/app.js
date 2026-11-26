@@ -25,6 +25,20 @@
     not_remembered: 'لا يتذكرها المستخدم', declined: 'فضّل عدم الإجابة',
     unresolved: 'غير محسومة بعد الاستيضاح', conflict: 'تعارض فعلي يحتاج إلى توضيح'
   };
+  const trackLabels = {
+    defamation_or_abuse: 'إساءة أو ذمّ/قدح', impersonation_or_harassment: 'انتحال أو مضايقة',
+    extortion_fraud_takeover: 'ابتزاز أو احتيال أو استيلاء على حساب',
+    exploratory_intake: 'استيضاح أولي', direct_danger: 'سلامة مباشرة'
+  };
+  const stoppingReasonLabels = {
+    reactive_direct_danger: 'توقفت المقابلة لإظهار إرشاد السلامة بناءً على ما صرّحت به.',
+    user_wrap_up: 'توقفت الأسئلة احترامًا لرغبتك في إنهاء السرد؛ بقيت النواقص ظاهرة دون تخمين.',
+    user_fatigue_or_repeat_protest: 'توقفت الأسئلة لتجنب التكرار واحترام رغبتك؛ يمكنك الإضافة لاحقًا.',
+    diminishing_returns: 'توقفت بعد تكرر عدم المعرفة/التذكر في أسئلة مختلفة، دون تحويل المجهول إلى حقيقة.',
+    adaptive_turn_budget: 'اكتملت الأسئلة الملائمة لهذا المسار؛ تظهر التفاصيل غير المعروفة في الفجوات.',
+    track_core_complete: 'اكتملت العناصر الأساسية لهذا المسار بحسب الإفادات المسجلة.',
+    continue_focused_interview: 'ما زال هناك تفصيل جوهري واحد على الأقل قد يساعد على تنظيم الإفادة.'
+  };
   let active = null; // { id, token, label, generation, session }
   let activeGeneration = 0;
   let kind = 'answer';
@@ -215,6 +229,11 @@
     panel.dataset.confirmed = String(!!state.confirmed);
     const assessment = state.assessment || {};
     $('priority-chip').textContent = `أولوية المراجعة: ${assessment.priority_score == null ? 'غير محددة' : `${assessment.priority_score}/100`} · ${assessment.priority_label || ''}`;
+    const stopping = state.stopping_decision || {};
+    const track = state.incident_track || stopping.incident_track;
+    $('review-track').textContent = `المسار الأولي: ${trackLabels[track] || track || 'استيضاح أولي'}؛ هذا تصنيف تجريبي قابل للمراجعة.`;
+    $('stopping-note').textContent = stoppingReasonLabels[stopping.stop_reason]
+      || stopping.confidence_note || 'قرار استكمال الأسئلة أو إيقافها يعود لمحرك القواعد؛ ويمكنك إضافة التفاصيل قبل التأكيد.';
     const rule = assessment.priority_rule ? `\nقاعدة الدرجة: ${assessment.priority_rule}؛ الوقائع الداعمة: ${(assessment.supporting_fields || []).map(key => labels[key] || 'معلومة إضافية').join('، ')}` : '';
     const relevant = (assessment.relevant_fields || []).map(key => labels[key] || 'معلومة إضافية').join('، ');
     $('assessment-reasons').textContent = `${assessment.reasons?.length ? `الأسباب: ${assessment.reasons.join('؛ ')}` : 'لم تتوفر إشارة كافية لتحديد الأولوية.'}${rule}\nالحقول ذات الصلة: ${relevant || 'وصف الواقعة فقط'}\nاكتمال المعلومات: ${assessment.completeness_percent ?? 0}% — ${assessment.completeness_note || ''}\nجودة الاستخراج: ${assessment.extraction_quality || 'غير متاحة'}؛ لا يوجد تحقق مستقل.`;
@@ -467,7 +486,8 @@
               ? 'نص الرسالة الحالية وسياق محدود من السؤال والرسائل والحقائق ذات الصلة'
               : 'نص الرسالة الحالية فقط';
           const extractionOutcome = result.extraction_outcome || result.provider_call?.extraction_outcome;
-          const extractionCall = result.local_model_purpose === 'current_message_extraction';
+          const extractionCall = ['interactive_dialogue_turn', 'current_message_extraction']
+            .includes(result.local_model_purpose);
           const latency = (result.local_model_purpose === 'adaptive_question' ? adaptiveTrace?.latency_ms
             : result.provider_call?.latency_ms) ?? 'غير متاح';
           const adaptiveNote = result.adaptive_question?.attempted
@@ -757,6 +777,11 @@
   $('chat-form').addEventListener('submit', sendMessage);
   $('pause-case').addEventListener('click', pauseOrResume);
   $('confirm-summary').addEventListener('click', confirmSummary);
+  $('edit-before-confirm').addEventListener('click', () => {
+    $('message').focus();
+    $('message').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setStatus('اكتب المعلومة التي تريد إضافتها أو تصحيحها، ثم أرسلها لمراجعة الملخص من جديد.', true, active);
+  });
   $('download-report').addEventListener('click', downloadReport);
   $('download-json').addEventListener('click', () => downloadReport('json'));
   $('print-report').addEventListener('click', printReport);

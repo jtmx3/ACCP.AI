@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from app import main
 from app.store import Store
 from app.model import InterviewUnderstanding, _chat, call_trace_history, reset_call_trace
+from tests.interactive_fixtures import interactive_result
 
 
 class ConversationCompletionV33Tests(unittest.TestCase):
@@ -54,7 +55,7 @@ class ConversationCompletionV33Tests(unittest.TestCase):
                  "result_accepted": True, "fallback_used": False, "latency_ms": 4}
         with patch("app.main.model_configured", return_value=True), \
              patch("app.main.provider_config", return_value={"provider": "ollama", "model": "fixture", "mode": "local_model"}), \
-             patch("app.main.generate_interview_extraction", return_value=model_facts), \
+             patch("app.main.generate_interactive_dialogue_turn", return_value=interactive_result(model_facts)), \
              patch("app.main.last_call_trace", return_value=trace):
             result = self.turn(text, allow_local_model=True)
         state = result["session"]
@@ -79,7 +80,7 @@ class ConversationCompletionV33Tests(unittest.TestCase):
                      "quote": "آخر تهديد فكان اليوم"}]
         with patch("app.main.model_configured", return_value=True), \
              patch("app.main.provider_config", return_value={"provider": "ollama", "model": "fixture", "mode": "local_model"}), \
-             patch("app.main.generate_interview_extraction", return_value=proposal), \
+             patch("app.main.generate_interactive_dialogue_turn", return_value=interactive_result(proposal)), \
              patch("app.main.last_call_trace", return_value={"attempted": True, "latency_ms": 1}):
             result = self.turn(text, allow_local_model=True)
         state = result["session"]
@@ -339,14 +340,16 @@ class ConversationCompletionV33Tests(unittest.TestCase):
             {"accepted": True},
         )
         traces = [
-            {"purpose": "interview_extraction", "attempted": True, "status": "extracted",
+            {"purpose": "interactive_dialogue_turn", "attempted": True, "status": "extracted",
              "result_accepted": True, "latency_ms": 12.0},
             {"purpose": "grounded_answer", "attempted": True, "status": "accepted",
              "result_accepted": True, "latency_ms": 23.0},
         ]
         with patch("app.main.model_configured", return_value=True), \
              patch("app.main.provider_config", return_value={"provider": "ollama", "model": "fixture", "mode": "local_model"}), \
-             patch("app.main.generate_interview_extraction", return_value=understanding), \
+             patch("app.main.generate_interactive_dialogue_turn", return_value=interactive_result(
+                 understanding.facts, goals=["add_fact", "ask_guidance"], user_intent="ask_guidance",
+                 reply_text="سأجيب عن حماية واتساب مع حفظ ما ذكرت. هل تريد إضافة تفصيل آخر؟")), \
              patch("app.main.generate_grounded_answer", return_value={
                  "text": "فعّل التحقق بخطوتين من إعدادات واتساب.",
                  "source_ids": ["GLOBAL-WA-TWO-STEP-2026"],
@@ -357,7 +360,7 @@ class ConversationCompletionV33Tests(unittest.TestCase):
 
         self.assertTrue(answer_generator.called)
         self.assertEqual([call["purpose"] for call in result["provider_calls"]],
-                         ["interview_extraction", "grounded_answer"])
+                         ["interactive_dialogue_turn", "grounded_answer"])
         self.assertTrue(all(call["latency_ms"] > 0 for call in result["provider_calls"]))
         self.assertFalse(result["extraction_fallback_used"])
         self.assertFalse(result["guidance_fallback_used"])

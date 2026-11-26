@@ -77,7 +77,9 @@ class DialogueRepairSequenceTests(unittest.TestCase):
         self.assertEqual(state["facts"]["initial_time"]["value"], "قبل ساعه")
         self.assertEqual(state["pending_slot"], "repeated")
         self.assertEqual(state["messages"][-1]["kind"], "clarification")
+        self.assertIn("التوقيت الذي ذكرته مسجل عندي", state["messages"][-1]["text"])
         self.assertIn("هل تكرر التهديد", state["messages"][-1]["text"])
+        self.assertNotIn("ذكرت أن التواصل ما زال مستمرًا", state["messages"][-1]["text"])
 
         ongoing = self._turn("ما زال يراسلني الان")
         state = ongoing["session"]
@@ -93,7 +95,9 @@ class DialogueRepairSequenceTests(unittest.TestCase):
         self.assertEqual(state["facts"]["repeated"]["status"], "unresolved")
         self.assertIsNone(state["facts"]["repeated"]["value"])
         self.assertEqual(state["pending_slot"], "published")
+        self.assertEqual(state["stage"], "interview")
         self.assertIn("بقي عندي هذا السؤال", state["messages"][-1]["text"])
+        self.assertIn("التواصل ما زال مستمرًا", state["messages"][-1]["text"])
         self.assertNotIn("هل تكرر التهديد", state["messages"][-1]["text"])
         self.assertEqual(sum(message.get("question_plan", {}).get("slot") == "initial_time"
                              for message in state["messages"] if message.get("role") == "assistant"), 1)

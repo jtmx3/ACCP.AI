@@ -15,8 +15,9 @@ from fastapi.testclient import TestClient
 from app.core import new_state, classify_current_danger, is_clear_user_question, _user_intent
 from app.main import app
 from app.store import Store
-from app.conversation import build_bounded_context, interpret_message
-from app.model import (ALLOWED_EXTRACTION_FIELDS, generate_interview_extraction,
+from app.conversation import build_bounded_context
+from app.dialogue import build_dialogue_context
+from app.model import (ALLOWED_EXTRACTION_FIELDS, generate_interactive_dialogue_turn,
                        last_call_trace, last_extraction_diagnostic, reset_call_trace)
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -122,9 +123,11 @@ def run_suite(path: Path, mode: str, provider: dict[str, Any],
                         reset_call_trace()
                         context = (build_bounded_context(before, turn["text"], before.get("pending_slot"))
                                    if include_bounded_context else None)
-                        model_facts = generate_interview_extraction(
-                            turn["text"], before.get("pending_slot"), context,
-                            interpret_message(turn["text"], before.get("pending_slot")))
+                        dialogue_context = build_dialogue_context(
+                            before, current_text=turn["text"], bounded_context=context)
+                        model_turn = generate_interactive_dialogue_turn(
+                            turn["text"], dialogue_context, before.get("pending_slot"))
+                        model_facts = model_turn.get("facts") if isinstance(model_turn, dict) else None
                         model_trace = last_call_trace() or {}
                         model_diagnostic = last_extraction_diagnostic() or {}
                         if model_trace.get("attempted"):
@@ -171,7 +174,7 @@ def run_suite(path: Path, mode: str, provider: dict[str, Any],
                     if extraction_eligible:
                         with patch("app.main.model_configured", return_value=True), \
                              patch("app.main.provider_config", return_value=provider), \
-                             patch("app.main.generate_interview_extraction", return_value=model_facts), \
+                             patch("app.main.generate_interactive_dialogue_turn", return_value=model_turn), \
                              patch("app.main.last_call_trace", return_value=model_trace):
                             response = client.post(f"/api/sessions/{case_id}/messages", json=payload, headers=headers)
                     else:

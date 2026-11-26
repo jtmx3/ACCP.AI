@@ -20,7 +20,12 @@ def _mock_provider_attempt(value):
     def respond(*_args, **_kwargs):
         _update_call_trace(attempted=True, status="rejected" if value is None else "extracted",
                            latency_ms=1.0, result_accepted=value is not None)
-        return value
+        if value is None:
+            return None
+        return {"facts": value, "user_intent": None, "conversation_move": "ask_follow_up",
+                "reply_text": "ما التفصيل الذي تريد إضافته؟",
+                "message_plan": {"goals": [], "unsupported_goals": []},
+                "diagnostic": {"accepted": True, "filtered_facts": []}}
     return respond
 
 
@@ -97,7 +102,7 @@ class ModelEvaluationPolicyTests(unittest.TestCase):
                      "service_reachable": True, "model_available": True}), \
                  patch("scripts.evaluate_scenarios.test_provider_generation", return_value={"success": True}), \
                  patch("app.main.model_configured", return_value=True), \
-                 patch("app.main.generate_interview_extraction", side_effect=_mock_provider_attempt(None)), \
+                 patch("app.main.generate_interactive_dialogue_turn", side_effect=_mock_provider_attempt(None)), \
                  patch("scripts.evaluate_scenarios.last_extraction_diagnostic", return_value={
                      "accepted": False, "json_valid": True, "schema_valid": True,
                      "rejection_code": "quote_mismatch", "rejection_detail": "synthetic quote mismatch",
@@ -136,7 +141,7 @@ class ModelEvaluationPolicyTests(unittest.TestCase):
                      "service_reachable": True, "model_available": True}), \
                  patch("scripts.evaluate_scenarios.test_provider_generation", return_value={"success": True}), \
                  patch("app.main.model_configured", return_value=True), \
-                 patch("app.main.generate_interview_extraction", side_effect=_mock_provider_attempt([{
+                 patch("app.main.generate_interactive_dialogue_turn", side_effect=_mock_provider_attempt([{
                      "field": "threat", "status": "reported", "value": True, "quote": "هددني"}])), \
                  patch("scripts.evaluate_scenarios.last_extraction_diagnostic", return_value={
                      "accepted": True, "json_valid": True, "schema_valid": True,

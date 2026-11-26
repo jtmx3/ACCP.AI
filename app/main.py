@@ -16,13 +16,13 @@ from app.core import (
     _incident_features,
     _finalize_changed_facts, _next_slot, _record, _unresolved_money_relation,
     _user_intent, classify_current_danger, confirmation_is_current, handle_turn, now_iso, normalize, render_report,
-    report_data, resume_state, screen_current_danger, summary_digest, is_clear_user_question, question_plan,
+    report_data, resume_state, normalize_legacy_state, screen_current_danger, summary_digest, is_clear_user_question, question_plan,
     compose_question,
     last_model_merge_trace,
 )
 from app.rag import answer_question, available_jurisdictions, load_corpus
-from app.model import (generate_grounded_answer, generate_interview_extraction, model_configured,
-                       generate_adaptive_question,
+from app.dialogue import build_dialogue_context, validate_dialogue_reply
+from app.model import (generate_grounded_answer, generate_interactive_dialogue_turn, model_configured,
                        provider_config, probe_provider, test_provider_generation, reset_call_trace,
                        last_call_trace, call_trace_history, last_extraction_diagnostic,
                        snapshot_telemetry, restore_telemetry)
@@ -76,7 +76,7 @@ class TemporalConflictResolutionRequest(BaseModel):
 
 def _state_for(session_id: str, token: str):
     try:
-        return store.get(session_id, token)
+        return normalize_legacy_state(store.get(session_id, token))
     except NotFound:
         raise HTTPException(404, "الحالة غير موجودة.")
     except Forbidden:
@@ -148,6 +148,7 @@ def _cancels_pending_guidance(text: str) -> bool:
 
 def _mutate(session_id: str, token: str, rev: int, event: str, fn):
     def apply_and_reconcile(state):
+        normalize_legacy_state(state)
         fn(state)
         if state.get("confirmed") and not confirmation_is_current(state):
             old_digest = state.get("confirmed_digest")
@@ -205,13 +206,11 @@ def metadata():
 
 @app.post("/api/sessions")
 def create_session():
-    defaults = None
     config = provider_config()
-    if config.get("configured"):
-        probe = probe_provider(timeout=1.0)
-        enabled = bool(probe.get("service_reachable") and probe.get("model_available"))
-        defaults = {"local_model_enabled": enabled, "model_settings_version": 1,
-                    "adaptive_questions_enabled": bool(enabled and config.get("adaptive_question_generation_enabled"))}
+    # Configured providers are constrained to local loopback; defer reachability
+    # checks until a turn rather than blocking session creation on a probe.
+    defaults = ({"local_model_enabled": True, "model_settings_version": 1,
+                 "adaptive_questions_enabled": False} if config.get("configured") else None)
     state, token = store.create(defaults)
     state["jurisdiction"] = None
     return {"session": state, "token": token, "token_notice": "هذا الرمز خاص بالحالة. لا تشاركه؛ لا يمكن استعادته من الخادم."}
@@ -353,6 +352,8 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
     local_qa = None
     grounded_local_answer = None
     model_facts = None
+    interactive_turn = None
+    dialogue_reply_validation = {"checked": False, "accepted": False, "applied": False, "rejection_code": None}
     model_message_plan: dict[str, Any] = {"goals": [], "unsupported_goals": [], "guidance_question": None}
     message_plan_applied = False
     extraction_context = None
@@ -360,8 +361,8 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
     local_question_sent = False
     reset_call_trace()
 
-    # Extract role goals and current-turn facts in one call. Plan fields come only
-    # from the model validator, and all routing/safety outcomes remain application-owned.
+    # Extract role goals/facts and draft one natural reply in a single local call.
+    # Engine decisions remain application-owned and are validated after the turn.
     fact_candidate = message_interpretation.get("fact_text", text)
     initial_actionable_fact = (False if resolving_pending_guidance or pending_guidance_cancelled
                                else has_actionable_fact_goal(fact_candidate, pending))
@@ -371,13 +372,13 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
     if (body.kind == "answer" and not initial_auto_question and model_enabled_for_turn
             and model_configured() and not urgent and intent is None and not resolving_pending_guidance):
         local_extraction_sent = True
-        if context_enabled_for_turn:
-            extraction_context = build_bounded_context(snapshot, extraction_text, pending)
-            model_facts = generate_interview_extraction(extraction_text, pending, extraction_context,
-                                                        message_interpretation)
-        else:
-            model_facts = generate_interview_extraction(extraction_text, pending)
-        candidate_plan = getattr(model_facts, "message_plan", None)
+        extraction_context = (build_bounded_context(snapshot, extraction_text, pending)
+                              if context_enabled_for_turn else None)
+        dialogue_context = build_dialogue_context(snapshot, current_text=text,
+                                                  bounded_context=extraction_context)
+        interactive_turn = generate_interactive_dialogue_turn(extraction_text, dialogue_context, pending)
+        model_facts = interactive_turn.get("facts", []) if isinstance(interactive_turn, dict) else None
+        candidate_plan = interactive_turn.get("message_plan") if isinstance(interactive_turn, dict) else None
         if isinstance(candidate_plan, dict):
             plan_goals = candidate_plan.get("goals", [])
             if isinstance(plan_goals, list) and all(isinstance(goal, str) for goal in plan_goals):
@@ -394,6 +395,8 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
                 }
                 message_interpretation["fact_text"] = (guidance_fact_text if mixed_pending_guidance else
                     extract_fact_text(text, message_interpretation.get("guidance_question")))
+        if isinstance(interactive_turn, dict):
+            interactive_turn["reply_validation"] = dialogue_reply_validation
         if intent is None and "ask_why" in model_message_plan["goals"]:
             intent = "why"
         if intent is None and "ask_assessment_reason" in model_message_plan["goals"]:
@@ -559,6 +562,26 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
 
         handle_turn(state, text, model_facts=model_facts, message_interpretation=message_interpretation,
                     fact_text=message_interpretation.get("fact_text"))
+        if isinstance(interactive_turn, dict):
+            engine_stopped = state.get("stage") != "interview"
+            urgent_stopped = state.get("stage") == "urgent_stop"
+            candidate_reply = interactive_turn.get("reply_text", "")
+            accepted_reply, reply_rejection = validate_dialogue_reply(
+                candidate_reply, should_stop=engine_stopped, urgent_stop=urgent_stopped,
+                context=dialogue_context,
+                recent_questions=dialogue_context.get("recent_assistant_questions", []))
+            question_count = candidate_reply.count("؟") + candidate_reply.count("?") if isinstance(candidate_reply, str) else 0
+            if accepted_reply and not engine_stopped and question_count != 1:
+                accepted_reply, reply_rejection = False, "missing_followup_question"
+            dialogue_reply_validation.update({"checked": True, "accepted": accepted_reply,
+                                              "rejection_code": reply_rejection})
+            final_message = state.get("messages", [])[-1] if state.get("messages") else {}
+            if (accepted_reply and not engine_stopped and final_message.get("role") == "assistant"
+                    and final_message.get("kind") in {"question", "clarification"}):
+                final_message["text"] = candidate_reply.strip()
+                final_message["local_model_dialogue"] = True
+                state["last_response"] = candidate_reply.strip()
+                dialogue_reply_validation["applied"] = True
         if mixed_why and state.get("stage") != "urgent_stop":
             if explanation_intent == "assessment_why":
                 explanation = explain_assessment(state)
@@ -576,57 +599,16 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
     save_started = time.perf_counter()
     state = _mutate(session_id, x_case_token, body.expected_revision, "user_message", mutate)
     save_ms = round((time.perf_counter() - save_started) * 1000, 3)
-    adaptive_question_result = {"attempted": False, "accepted": False, "rejection_code": None}
-    adaptive_question_ms = 0.0
-    adaptive_enabled = bool(model_enabled_for_turn and state.get("adaptive_questions_enabled")
-                            and provider_config().get("adaptive_question_generation_enabled")
-                            and model_configured() and not urgent and not question_mode
-                            and state.get("stage") == "interview")
-    adaptive_slot = state.get("pending_slot")
-    last_message = state.get("messages", [])[-1] if state.get("messages") else {}
-    if adaptive_enabled and adaptive_slot in QUESTIONS and last_message.get("role") == "assistant" \
-            and last_message.get("kind") in {"question", "clarification"}:
-        telemetry_before_adaptive = snapshot_telemetry()
-        traces_before_adaptive = len(telemetry_before_adaptive.get("history", []))
-        adaptive_started = time.perf_counter()
-        adaptive_question_result = generate_adaptive_question(
-            adaptive_slot, _sanitized_adaptive_question_context(state, adaptive_slot))
-        adaptive_question_ms = round((time.perf_counter() - adaptive_started) * 1000, 3)
-        traces_after_generation = call_trace_history()[traces_before_adaptive:]
-        restore_telemetry(telemetry_before_adaptive, traces_after_generation)
-        adaptive_question_result["attempted"] = any(trace.get("attempted") for trace in traces_after_generation)
-        if adaptive_question_result.get("accepted") and adaptive_question_result.get("question"):
-            replacement = adaptive_question_result["question"]
-
-            def apply_adaptive_question(current_state):
-                if current_state.get("stage") != "interview" or current_state.get("pending_slot") != adaptive_slot:
-                    return
-                candidate = current_state.get("messages", [])[-1] if current_state.get("messages") else {}
-                if (candidate.get("role") == "assistant" and candidate.get("kind") in {"question", "clarification"}
-                        and (candidate.get("question_plan") or {}).get("slot") == adaptive_slot):
-                    candidate["text"] = replacement
-                    candidate["local_model_question"] = True
-                    current_state["last_response"] = replacement
-
-            try:
-                state = _mutate(session_id, x_case_token, state["revision"],
-                                "adaptive_question_generated", apply_adaptive_question)
-            except HTTPException as exc:
-                if exc.status_code == 409:
-                    state = _state_for(session_id, x_case_token)
-                    adaptive_question_result["accepted"] = False
-                    adaptive_question_result["question"] = None
-                    adaptive_question_result["rejection_code"] = "case_changed_before_question_save"
-                else:
-                    raise
+    dialogue_reply_result = {"attempted": bool(interactive_turn), **dialogue_reply_validation}
     # An empty/fully-filtered extraction is a valid response at most, not successful extraction.
+    # Keep extraction acceptance distinct from a usable prose reply.
     call_accepted = grounded_local_answer is not None or bool(model_facts)
     provider_call = last_call_trace()
     provider_calls = call_trace_history()
     if not provider_calls and provider_call and provider_call.get("attempted"):
         provider_calls = [provider_call]
     provider = provider_config()
-    if local_question_sent or local_extraction_sent or adaptive_question_result.get("attempted"):
+    if local_question_sent or local_extraction_sent:
         provider_call = dict(provider_call or {})
         provider_call.update({
             "attempted": bool(provider_call.get("attempted")),
@@ -640,6 +622,9 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
             "context_message_count": len(extraction_context.get("recent_relevant_messages", [])) if extraction_context else 0,
             "message_plan_applied": message_plan_applied,
             "message_goals": model_message_plan["goals"],
+            "dialogue_reply_checked": dialogue_reply_validation["checked"],
+            "dialogue_reply_accepted": dialogue_reply_validation["accepted"],
+            "dialogue_reply_rejection_code": dialogue_reply_validation["rejection_code"],
         })
         if not call_accepted and not provider_call.get("failure_code"):
             provider_call["failure_code"] = "no_valid_result"
@@ -648,22 +633,27 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
         for call in provider_calls:
             call["provider"] = provider["provider"]
             call["model"] = provider["model"]
-            if call.get("attempted") and call.get("purpose") != "adaptive_question":
+            if call.get("attempted"):
                 call["fallback_used"] = not bool(call.get("result_accepted"))
         for call in provider_calls:
-            if call.get("purpose") != "adaptive_question":
-                call.update({"turn_any_result_accepted": call_accepted,
-                             "turn_fallback_used": not call_accepted,
-                             "message_plan_applied": message_plan_applied,
-                             "message_goals": model_message_plan["goals"]})
+            call.update({"turn_any_result_accepted": call_accepted,
+                         "turn_fallback_used": not call_accepted,
+                         "message_plan_applied": message_plan_applied,
+                         "message_goals": model_message_plan["goals"],
+                         "dialogue_reply_checked": dialogue_reply_validation["checked"],
+                         "dialogue_reply_accepted": dialogue_reply_validation["accepted"]})
     extraction_fallback_used = bool(local_extraction_sent and not model_facts)
     guidance_fallback_used = bool(local_question_sent and not grounded_local_answer)
-    fallback_used = extraction_fallback_used or guidance_fallback_used
+    dialogue_fallback_used = bool(interactive_turn and state.get("stage") == "interview"
+                                  and not dialogue_reply_validation["applied"])
+    fallback_used = extraction_fallback_used or guidance_fallback_used or dialogue_fallback_used
     fallback_targets = []
     if extraction_fallback_used:
         fallback_targets.append("rules")
     if guidance_fallback_used:
         fallback_targets.append("local_rag")
+    if dialogue_fallback_used:
+        fallback_targets.append("rules_dialogue")
     fallback_to = "+".join(fallback_targets) if fallback_targets else None
     extraction_diagnostic = last_extraction_diagnostic() if local_extraction_sent else None
     filtered_diagnostics = []
@@ -685,7 +675,7 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
                 filtered_diagnostics.append({"field": field, "field_label": LABELS.get(field, "معلومة إضافية"),
                                              "code": code, "detail": "تفصيل التحقق غير محفوظ في trace هذا التشغيل."})
     model_diagnostics = None
-    if local_extraction_sent or local_question_sent or adaptive_question_result.get("attempted"):
+    if local_extraction_sent or local_question_sent:
         trace_response_valid = (provider_call or {}).get("response_valid")
         trace_status = (provider_call or {}).get("status")
         raw_received = bool(isinstance((extraction_diagnostic or {}).get("raw_response"), str)
@@ -707,11 +697,7 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
             "merge": {"performed": bool(last_model_merge_trace()),
                       "field_dispositions": last_model_merge_trace() if local_extraction_sent else []},
             "fallback": {"used": fallback_used, "to": fallback_to},
-            "adaptive_question": {"attempted": bool(adaptive_question_result.get("attempted")),
-                                  "accepted": bool(adaptive_question_result.get("accepted")),
-                                  "rejection_code": adaptive_question_result.get("rejection_code"),
-                                  "fallback_to": "rules" if adaptive_question_result.get("attempted")
-                                  and not adaptive_question_result.get("accepted") else None},
+            "interactive_dialogue": dialogue_reply_result,
             "raw_response_included": False,
         }
         if provider_call is not None and local_extraction_sent:
@@ -719,20 +705,15 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
     timings = {"request_preflight_ms": request_preflight_ms, "provider_preflight_ms": None,
                "provider_preflight_performed": False, "message_understanding_ms": understanding_ms,
                "retrieval_ms": retrieval_ms, "answer_generation_ms": answer_generation_ms,
-               "save_ms": save_ms, "adaptive_question_ms": adaptive_question_ms,
+               "save_ms": save_ms,
                "total_ms": round((time.perf_counter() - request_started) * 1000, 3)}
     return {"session": state, "report": report_data(state),
-            "local_model_used": bool(grounded_local_answer) or bool(model_facts) or message_plan_applied or bool(adaptive_question_result.get("attempted")),
+            "local_model_used": bool(grounded_local_answer) or bool(model_facts) or message_plan_applied or dialogue_reply_validation["applied"],
             "local_data_sent": any(bool(call.get("attempted")) for call in provider_calls),
-            "local_model_purpose": "grounded_question" if local_question_sent else "current_message_extraction" if local_extraction_sent else "adaptive_question" if adaptive_question_result.get("attempted") else None,
+            "local_model_purpose": "grounded_question" if local_question_sent else "interactive_dialogue_turn" if local_extraction_sent else None,
             "local_context_sent": bool(provider_call and provider_call.get("context_sent")),
-            "adaptive_context_sent": bool(adaptive_question_result.get("attempted")),
+            "dialogue_reply": dialogue_reply_result,
             "local_model_result_accepted": call_accepted,
-            "adaptive_question": {"attempted": bool(adaptive_question_result.get("attempted")),
-                                  "accepted": bool(adaptive_question_result.get("accepted")),
-                                  "rejection_code": adaptive_question_result.get("rejection_code"),
-                                  "fallback_to_rules": bool(adaptive_question_result.get("attempted")
-                                                             and not adaptive_question_result.get("accepted"))},
             "message_plan_applied": message_plan_applied,
             "message_plan": model_message_plan if message_plan_applied else None,
             "model_merge_trace": last_model_merge_trace() if local_extraction_sent else [],
@@ -742,7 +723,7 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
             "guidance_fallback_used": guidance_fallback_used,
             "fallback_to": fallback_to,
             "question_detected": auto_question or resolving_pending_guidance,
-            "runtime_mode": provider["mode"] if call_accepted or message_plan_applied else "rules",
+            "runtime_mode": provider["mode"] if call_accepted or message_plan_applied or dialogue_reply_validation["applied"] else "rules",
             "provider_call": provider_call, "provider_calls": provider_calls, "timings": timings,
             "model_diagnostics": model_diagnostics,
             "incident_track": state.get("incident_track") or state.get("assessment", {}).get("incident_track"),

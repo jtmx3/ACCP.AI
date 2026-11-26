@@ -152,8 +152,10 @@ class RoutedRealCorpusGuidanceTests(unittest.TestCase):
         self.revision = result["session"]["revision"]
         return result
 
-    def ask_with_simulated_goal_plan(self, text, question_span, goals=("ask_guidance",)):
-        plan = {"message_goals": list(goals), "guidance_question": question_span, "facts": []}
+    def ask_with_simulated_goal_plan(self, text, question_span=None, goals=("ask_guidance",)):
+        goal = "ask_guidance" if "ask_guidance" in goals else None
+        plan = {"facts": [], "user_intent": goal, "conversation_move": "answer_question",
+                "reply_text": "هل تقصد واتساب أم إنستغرام، أم تطبيقًا آخر؟"}
         env = {"MODEL_PROVIDER": "ollama", "MODEL_BASE_URL": "http://127.0.0.1:11434/v1",
                "MODEL_NAME": "synthetic-test"}
         with patch.dict(os.environ, env, clear=True), \

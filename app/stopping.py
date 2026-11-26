@@ -51,15 +51,19 @@ def _question_count(state: dict[str, Any]) -> int:
 def _recent_unknown_streak(state: dict[str, Any]) -> int:
     signals = state.get("turn_signals", [])
     streak = 0
-    latest_slot = next((item.get("slot") for item in reversed(signals)
-                        if isinstance(item, dict) and (item.get("unknown") or item.get("not_remembered"))), None)
+    slots: list[str] = []
     for item in reversed(signals):
+        if isinstance(item, dict) and item.get("substantive_fact"):
+            break
         if not isinstance(item, dict) or not (item.get("unknown") or item.get("not_remembered")):
             break
-        if item.get("slot") != latest_slot:
-            break
         streak += 1
-    return streak
+        slot = item.get("slot")
+        if isinstance(slot, str):
+            slots.append(slot)
+    # The stop policy requires two different question focuses, not repeated
+    # unknown answers to a single pending question.
+    return streak if len(set(slots)) >= 2 else min(streak, 1)
 
 
 def evaluate_stopping_decision(state: dict[str, Any], turn_signals: dict[str, Any] | None = None) -> StoppingDecision:

@@ -12,12 +12,13 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from app.conversation import build_bounded_context, interpret_message
+from app.conversation import build_bounded_context
+from app.dialogue import build_dialogue_context
 from app.core import _user_intent, classify_current_danger, is_clear_user_question
 from app.main import app
 from app.model import (
     ALLOWED_EXTRACTION_FIELDS,
-    generate_interview_extraction,
+    generate_interactive_dialogue_turn,
     last_call_trace,
     last_extraction_diagnostic,
     model_configured,
@@ -309,9 +310,11 @@ def run_suite(suite_path: Path, mode: str = "rules", with_context: bool = False)
                         reset_call_trace()
                         context = build_bounded_context(before, text, before.get("pending_slot")) if with_context else None
                         started = time.perf_counter()
-                        model_facts = generate_interview_extraction(
-                            text, before.get("pending_slot"), context,
-                            interpret_message(text, before.get("pending_slot")))
+                        dialogue_context = build_dialogue_context(
+                            before, current_text=text, bounded_context=context)
+                        model_turn = generate_interactive_dialogue_turn(
+                            text, dialogue_context, before.get("pending_slot"))
+                        model_facts = model_turn.get("facts") if isinstance(model_turn, dict) else None
                         model_elapsed_ms = round((time.perf_counter() - started) * 1000, 3)
                         model_trace = last_call_trace() or {}
                         model_diag = last_extraction_diagnostic() or {}
@@ -354,7 +357,7 @@ def run_suite(suite_path: Path, mode: str = "rules", with_context: bool = False)
                     if extraction_eligible:
                         with patch("app.main.model_configured", return_value=True), \
                              patch("app.main.provider_config", return_value=provider), \
-                             patch("app.main.generate_interview_extraction", return_value=model_facts), \
+                             patch("app.main.generate_interactive_dialogue_turn", return_value=model_turn), \
                              patch("app.main.last_call_trace", return_value=model_trace):
                             response = client.post(f"/api/sessions/{session_id}/messages", json=payload, headers=headers)
                     else:

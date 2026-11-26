@@ -34,6 +34,7 @@ _WRAP_UP = (
 _UNKNOWN = ("ما بعرف", "ما اعرف", "مش عارف", "مش عارفه", "لا اعرف", "مجهول", "ما عندي فكرة", "مش متاكد")
 _NOT_REMEMBERED = ("ما بتذكر", "مش متذكر", "مش متذكره", "لا اتذكر", "ناسي", "ناسية")
 _PROTEST = ("قلت لك", "حكيتلك", "اخبرتك", "جاوبتك", "سبق وقلت", "حكيتلك قبل", "سألتني نفس السؤال")
+_FATIGUE = ("تعبت", "زهقت", "مرهق", "مرهقة", "مش قادر اكمل", "ما بقدر اكمل", "لا اريد المتابعة")
 
 
 def _has_any(normalized_text: str, markers: tuple[str, ...]) -> bool:
@@ -78,6 +79,7 @@ def analyze_message(text: str) -> dict[str, Any]:
         "unknown": _has_any(normalized, _UNKNOWN),
         "not_remembered": _has_any(normalized, _NOT_REMEMBERED),
         "protest": _has_any(normalized, _PROTEST),
+        "fatigue": _has_any(normalized, _FATIGUE),
         "verbal_abuse": _has_term_sequence(normalized, (
             "شتمني", "شتمتني", "شتم", "سب علي", "سبني", "سب", "اهانني", "إهانة", "مسيء",
             "مسيئة", "يهينني", "اهانني", "أساء لي", "ذم", "قدح", "شهّر في", "شهر فيني",

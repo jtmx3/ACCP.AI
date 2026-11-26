@@ -128,9 +128,12 @@ class TriageAndStoppingTests(unittest.TestCase):
             {"slot": "initial_time", "unknown": True},
             {"slot": "identity", "unknown": True},
         ]
-        self.assertEqual(evaluate_stopping_decision(state).stop_reason, "continue_focused_interview")
-        state["turn_signals"].append({"slot": "identity", "unknown": True})
         self.assertEqual(evaluate_stopping_decision(state).stop_reason, "diminishing_returns")
+        state["turn_signals"] = [
+            {"slot": "identity", "unknown": True},
+            {"slot": "identity", "not_remembered": True},
+        ]
+        self.assertEqual(evaluate_stopping_decision(state).stop_reason, "continue_focused_interview")
 
     def test_direct_danger_is_only_a_reactive_track(self):
         safe = new_state("digital-fear")
@@ -173,10 +176,26 @@ class DialogueSafetyTests(unittest.TestCase):
         self.assertEqual(first.count("؟") + first.count("?"), 1)
         self.assertEqual(second.count("؟") + second.count("?"), 1)
 
+    def test_first_rules_followup_is_empathetic_for_abuse_and_photo_fear(self):
+        abuse = new_state("kind-abuse")
+        handle_turn(abuse, "في واحد شتمني بتعليق على منشور عندي على فيسبوك")
+        abuse_reply = compose_fallback_question(abuse, abuse["pending_slot"], {})
+        self.assertIn("آسف", abuse_reply)
+        self.assertEqual(abuse_reply.count("؟") + abuse_reply.count("?"), 1)
+
+        photos = new_state("photo-fear")
+        handle_turn(photos, "في شب معي بجامعتي ومعه صوري وأنا خايفة من أنه ينشرهم أو يبعتهم لأهلي")
+        photo_reply = compose_fallback_question(photos, photos["pending_slot"], {})
+        self.assertIn("ما في داعي ترفع أو ترسل الصور", photo_reply)
+        self.assertIn("تهديد", photo_reply)
+        self.assertEqual(photo_reply.count("؟") + photo_reply.count("?"), 1)
+
     def test_dialogue_reply_rejects_unsafe_or_unsolicited_emergency_text(self):
         self.assertEqual(validate_reply_text("هل تتذكر تقريبًا متى بدأ أول تواصل؟"), (True, None))
         self.assertEqual(validate_reply_text("هل أنت بخطر جسدي الآن؟")[1], "unsolicited_emergency_content")
         self.assertEqual(validate_reply_text("أرسل كلمة المرور حتى نتابع؟")[1], "unsafe_solicitation_or_claim")
+        self.assertFalse(validate_reply_text("أرسل صورة للحساب حتى أفحصها؟")[0])
+        self.assertFalse(validate_reply_text("ما اسم المستخدم للحساب؟")[0])
 
 
 class FrozenSyntheticConversationTests(unittest.TestCase):

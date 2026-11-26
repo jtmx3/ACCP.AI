@@ -186,12 +186,20 @@ def _query_topics(value: str) -> set[str]:
         topics.add("cybersecurity_incident_reporting")
     legal_cue = any(marker in normalized for marker in (
         "قانون الجرائم الالكترونيه", "cybercrime law", "قانوني", "عقوبه", "العقوبه", "الماده", "article",
+        "حقوقي", "حقوقك", "ما حقوق", "الحق في",
     ))
     cybercrime_cue = any(marker in normalized for marker in (
         "جرائم الكترونيه", "جرائم الالكترونيه", "قانون الجرائم الالكترونيه",
         "ابتزاز", "تهديد", "انتحال", "صور حميمه", "cybercrime", "extortion",
+        "شتم", "شتمني", "شتمني", "سب", "ذم", "قدح", "تحقير", "تشهير", "اهانه",
     ))
     if legal_cue and cybercrime_cue:
+        topics.update({"cybercrime_law", "legal_information"})
+    jordan_scope = _explicit_scope(value) == "JO"
+    abuse_legal_query = jordan_scope and any(marker in normalized for marker in (
+        "شتم", "شتمني", "سب", "ذم", "قدح", "تحقير", "تشهير", "اهانه", "اساء لي",
+    )) and any(marker in normalized for marker in ("عقوبه", "حقوق", "قانون", "بالاردن", "الاردن"))
+    if abuse_legal_query:
         topics.update({"cybercrime_law", "legal_information"})
     if terms & {"طوارئ", "911", "خطر", "مباشر", "emergency"}:
         topics.add("emergency")
@@ -278,6 +286,10 @@ def retrieve(query: str, jurisdiction: str | None, limit: int = 3, corpus: dict[
         return []
     query_topics = set(topics) if topics is not None else _query_topics(query)
     requested_law_article = _requested_jordan_law_article(query)
+    normalized_query = _normalize(query)
+    art15_abuse_match = (scope == "JO" and any(marker in normalized_query for marker in (
+        "شتم", "شتمني", "سب", "ذم", "قدح", "تحقير", "تشهير", "اهانه", "اساء لي"))
+        and bool(set(query_topics) & {"cybercrime_law", "legal_information"}))
     if not query_topics:
         return []
     query_terms = _search_terms(query)
@@ -286,6 +298,9 @@ def retrieve(query: str, jurisdiction: str | None, limit: int = 3, corpus: dict[
     scored: list[tuple[float, int, dict[str, Any]]] = []
     for source in corpus["sources"]:
         geography = str(source["geography"]).upper()
+        if art15_abuse_match and source["id"].startswith("JO-CYBERCRIME-LAW-ART") \
+                and source["id"] != "JO-CYBERCRIME-LAW-ART15-2023":
+            continue
         if requested_law_article and source["id"].startswith("JO-CYBERCRIME-LAW-ART"):
             if source["id"] != f"JO-CYBERCRIME-LAW-ART{requested_law_article}-2023":
                 continue
@@ -307,7 +322,8 @@ def retrieve(query: str, jurisdiction: str | None, limit: int = 3, corpus: dict[
         if query_tokens & excluded:
             continue
         required = set().union(*(_tokens(term) for term in source.get("required_keywords", []))) if source.get("required_keywords") else set()
-        if required and geography != "GLOBAL" and not (query_tokens & required):
+        if required and geography != "GLOBAL" and not (query_tokens & required) \
+                and not (source.get("id") == "JO-CYBERCRIME-LAW-ART15-2023" and art15_abuse_match):
             continue
         source_terms = _search_terms(" ".join((source["text"], source["title"], " ".join(source.get("keywords", [])))))
         overlap_terms = query_terms & source_terms

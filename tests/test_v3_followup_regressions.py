@@ -141,7 +141,8 @@ class ValidatedMessagePlanTests(unittest.TestCase):
 
     def test_model_goal_routes_natural_guidance_without_creating_a_fact(self):
         text = "بدي نصيحة أحافظ فيها على حسابي."
-        plan = {"message_goals": ["ask_guidance"], "guidance_question": text, "facts": []}
+        plan = {"facts": [], "user_intent": "ask_guidance", "conversation_move": "answer_question",
+                "reply_text": "هل تقصد حسابًا على تطبيق معيّن؟"}
         local = {"text": "فعّل المصادقة الثنائية وراجع الجلسات النشطة.", "citations": []}
         env = {"MODEL_PROVIDER": "ollama", "MODEL_BASE_URL": "http://127.0.0.1:11434/v1",
                "MODEL_NAME": "synthetic-test"}
@@ -162,8 +163,8 @@ class ValidatedMessagePlanTests(unittest.TestCase):
 
     def test_model_guidance_goal_is_combined_with_an_actionable_fact(self):
         text = "عندي لقطات شاشة للرسائل، وبدي نصيحة أحافظ فيها على حسابي."
-        guidance = "بدي نصيحة أحافظ فيها على حسابي."
-        plan = {"message_goals": ["ask_guidance", "add_fact"], "guidance_question": guidance,
+        plan = {"user_intent": "ask_guidance", "conversation_move": "answer_question",
+                "reply_text": "هل تريد إضافة تفصيل آخر عن الحساب؟",
                 "facts": [{"field": "evidence", "status": "reported", "value": "صور أو لقطات شاشة",
                            "current_quote": "عندي لقطات شاشة"}]}
         local = {"text": "راجع إعدادات الأمان وسجّل الخروج من الجلسات غير المعروفة.", "citations": []}

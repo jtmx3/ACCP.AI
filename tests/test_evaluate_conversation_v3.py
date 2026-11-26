@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from scripts import evaluate_conversation_v3
+from tests.interactive_fixtures import interactive_result
 
 
 class ConversationV3EvaluatorTests(unittest.TestCase):
@@ -63,13 +64,14 @@ class ConversationV3EvaluatorTests(unittest.TestCase):
             trace = {"attempted": True, "status": "valid_empty", "response_valid": True,
                      "result_accepted": False, "extraction_outcome": "valid_empty", "failure_code": "empty_extraction",
                      "latency_ms": 2.0}
+            model_turn = interactive_result(reply_text="ما التفصيل الذي تريد إضافته؟")
             with patch.object(evaluate_conversation_v3, "model_configured", return_value=True), \
                  patch.object(evaluate_conversation_v3, "provider_config", return_value=provider), \
-                 patch.object(evaluate_conversation_v3, "generate_interview_extraction", return_value=[]), \
+                 patch.object(evaluate_conversation_v3, "generate_interactive_dialogue_turn", return_value=model_turn), \
                  patch.object(evaluate_conversation_v3, "last_call_trace", return_value=trace), \
                  patch("app.main.model_configured", return_value=True), \
                  patch("app.main.provider_config", return_value=provider), \
-                 patch("app.main.generate_interview_extraction", return_value=[]), \
+                 patch("app.main.generate_interactive_dialogue_turn", return_value=model_turn), \
                  patch("app.main.last_call_trace", return_value=trace):
                 report = evaluate_conversation_v3.run_suite(suite_path, mode="model")
 

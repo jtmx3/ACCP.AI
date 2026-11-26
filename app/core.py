@@ -7,7 +7,7 @@ import contextvars
 from datetime import datetime, timezone
 from typing import Any
 
-from app.dialogue import compose_fallback_question
+from app.dialogue import compose_fallback_question, first_turn_empathy_preface
 from app.nlu import analyze_message
 from app.stopping import evaluate_stopping_decision
 from app.triage import classify_track
@@ -1014,9 +1014,13 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
     if any(normalize(k) in t for k in ("نصب علي", "اننصب علي", "خدعني حتى أدفع", "خداع مالي واضح", "احتيال مالي واضح")):
         _set_answer(state, "fraud_description", True, "reported", text, mid, question_id, changed)
 
-    if pending == "narrative" and not state["facts"].get("narrative") and _narrative_has_description(text):
+    conversational_signal_only = bool(turn_cues.get("wrap_up") or turn_cues.get("fatigue")
+                                     or turn_cues.get("protest"))
+    if pending == "narrative" and not state["facts"].get("narrative") and _narrative_has_description(text) \
+            and not conversational_signal_only:
         _set_answer(state, "narrative", text, "reported", text, mid, question_id, changed)
-    if pending == "unclassified_details" and _narrative_has_description(text) and impersonation_polarity is not True:
+    if pending == "unclassified_details" and _narrative_has_description(text) and impersonation_polarity is not True \
+            and not conversational_signal_only:
         _set_answer(state, "unclassified_details", text, "reported", text, mid, question_id, changed)
 
     if any(term in t for term in ("بلاحقني", "ملاحقة", "بضايقني", "تعرضت لمضايقة", "عم بتعرض لمضايقة", "تحرش بي", "بتحرش فيني")) and not any(term in t for term in ("ما في مضايقة", "مش مضايقة", "ما بتحرش")):
@@ -1056,7 +1060,8 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
         _set_answer(state, "contact_repeated", True, "reported", text, mid, question_id, changed)
     elif repeat_negative and (has_harm_context or pending == "repeated"):
         _set_answer(state, "repeated", False, "denied", text, mid, question_id, changed)
-    elif pending == "repeated" and (yn := _yes_no(text)) is not None:
+    elif pending == "repeated" and (yn := _yes_no(text)) is not None \
+            and len(_normalize_match(text).split()) <= 2:
         _set_answer(state, "repeated", yn, "reported" if yn else "denied", text, mid, question_id, changed)
     elif pending == "repeated" and pending_unknown_status:
         _set_answer(state, "repeated", None, pending_unknown_status, text, mid, question_id, changed)
@@ -1255,6 +1260,9 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
         _set_answer(state, "identity", "هوية أو حساب معروف بحسب الإفادة؛ لم يُدرج المعرّف",
                     "reported", text, mid, question_id, changed)
     elif pending == "identity":
+        explicit_identity_reference = bool(re.search(
+            r"(?:اسمه|اسمها|يدعى|تدعى|اسمي|يعرف باسم|اسم المستخدم)\s*[^\s،؛.!؟?]{2,}", normalize(text))) \
+            or bool(_specific_contact_identifier(text))
         if pending_unknown_status:
             _set_answer(state, "identity", None, pending_unknown_status, text, mid, question_id, changed)
         elif any(k in t for k in ("رقم", "حساب", "اسم مستخدم", "username")):
@@ -1267,7 +1275,8 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
                 _set_answer(state, "identity", "معروفة بحسب الإفادة", "reported", text, mid, question_id, changed)
         elif (yn := _yes_no(text)) is not None:
             _set_answer(state, "identity", "معروف بحسب الإفادة" if yn else None, "reported" if yn else "denied", text, mid, question_id, changed)
-        elif len(text) > 2:
+        elif len(text) > 2 and (not (turn_cues.get("wrap_up") or turn_cues.get("fatigue")
+                                     or turn_cues.get("protest")) or explicit_identity_reference):
             _set_answer(state, "identity", text, "reported", text, mid, question_id, changed)
     elif (identifier := _specific_contact_identifier(text)):
         _set_answer(state, "contact", identifier, "reported", text, mid, question_id, changed)
@@ -1952,7 +1961,13 @@ def _compose_smart_question(state: dict[str, Any], slot: str, mode: str = "adapt
 def compose_question(state: dict[str, Any], slot: str, mode: str = "adaptive") -> str:
     if mode not in {"adaptive", "standard"}:
         mode = "standard"
-    return _compose_smart_question(state, slot, mode)
+    question = _compose_smart_question(state, slot, mode)
+    preface = first_turn_empathy_preface(state, slot)
+    # Some specialized prompts already open with empathy and image-privacy reassurance.
+    if preface and not question.startswith(preface.strip()) \
+            and not any(marker in question for marker in ("مقلق لك", "ما في داعي ترفع أو ترسل الصور")):
+        return preface + question
+    return question
 
 
 def _sync_slot_states(state: dict[str, Any]) -> dict[str, str]:
@@ -2062,16 +2077,23 @@ def _assessment(state: dict[str, Any]) -> dict[str, Any]:
     elif incident_track == "defamation_or_abuse":
         abuse_text = normalize(" ".join(str(facts.get(key, {}).get("value") or "") for key in ("narrative", "details")))
         public = any(term in abuse_text for term in ("تعليق", "منشور", "بوست", "ستوري", "عام"))
-        score = 55 if _reported_true(state, "repeated") else 45 if public else 35
+        aggravated = any(term in abuse_text for term in ("كرر", "متكرر", "للمره الثانيه", "مرات", "عاد التشهير", "اتهم عائلتي"))
+        score = 55 if _reported_true(state, "repeated") or aggravated else 45 if public else 35
         route = "مراجعة بشرية أولية لإساءة لفظية رقمية"
         priority_rule = "R55_REPEATED_DIGITAL_ABUSE" if score == 55 else "R45_DIGITAL_VERBAL_ABUSE" if score == 45 else "R35_PRIVATE_DIGITAL_ABUSE"
         supporting_fields = [key for key in ("narrative", "details", "platform") if facts.get(key)]
         reasons.append("إساءة لفظية أو ذم/قدح رقمي بحسب إفادة المستخدم؛ التصنيف تجريبي وليس حكمًا قانونيًا")
-    elif (profile["threat"] or profile["impersonation"]) and details.get("status") == "reported" and details.get("value") and any(normalize(term) in normalized_details for term in ("رسالة", "ينشر", "ينزل", "نشر", "محادثات", "حساب", "اسمي", "صورتي", "صوري", "هدد", "ابتزاز", "لاحق", "قتل", "سلاح", "دينار", "محفظة", "رقم", "سيؤذيني", "يؤذيني", "سيؤذي", "يضربني", "يقتلني")):
+    elif profile["impersonation"]:
+        score = 75 if _reported_true(state, "harassment") or _reported_true(state, "repeated") else 65
+        route = "مراجعة بشرية أولية لانتحال أو مضايقة"
+        priority_rule = "R75_REPEATED_HARASSMENT" if score == 75 else "R65_IMPERSONATION_OR_HARASSMENT"
+        supporting_fields = [key for key in ("impersonation", "details", "platform") if facts.get(key)]
+        reasons.append("انتحال أو مضايقة بحسب الإفادة؛ الدرجة تجريبية ولا تثبت هوية الفاعل")
+    elif profile["threat"] and details.get("status") == "reported" and details.get("value") and any(normalize(term) in normalized_details for term in ("رسالة", "ينشر", "ينزل", "نشر", "محادثات", "حساب", "اسمي", "صورتي", "صوري", "هدد", "ابتزاز", "لاحق", "قتل", "سلاح", "دينار", "محفظة", "رقم", "سيؤذيني", "يؤذيني", "سيؤذي", "يضربني", "يقتلني")):
         score, route = 85, "مراجعة بشرية"
         priority_rule = "R85_DETAILED_THREAT_OR_IMPERSONATION"
-        supporting_fields = (["threat", "details"] if profile["threat"] else ["impersonation", "details"])
-        reasons.append("تهديد أو انتحال شخصية مدعوم بتفاصيل بحسب الإفادة")
+        supporting_fields = ["threat", "details"]
+        reasons.append("تهديد مدعوم بتفاصيل بحسب إفادة المستخدم")
     elif profile["threat"] or profile["impersonation"]:
         reasons.append("وردت إشارة إلى تهديد أو انتحال، لكن التفاصيل غير كافية لتطبيق درجة 85")
     elif not facts:
@@ -2195,8 +2217,10 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
     previous_stage = state.get("stage")
     user_msg = _add_message(state, "user", text)
     turn_signal = analyze_message(text)
-    state.setdefault("turn_signals", []).append({key: bool(turn_signal.get(key)) for key in (
-        "wrap_up", "unknown", "not_remembered", "protest")} | {"slot": pending})
+    turn_signal_record = {key: bool(turn_signal.get(key)) for key in (
+        "wrap_up", "unknown", "not_remembered", "protest", "fatigue")} | {
+            "slot": pending, "substantive_fact": False}
+    state.setdefault("turn_signals", []).append(turn_signal_record)
     state["turn_signals"] = state["turn_signals"][-8:]
     if screen_current_danger(state, text, user_msg, pending):
         return state
@@ -2325,22 +2349,57 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
         _add_question_message(state, temporal_conflict_slot, None, "clarification")
         return state
     ongoing_contact_reported = state.get("facts", {}).get("ongoing_contact", {}).get("status") == "reported"
-    if pending == "repeated" and not _has(state, "repeated") and (ongoing_contact_reported or _detect_user_protest(text)):
-        attempts = state.get("clarifications", {}).get("repeated", 0)
-        if attempts >= 1:
-            reason = "user_protest_repeat_avoided" if _detect_user_protest(text) else "ongoing_contact_without_threat_confirmation"
-            _set_answer(state, "repeated", None, "unresolved", text, user_msg["id"], question_id, changed, reason=reason)
-            state["facts"]["repeated"]["resolution_reason"] = reason
-        else:
-            state.setdefault("clarifications", {})["repeated"] = 1
-            _finalize_changed_facts(state, changed)
-            state["stage"] = "interview"
-            state["pending_slot"] = "repeated"
-            prompt = "ذكرت أن التواصل ما زال مستمرًا. هل تكرر التهديد أو الضرر نفسه، أم أن الرسائل مستمرة فقط؟ إذا سبق أن أجبت، لن أكرر السؤال بعد هذا التوضيح."
-            _add_question_message(state, "repeated", prompt, "clarification")
-            return state
+    if pending == "repeated" and not _has(state, "repeated") and ongoing_contact_reported:
+        reason = "ongoing_contact_without_threat_confirmation"
+        _set_answer(state, "repeated", None, "unresolved", text, user_msg["id"], question_id, changed,
+                    reason=reason)
+        state["facts"]["repeated"]["resolution_reason"] = reason
+    saved_time = state.get("facts", {}).get("initial_time", {})
+    saved_time_value = normalize(str(saved_time.get("value") or ""))
+    normalized_turn = normalize(text)
+    time_protest_for_repeated = (
+        pending == "repeated" and _detect_user_protest(text)
+        and saved_time.get("status") == "reported" and bool(saved_time_value)
+        and saved_time_value in normalized_turn
+    )
+    if time_protest_for_repeated and intent is None and not changed:
+        _finalize_changed_facts(state, changed)
+        state["stage"] = "interview"
+        state["pending_slot"] = "repeated"
+        _add_question_message(
+            state, "repeated",
+            "التوقيت الذي ذكرته مسجل عندي. سؤالي التالي مختلف: " + compose_question(state, "repeated"),
+            "clarification",
+        )
+        return state
+    ongoing_fact = state.get("facts", {}).get("ongoing_contact", {})
+    ongoing_reaffirmation = any(marker in normalized_turn for marker in
+                                ("ما زال يراسل", "لسه يراسل", "ما زال يتواصل", "لسه يتواصل", "مستمر يراسل"))
+    publication_markers = ("نشر", "ينشر", "نزل", "ينزل", "رفع", "ارسل الصور", "بعث الصور")
+    if (pending == "published" and _detect_user_protest(text) and ongoing_fact.get("status") == "reported"
+            and ongoing_fact.get("value") is True and ongoing_reaffirmation
+            and not any(marker in normalized_turn for marker in publication_markers)
+            and intent is None and not (changed - {"ongoing_contact"})):
+        _finalize_changed_facts(state, changed)
+        state["stage"] = "interview"
+        state["pending_slot"] = "published"
+        _add_question_message(
+            state, "published",
+            "سجلت أن التواصل ما زال مستمرًا. بقي عندي هذا السؤال المختلف: "
+            + compose_question(state, "published"),
+            "clarification",
+        )
+        return state
+    turn_signal_record["substantive_fact"] = any(
+        key in state.get("facts", {})
+        and state["facts"][key].get("status") in {"reported", "denied"}
+        and state["facts"][key].get("message_id") == user_msg["id"]
+        for key in changed
+    )
     pending_still_needed = (pending in QUESTIONS and pending not in {"narrative", "unclassified_details"}
                             and not (new_relation_this_turn and pending not in {"requested_amount_relation", "paid_amount_relation"})
+                            and not (turn_signal.get("wrap_up") or turn_signal.get("fatigue")
+                                     or turn_signal.get("protest"))
                             and pending in _relevant_slots(state) and not _has(state, pending))
     if pending_still_needed and intent is None:
         if changed - {pending}:
@@ -2388,7 +2447,7 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
     state["incident_track"] = stop.incident_track
     state["stopping_decision"] = stop.as_dict()
     if stop.should_stop:
-        if stop.stop_reason == "user_wrap_up" and pending in QUESTIONS and pending not in changed \
+        if stop.stop_reason == "user_wrap_up" and pending in QUESTIONS and pending != "identity" and pending not in changed \
                 and pending in _relevant_slots(state) and not _has(state, pending):
             _record(state, pending, "unresolved", None, text, user_msg["id"], question_id, "user_wrap_up")
             changed.add(pending)
@@ -2412,7 +2471,15 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
             "diminishing_returns": "ما دام التفصيل غير متذكر أو غير معلوم، لن أضغط عليك لإعادة الإجابة.",
             "user_fatigue_or_repeat_protest": "سأتجنب إعادة السؤال وأحترم رغبتك في التوقف.",
         }.get(stop.stop_reason, "يمكنك مراجعة المعلومات المتاحة الآن.")
-        _add_message(state, "assistant", f"{reason_text} المسار الأولي: {track_label}. راجع الملخص وصحح أو أضف أي تفصيل قبل التأكيد؛ ما بقي مجهولًا سيظل ظاهرًا دون تخمين.", "review")
+        track_closure = {
+            "defamation_or_abuse": "نظمت ما ذكرته عن الإساءة الرقمية كما ورد، دون اعتباره حكمًا قانونيًا.",
+            "impersonation_or_harassment": "سجلت ما ورد عن الهوية أو المضايقة دون افتراض هوية الفاعل.",
+            "extortion_fraud_takeover": "رتبت ما أفدت به عن التهديد أو الطلب أو الحساب، دون إضافة وقائع غير مذكورة.",
+            "exploratory_intake": "يمكنك مراجعة الوصف وإضافة ما تراه مهمًا.",
+            "direct_danger": "تم إيقاف أسئلة المقابلة؛ يمكنك متابعة المراجعة عندما يكون ذلك مناسبًا.",
+        }.get(stop.incident_track, "يمكنك مراجعة المعلومات المتاحة الآن.")
+        _add_message(state, "assistant", f"{reason_text} {track_closure} المسار الأولي: {track_label}. "
+                     "راجع الملخص وصحح أو أضف أي تفصيل قبل التأكيد؛ ما بقي مجهولًا سيظل ظاهرًا دون تخمين.", "review")
         return state
 
     next_slot = ("requested_amount" if unquantified_request and not _has(state, "requested_amount")
@@ -2450,7 +2517,43 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
     return state
 
 
+def normalize_legacy_state(state: dict[str, Any]) -> dict[str, Any]:
+    """Fill additive fields missing from older SQLite snapshots without rewriting facts."""
+    state.setdefault("schema_version", SCHEMA_VERSION)
+    state.setdefault("stage", "interview")
+    state.setdefault("revision", 0)
+    state.setdefault("messages", [])
+    state.setdefault("facts", {})
+    state.setdefault("money_events", [])
+    state.setdefault("money_corrections", [])
+    state.setdefault("pending_guidance", None)
+    state.setdefault("clarifications", {})
+    state.setdefault("assessment", None)
+    state.setdefault("confirmed", False)
+    state.setdefault("confirmed_digest", None)
+    state.setdefault("confirmation_history", [])
+    state.setdefault("slot_states", {})
+    state.setdefault("turn_signals", [])
+    state.setdefault("adaptive_questions_enabled", False)
+    state.setdefault("summary_version", 1)
+    if "question_history" not in state:
+        state["question_history"] = [
+            {"message_id": item.get("id"), "slot": (item.get("question_plan") or {}).get("slot"),
+             "at": item.get("created_at"), "kind": item.get("kind", "question")}
+            for item in state["messages"] if isinstance(item, dict)
+            and item.get("role") == "assistant" and item.get("kind") in {"question", "clarification"}
+        ]
+    if "pending_slot" not in state:
+        state["pending_slot"] = _next_slot(state) if state["stage"] == "interview" else None
+    if "last_response" not in state:
+        last_assistant = next((item.get("text", "") for item in reversed(state["messages"])
+                               if isinstance(item, dict) and item.get("role") == "assistant"), "")
+        state["last_response"] = last_assistant
+    return state
+
+
 def resume_state(state: dict[str, Any]) -> dict[str, Any]:
+    normalize_legacy_state(state)
     if state["stage"] == "paused":
         resume_stage = state.pop("resume_stage", "interview")
         pending_guidance = state.get("pending_guidance")

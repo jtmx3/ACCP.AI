@@ -10,6 +10,7 @@ from app import main
 from app.conversation import MAX_CONTEXT_CHARS, build_bounded_context, interpret_message
 from app.core import new_state
 from app.store import Store
+from tests.interactive_fixtures import interactive_result
 
 
 class BoundedConversationContextTests(unittest.TestCase):
@@ -78,15 +79,15 @@ class ContextConsentApiTests(unittest.TestCase):
     def test_context_is_not_sent_unless_separately_authorized(self):
         calls = []
 
-        def fake_extraction(text, pending, context=None, interpretation=None):
-            calls.append({"text": text, "pending": pending, "context": context, "interpretation": interpretation})
-            return []
+        def fake_interactive(text, dialogue_context, pending):
+            calls.append({"text": text, "pending": pending, "context": dialogue_context})
+            return interactive_result()
 
         provider = {"provider": "ollama", "model": "synthetic-test", "mode": "local_model",
                     "configuration_complete": True}
         with patch("app.main.model_configured", return_value=True), \
              patch("app.main.provider_config", return_value=provider), \
-             patch("app.main.generate_interview_extraction", side_effect=fake_extraction), \
+             patch("app.main.generate_interactive_dialogue_turn", side_effect=fake_interactive), \
              patch("app.main.last_call_trace", return_value={"attempted": True, "latency_ms": 1}):
             first = self.client.post(f"/api/sessions/{self.case_id}/messages", headers=self.headers,
                 json={"expected_revision": self.revision, "text": "شخص هددني", "kind": "answer",
@@ -94,19 +95,19 @@ class ContextConsentApiTests(unittest.TestCase):
             self.assertEqual(first.status_code, 200, first.text)
             first_result = first.json()
             self.revision = first_result["session"]["revision"]
-            self.assertIsNone(calls[0]["context"])
-            self.assertFalse(first_result["local_context_sent"])
+            self.assertTrue(calls[0]["context"]["recent_messages"])
+            self.assertIn("شخص هددني", json.dumps(calls[0]["context"], ensure_ascii=False))
+            self.assertNotIn("session_id", calls[0]["context"])
+            self.assertNotIn("token", calls[0]["context"])
 
             second = self.client.post(f"/api/sessions/{self.case_id}/messages", headers=self.headers,
                 json={"expected_revision": self.revision, "text": "اليوم دفعت 130 دينار", "kind": "answer",
                       "allow_local_model": True, "allow_context_extraction": True})
             self.assertEqual(second.status_code, 200, second.text)
-            self.assertIsNotNone(calls[1]["context"])
+            self.assertIsNotNone(calls[1]["context"].get("related_facts"))
             result = second.json()
-            self.assertTrue(result["local_context_sent"])
-            self.assertLessEqual(result["provider_call"]["context_char_count"], MAX_CONTEXT_CHARS)
-            self.assertEqual(result["provider_call"]["context_message_count"] <= 4, True)
-            self.assertIsNotNone(calls[1]["interpretation"])
+            self.assertEqual(result["local_model_purpose"], "interactive_dialogue_turn")
+            self.assertLessEqual(len(json.dumps(calls[1]["context"], ensure_ascii=False)), 5500)
 
     def test_mixed_why_question_saves_scoped_facts_then_reasks_pending_question(self):
         with patch("app.main.model_configured", return_value=False):

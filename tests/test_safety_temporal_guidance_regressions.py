@@ -7,8 +7,8 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from app import main
-from app.model import InterviewUnderstanding
 from app.store import Store
+from tests.interactive_fixtures import interactive_result
 
 
 class SafetyTemporalGuidanceRegressionTests(unittest.TestCase):
@@ -265,10 +265,10 @@ class SafetyTemporalGuidanceRegressionTests(unittest.TestCase):
 
     def test_consented_model_extraction_receives_fact_span_without_guidance_platform(self):
         self._turn("كيف أحمي حسابي")
-        fake_understanding = InterviewUnderstanding([], {"goals": [], "guidance_question": None}, {"accepted": True})
+        fake_turn = interactive_result(reply_text="هل تريد إضافة شيء آخر؟")
         with patch("app.main.model_configured", return_value=True), \
              patch("app.main.provider_config", return_value={"provider": "ollama", "model": "fixture", "mode": "local_model"}), \
-             patch("app.main.generate_interview_extraction", return_value=fake_understanding) as extraction:
+             patch("app.main.generate_interactive_dialogue_turn", return_value=fake_turn) as extraction:
             self._turn("واتساب، واليوم رجع هددني.", allow_local_model=True)
         extraction.assert_called_once()
         self.assertEqual(extraction.call_args.args[0], "واليوم رجع هددني")

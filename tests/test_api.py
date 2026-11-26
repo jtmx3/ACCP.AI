@@ -16,6 +16,14 @@ from app.main import TurnRequest
 from app.store import Store
 
 
+def _interactive_result(facts=None, goals=None, unsupported=None, reply="واضح. ما التفصيل الآخر الذي تريد إضافته؟"):
+    goals = list(goals or [])
+    return {"facts": list(facts or []), "message_plan": {"goals": goals,
+            "unsupported_goals": list(unsupported or []), "guidance_question": None},
+            "user_intent": None, "conversation_move": "ask_follow_up", "reply_text": reply,
+            "diagnostic": {"accepted": True, "filtered_facts": []}}
+
+
 class ApiIntegrationTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -94,7 +102,8 @@ class ApiIntegrationTests(unittest.TestCase):
         with patch("app.main.model_configured", return_value=True), \
              patch("app.main.provider_config", return_value={"provider": "ollama",
                                                                "model": "synthetic-test", "mode": "local_model"}), \
-             patch("app.main.generate_interview_extraction", return_value=facts), \
+             patch("app.main.generate_interactive_dialogue_turn",
+                   return_value=_interactive_result(facts, ["add_fact"])), \
              patch("app.main.last_call_trace", return_value=trace):
             response = self.client.post(
                 f"/api/sessions/{self.case_id}/messages", headers=self.headers,
@@ -119,7 +128,7 @@ class ApiIntegrationTests(unittest.TestCase):
         with patch("app.main.model_configured", return_value=True), \
              patch("app.main.provider_config", return_value={"provider": "ollama", "model": "fixture:latest",
                                                                 "mode": "local_model"}), \
-             patch("app.main.generate_interview_extraction", return_value=[]), \
+             patch("app.main.generate_interactive_dialogue_turn", return_value=_interactive_result()), \
              patch("app.main.last_call_trace", return_value=trace), \
              patch("app.main.last_extraction_diagnostic", return_value=diagnostic):
             response = self.client.post(
@@ -160,9 +169,10 @@ class ApiIntegrationTests(unittest.TestCase):
                 session_id = created["session"]["session_id"]
                 token = created["token"]
                 revision = created["session"]["revision"]
-                model_payload = {"message_goals": [], "guidance_question": None,
-                                 "facts": [{"field": field, "status": status, "value": value,
-                                            "current_quote": text}]}
+                model_payload = {"facts": [{"field": field, "status": status, "value": value,
+                                             "current_quote": text}], "user_intent": None,
+                                 "conversation_move": "ask_follow_up",
+                                 "reply_text": "واضح. هل في شيء آخر بتحب تضيفه؟"}
                 provider_payload = {"choices": [{"message": {"content": json.dumps(
                     model_payload, ensure_ascii=False)}}]}
                 calls = []
@@ -197,8 +207,6 @@ class ApiIntegrationTests(unittest.TestCase):
                     self.assertFalse(stored and stored.get("status") == status and stored.get("value") == value)
 
     def test_unsupported_decline_goal_is_diagnostic_only_and_rules_handle_deadline_denial(self):
-        from app.model import InterviewUnderstanding
-
         def make_deadline_pending(state):
             state["stage"] = "interview"
             state["pending_slot"] = "deadline"
@@ -215,11 +223,12 @@ class ApiIntegrationTests(unittest.TestCase):
                       "filtered_facts": [], "unsupported_message_goals": ["decline_disclosure"],
                       "message_plan": {"goals": [], "unsupported_goals": ["decline_disclosure"],
                                        "guidance_question": None}}
-        understanding = InterviewUnderstanding([], diagnostic["message_plan"], diagnostic)
+        unified = _interactive_result(unsupported=["decline_disclosure"],
+                                      reply="سجلت ما ذكرته. هل لديك تفصيل آخر؟")
         config = {"provider": "ollama", "model": "fixture:qwen", "mode": "local_model", "local": True}
         with patch("app.main.model_configured", return_value=True), \
              patch("app.main.provider_config", return_value=config), \
-             patch("app.main.generate_interview_extraction", return_value=understanding), \
+             patch("app.main.generate_interactive_dialogue_turn", return_value=unified), \
              patch("app.main.last_call_trace", return_value=trace), \
              patch("app.main.call_trace_history", return_value=[trace]), \
              patch("app.main.last_extraction_diagnostic", return_value=diagnostic):
@@ -258,7 +267,7 @@ class ApiIntegrationTests(unittest.TestCase):
                  patch("app.main.model_configured", return_value=True), \
                  patch("app.main.provider_config", return_value={"provider": "ollama", "model": "fixture:latest",
                                                                     "mode": "local_model"}), \
-                 patch("app.main.generate_interview_extraction", return_value=[]), \
+                 patch("app.main.generate_interactive_dialogue_turn", return_value=_interactive_result()), \
                  patch("app.main.last_call_trace", return_value=trace):
                 response = self.client.post(
                     f"/api/sessions/{self.case_id}/messages", headers=self.headers,
@@ -269,7 +278,7 @@ class ApiIntegrationTests(unittest.TestCase):
             self.revision = result["session"]["revision"]
             self.assertFalse(result["local_model_result_accepted"])
             self.assertTrue(result["fallback_used"])
-            self.assertEqual(result["fallback_to"], "rules")
+            self.assertIn("rules", result["fallback_to"].split("+"))
             self.assertEqual(result["extraction_outcome"], expected_outcome)
             self.assertTrue(result["provider_call"]["response_valid"])
             self.assertFalse(result["provider_call"]["result_accepted"])
@@ -282,7 +291,7 @@ class ApiIntegrationTests(unittest.TestCase):
         facts_before = before["facts"]
         env = {"MODEL_PROVIDER": "ollama", "MODEL_BASE_URL": "http://127.0.0.1:11434/v1",
                "MODEL_NAME": "fixture-model"}
-        with patch.dict(os.environ, env), patch("app.main.generate_interview_extraction",
+        with patch.dict(os.environ, env), patch("app.main.generate_interactive_dialogue_turn",
                                                 side_effect=AssertionError("answer-mode question must not be sent for extraction")):
             response = self.client.post(f"/api/sessions/{self.case_id}/messages", headers=self.headers,
                                         json={"expected_revision": self.revision, "text": "كيف أحفظ الأدلة واللقطات؟",
@@ -679,15 +688,15 @@ class ApiIntegrationTests(unittest.TestCase):
         calls = []
         calls_lock = threading.Lock()
 
-        def slow_extract(text, pending):
+        def slow_extract(text, context, pending):
             with calls_lock:
                 calls.append((text, pending))
             barrier.wait()
-            return []
+            return _interactive_result()
 
         with patch.dict(os.environ, {"MODEL_PROVIDER": "ollama"}), \
              patch("app.main.model_configured", return_value=True), \
-             patch("app.main.generate_interview_extraction", side_effect=slow_extract), \
+             patch("app.main.generate_interactive_dialogue_turn", side_effect=slow_extract), \
              patch("app.main.last_call_trace", return_value={"attempted": True, "latency_ms": 1}):
             with ThreadPoolExecutor(max_workers=2) as pool:
                 futures = [
@@ -704,16 +713,18 @@ class ApiIntegrationTests(unittest.TestCase):
         release = threading.Event()
         call_count = 0
 
-        def slow_extract(text, pending):
+        def slow_extract(text, context, pending):
             nonlocal call_count
             call_count += 1
             entered.set()
             self.assertTrue(release.wait(timeout=5))
-            return [{"field": "platform", "status": "reported", "value": "واتساب", "quote": "واتساب"}]
+            return _interactive_result(
+                [{"field": "platform", "status": "reported", "value": "واتساب", "quote": "واتساب"}],
+                ["add_fact"])
 
         with patch.dict(os.environ, {"MODEL_PROVIDER": "ollama"}), \
              patch("app.main.model_configured", return_value=True), \
-             patch("app.main.generate_interview_extraction", side_effect=slow_extract):
+             patch("app.main.generate_interactive_dialogue_turn", side_effect=slow_extract):
             with ThreadPoolExecutor(max_workers=1) as pool:
                 first = pool.submit(main.post_message, self.case_id,
                                     TurnRequest(expected_revision=0, text="شخص يهددني على واتساب", allow_local_model=True), self.token)

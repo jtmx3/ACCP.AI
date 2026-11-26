@@ -117,16 +117,31 @@ def route_assessment(state: dict[str, Any]) -> dict[str, Any]:
     cues = analyze_message(" ".join(str(_fact(state, key).get("value") or "") for key in ("narrative", "details")))
     if track == "defamation_or_abuse":
         text = " ".join(str(_fact(state, key).get("value") or "") for key in ("narrative", "details"))
-        public = any(term in normalize_arabic(text) for term in ("تعليق", "منشور", "بوست", "ستوري", "عام"))
+        normalized = normalize_arabic(text)
+        public = any(term in normalized for term in ("تعليق", "منشور", "بوست", "ستوري", "عام"))
         repeated = _reported_true(state, "repeated")
+        aggravated = any(term in normalized for term in ("كرر", "متكرر", "للمره الثانيه", "مرات", "عاد التشهير", "اتهم عائلتي"))
         score = 45 if public else 35
-        if repeated:
+        if repeated or aggravated:
             score = 55
         return {"priority_score": score, "priority_label": "عادية/تحتاج مراجعة",
-                "priority_rule": "R45_DIGITAL_VERBAL_ABUSE" if not repeated else "R55_REPEATED_DIGITAL_ABUSE",
+                "priority_rule": "R55_REPEATED_DIGITAL_ABUSE" if repeated or aggravated else
+                                "R45_DIGITAL_VERBAL_ABUSE" if public else "R35_PRIVATE_DIGITAL_ABUSE",
                 "supporting_fields": ["narrative", "details"] + (["platform"] if _fact(state, "platform") else []),
                 "route": "مراجعة بشرية أولية لإساءة لفظية رقمية",
                 "reasons": ["إساءة لفظية رقمية بحسب إفادة المستخدم؛ التصنيف تجريبي وليس حكمًا قانونيًا"],
                 "risk_indicators": []}
+    if track == "direct_danger":
+        score, rule = 100, "R100_DIRECT_DANGER"
+    elif track == "extortion_fraud_takeover":
+        score = 95 if _reported_true(state, "active_unauthorized_funds") else 90 if (
+            _reported_true(state, "sensitive_photos") or _reported_true(state, "ai_fabricated")) else 85
+        rule = "R95_ACTIVE_FUNDS" if score == 95 else "R90_SENSITIVE_EXTORTION" if score == 90 else "R85_EXTORTION_OR_FRAUD"
+    elif track == "impersonation_or_harassment":
+        score = 75 if _reported_true(state, "harassment") or _reported_true(state, "repeated") else 65
+        rule = "R75_REPEATED_HARASSMENT" if score == 75 else "R65_IMPERSONATION_OR_HARASSMENT"
+    else:
+        score, rule = None, None
     return {"incident_track": track, "track_label": TRACK_LABELS[track],
+            "priority_score": score, "priority_rule": rule,
             "core_fields": core_fields_for_track(state, track), "signals": cues}

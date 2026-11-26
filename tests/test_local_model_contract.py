@@ -68,14 +68,14 @@ class LocalModelContractTests(unittest.TestCase):
             )
             self.assertEqual(rejected.status_code, 409, rejected.text)
 
-    def test_new_session_defaults_model_on_only_when_loopback_model_is_reachable_and_can_be_disabled(self):
+    def test_new_session_does_not_probe_provider_and_can_disable_configured_loopback_model(self):
         env = {"MODEL_PROVIDER": "ollama", "MODEL_BASE_URL": "http://127.0.0.1:11434/v1",
                "MODEL_NAME": "synthetic-local-test"}
-        reachable = {"configured": True, "service_reachable": True, "model_available": True}
-        with patch.dict(os.environ, env, clear=True), patch("app.main.probe_provider", return_value=reachable):
+        with patch.dict(os.environ, env, clear=True), \
+             patch("app.main.probe_provider", side_effect=AssertionError("session creation must not probe")):
             session_id, token, revision, state = self._new_session()
             self.assertTrue(state["local_model_enabled"])
-            self.assertTrue(state["adaptive_questions_enabled"])
+            self.assertFalse(state["adaptive_questions_enabled"])
             response = self.client.put(
                 f"/api/sessions/{session_id}/local-model-settings",
                 headers={"X-Case-Token": token},
@@ -114,12 +114,11 @@ class LocalModelContractTests(unittest.TestCase):
             self.assertFalse(provider_config()["configured"])
             self.assertEqual(provider_config()["failure_code"], "nonlocal_endpoint_disallowed")
 
-    def test_adaptive_generation_requires_two_opt_ins_and_sends_only_bounded_features(self):
+    def test_unified_local_generation_uses_one_call_and_never_sends_session_credentials(self):
         env = {"MODEL_PROVIDER": "ollama",
                "MODEL_BASE_URL": "http://127.0.0.1:11434/v1",
                "MODEL_NAME": "synthetic-local-test",
-               "OLLAMA_REASONING_EFFORT": "none",
-               "ACCP_ADAPTIVE_MODEL_QUESTIONS": "1"}
+               "OLLAMA_REASONING_EFFORT": "none"}
         with patch.dict(os.environ, env, clear=True):
             session_id, token, revision, _ = self._new_session()
             headers = {"X-Case-Token": token}
@@ -131,16 +130,18 @@ class LocalModelContractTests(unittest.TestCase):
             self.assertEqual(settings.status_code, 200, settings.text)
             revision = settings.json()["session"]["revision"]
 
-            generated = {"question": "وبالنسبة لأول تواصل، متى بلش تقريبًا؟"}
-            completion = {"choices": [{"message": {"content": json.dumps(generated, ensure_ascii=False)}}]}
-            captured = {}
+            generated = {"facts": [{"field": "threat", "status": "reported", "value": True,
+                                     "current_quote": "في شخص يهددني"}],
+                         "user_intent": "add_fact", "conversation_move": "ask_follow_up",
+                         "reply_text": "متى بدأ هذا التصرف؟"}
+            captured = []
 
-            def fake_urlopen(request, timeout=None):
-                captured["body"] = json.loads(request.data.decode("utf-8"))
-                return _FakeResponse(completion)
+            def fake_chat(messages, purpose):
+                captured.append({"messages": messages, "purpose": purpose})
+                return json.dumps(generated, ensure_ascii=False)
 
             user_text = "اسمي سارة ورقمي 0791234567. في شخص يهددني بنشر صوري الخاصة على واتساب."
-            with patch("app.model.urllib.request.urlopen", side_effect=fake_urlopen):
+            with patch("app.model._chat", side_effect=fake_chat):
                 response = self.client.post(
                     f"/api/sessions/{session_id}/messages",
                     headers=headers,
@@ -149,33 +150,22 @@ class LocalModelContractTests(unittest.TestCase):
 
             self.assertEqual(response.status_code, 200, response.text)
             result = response.json()
-            self.assertTrue(result["adaptive_question"]["attempted"])
-            self.assertTrue(result["adaptive_question"]["accepted"])
-            self.assertEqual(result["local_model_purpose"], "current_message_extraction")
-            self.assertTrue(result["adaptive_context_sent"])
+            self.assertNotIn("adaptive_question", result)
+            self.assertEqual(result["local_model_purpose"], "interactive_dialogue_turn")
             self.assertTrue(result["local_context_sent"])
             self.assertEqual(result["session"]["pending_slot"], "initial_time")
-            self.assertEqual(result["session"]["messages"][-1]["text"], generated["question"])
-
-            serialized = json.dumps(captured["body"], ensure_ascii=False)
-            self.assertNotIn(user_text, serialized)
-            self.assertNotIn("سارة", serialized)
-            self.assertNotIn("0791234567", serialized)
+            self.assertEqual(result["session"]["messages"][-1]["text"], generated["reply_text"])
+            self.assertEqual(len(captured), 1)
+            self.assertEqual(captured[0]["purpose"], "interactive_dialogue_turn")
+            serialized = json.dumps(captured[0], ensure_ascii=False)
             self.assertNotIn(session_id, serialized)
-            user_content = next(message["content"] for message in captured["body"]["messages"]
-                               if message["role"] == "user")
-            bounded = json.loads(user_content)
-            self.assertEqual(bounded["pending_slot"], "initial_time")
-            self.assertIn("features", bounded["safe_context"])
-            self.assertEqual(bounded["safe_context"]["field_label"], "وقت بدء التصرف أو أول تواصل")
-            self.assertTrue(bounded["safe_context"]["question_goal"])
-            self.assertTrue(bounded["safe_context"]["missing_condition"])
-            self.assertIn("لهجة أردنية", bounded["safe_context"]["language_style"])
-            self.assertNotIn("messages", bounded["safe_context"])
-            self.assertNotIn("quotes", bounded["safe_context"])
-            system_prompt = captured["body"]["messages"][0]["content"]
-            self.assertIn("لا أن تنسخ base_question", system_prompt)
-            self.assertIn("جزء الناقص", system_prompt)
+            self.assertNotIn(token, serialized)
+            payload = json.loads(next(message["content"] for message in captured[0]["messages"]
+                                      if message["role"] == "user"))
+            self.assertEqual(payload["pending_slot"], "narrative")
+            self.assertEqual(payload["current_user_message"], user_text)
+            self.assertNotIn("session_id", json.dumps(payload, ensure_ascii=False))
+            self.assertNotIn("token", json.dumps(payload, ensure_ascii=False))
 
     def test_adaptive_question_validator_blocks_safety_and_sensitive_identifier_requests(self):
         context = {"base_question": "ما وسيلة التواصل المتاحة؟", "recent_bot_questions": [],

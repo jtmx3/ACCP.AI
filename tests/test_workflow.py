@@ -212,7 +212,7 @@ class InterviewWorkflowTests(unittest.TestCase):
         self.assertIs(state["facts"]["repeated"]["value"], True)
         self.assertEqual(state["facts"]["contact_repeated"]["status"], "reported")
 
-    def test_no_possessed_evidence_is_denied_not_reported(self):
+    def test_two_unknown_answers_on_different_questions_stop_before_evidence_prompt(self):
         state = new_state("no-evidence")
         for text in ("شخص هددني برسالة", "لا", "هددني بنشر صور خاصة", "أمس"):
             handle_turn(state, text)
@@ -222,9 +222,9 @@ class InterviewWorkflowTests(unittest.TestCase):
         handle_turn(state, "ما بعرف")
         self.assertEqual(state["pending_slot"], "identity")
         handle_turn(state, "ما بعرف")
-        self.assertEqual(state["pending_slot"], "evidence")
-        handle_turn(state, "ما عندي صور ولا رسائل")
-        self.assertEqual(state["facts"]["evidence"]["status"], "denied")
+        self.assertIsNone(state["pending_slot"])
+        self.assertEqual(state["stage"], "review")
+        self.assertNotIn("evidence", state["facts"])
 
     def test_requested_money_and_denied_payment_are_independent(self):
         state = new_state("request-no-payment")
@@ -281,7 +281,7 @@ class InterviewWorkflowTests(unittest.TestCase):
         self.assertNotIn("details", state["facts"])
         self.assertNotIn("account_access", state["facts"])
         handle_turn(state, "ينشر منشورات باسمي ويتواصل مع أصحابي")
-        self.assertEqual(_assessment(state)["priority_score"], 85)
+        self.assertEqual(_assessment(state)["priority_score"], 65)
 
     def test_user_instruction_cannot_assign_score_or_confirm_report(self):
         state = new_state("injection-case")

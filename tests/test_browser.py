@@ -13,6 +13,7 @@ from playwright.async_api import async_playwright, expect
 
 from app import main
 from app.store import Store
+from tests.interactive_fixtures import interactive_result
 
 LOCAL_READY_PROBE = {"configured": True, "service_reachable": True, "model_available": True,
                      "models_count": 1, "failure_code": None}
@@ -127,8 +128,8 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         with patch("app.main.provider_config", return_value=config), \
              patch("app.main.model_configured", return_value=True), \
              patch("app.main.probe_provider", return_value=LOCAL_READY_PROBE), \
-             patch("app.main.generate_interview_extraction", return_value=[{
-                 "field": "platform", "status": "reported", "value": "إنستغرام", "quote": "إنستغرام"}]), \
+             patch("app.main.generate_interactive_dialogue_turn", return_value=interactive_result(facts=[{
+                 "field": "platform", "status": "reported", "value": "إنستغرام", "quote": "إنستغرام"}])), \
              patch("app.main.last_call_trace", return_value=trace):
             await self.page.goto(self.base_url)
             await self.page.locator("#start-case").click()
@@ -159,7 +160,7 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         with patch("app.main.provider_config", return_value=config), \
              patch("app.main.model_configured", return_value=True), \
              patch("app.main.probe_provider", return_value=LOCAL_READY_PROBE), \
-             patch("app.main.generate_interview_extraction", return_value=[]), \
+             patch("app.main.generate_interactive_dialogue_turn", return_value=interactive_result()), \
              patch("app.main.last_call_trace", return_value=trace):
             await self.page.goto(self.base_url)
             await self.page.locator("#start-case").click()
@@ -173,8 +174,6 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
             await expect(self.page.locator("#runtime-detail")).to_contain_text("الرجوع: إلى القواعد المحلية")
 
     async def test_unsupported_decline_goal_is_shown_as_unapplied_interpretation(self):
-        from app.model import InterviewUnderstanding
-
         config = {"provider": "ollama", "mode": "local_model", "model": "fixture:qwen",
                   "configuration_complete": True, "configured": True, "local": True,
                   "ollama_reasoning_effort": "none"}
@@ -185,7 +184,8 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
                       "filtered_facts": [], "unsupported_message_goals": ["decline_disclosure"],
                       "message_plan": {"goals": [], "unsupported_goals": ["decline_disclosure"],
                                        "guidance_question": None}}
-        understanding = InterviewUnderstanding([], diagnostic["message_plan"], diagnostic)
+        turn = interactive_result()
+        turn["message_plan"] = diagnostic["message_plan"]
 
         async def intercept(route):
             if route.request.url.endswith("/api/provider/status"):
@@ -199,7 +199,7 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         with patch("app.main.provider_config", return_value=config), \
              patch("app.main.model_configured", return_value=True), \
              patch("app.main.probe_provider", return_value=LOCAL_READY_PROBE), \
-             patch("app.main.generate_interview_extraction", return_value=understanding), \
+             patch("app.main.generate_interactive_dialogue_turn", return_value=turn), \
              patch("app.main.last_call_trace", return_value=trace), \
              patch("app.main.last_extraction_diagnostic", return_value=diagnostic):
             await self.page.goto(self.base_url)
@@ -260,7 +260,7 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         with patch("app.main.provider_config", return_value=config), \
              patch("app.main.model_configured", return_value=True), \
              patch("app.main.probe_provider", return_value=LOCAL_READY_PROBE), \
-             patch("app.main.generate_interview_extraction", return_value=[]), \
+             patch("app.main.generate_interactive_dialogue_turn", return_value=interactive_result()), \
              patch("app.main.last_call_trace", return_value=trace):
             await self.page.goto(self.base_url)
             await self.page.locator("#start-case").click()
@@ -607,11 +607,11 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
             source = payload["sources"][0]
             return json.dumps({"claims": [{"source_id": source["source_id"], "quote": source["excerpt"][:40]}]}, ensure_ascii=False)
 
-        def fake_extraction(*_args, **_kwargs):
+        def fake_interactive_turn(*_args, **_kwargs):
             from app.model import _update_call_trace
             _update_call_trace(attempted=True, status="generated", latency_ms=1.0,
                                result_accepted=False, fallback_used=True)
-            return []
+            return interactive_result()
 
         async def send_and_wait(text):
             async with self.page.expect_response(
@@ -620,7 +620,7 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
             return await response_info.value
 
         with patch.dict("os.environ", env), patch("app.main.probe_provider", return_value=reachable), \
-             patch("app.main.generate_interview_extraction", side_effect=fake_extraction) as extract, \
+             patch("app.main.generate_interactive_dialogue_turn", side_effect=fake_interactive_turn) as generate_turn, \
              patch("app.main.generate_grounded_answer", wraps=main.generate_grounded_answer) as answer, \
              patch("app.model._chat", side_effect=fake_chat) as provider:
             await self.page.goto(self.base_url)
@@ -630,27 +630,32 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
 
             await send_and_wait("في شخص يهددني على واتساب")
             await expect(self.page.locator("#chat .question-plan").last).to_contain_text("تفاصيل الواقعة")
-            self.assertEqual(extract.call_count, 1, f"requests={message_requests!r}")
+            self.assertEqual(generate_turn.call_count, 1, f"requests={message_requests!r}")
+            self.assertEqual(generate_turn.call_args.args[0], "في شخص يهددني على واتساب")
             self.assertNotIn("allow_local_model", message_requests[-1])
             self.assertNotIn("allow_context_extraction", message_requests[-1])
-            self.assertTrue(extract.call_args.args[2]["untrusted_user_data"])
+            self.assertNotIn("session_id", json.dumps(generate_turn.call_args.args[1], ensure_ascii=False))
+            self.assertNotIn("token", json.dumps(generate_turn.call_args.args[1], ensure_ascii=False))
             await self.page.locator("#local-model-enabled").uncheck()
             await expect(self.page.locator("#status-message")).to_contain_text("تم إيقاف النموذج")
             self.assertTrue((await send_and_wait("لا")).ok)
             await expect(self.page.locator("#status-message")).to_contain_text("تم حفظ الرسالة وتحديث الحالة بالقواعد المحلية.")
-            extract.assert_called_once()
+            generate_turn.assert_called_once()
             self.assertNotIn("allow_local_model", message_requests[-1])
 
             await self.page.locator("#local-model-enabled").check()
             await send_and_wait("لا")
-            self.assertEqual(extract.call_count, 2, f"requests={message_requests!r}")
-            self.assertEqual(extract.call_args.args[:2], ("لا", "details"))
-            self.assertTrue(extract.call_args.args[2]["untrusted_user_data"])
+            self.assertEqual(generate_turn.call_count, 2, f"requests={message_requests!r}")
+            self.assertEqual(generate_turn.call_args.args[0], "لا")
+            self.assertEqual(generate_turn.call_args.args[2], "details")
+            self.assertNotIn("session_id", json.dumps(generate_turn.call_args.args[1], ensure_ascii=False))
+            self.assertNotIn("token", json.dumps(generate_turn.call_args.args[1], ensure_ascii=False))
             self.assertNotIn("allow_local_model", message_requests[-1])
 
             await send_and_wait("قال لي إذا ما دفعت رح أنشر صوري")
-            self.assertEqual(extract.call_count, 3, f"requests={message_requests!r}")
-            self.assertTrue(extract.call_args.args[2]["untrusted_user_data"])
+            self.assertEqual(generate_turn.call_count, 3, f"requests={message_requests!r}")
+            self.assertNotIn("session_id", json.dumps(generate_turn.call_args.args[1], ensure_ascii=False))
+            self.assertNotIn("token", json.dumps(generate_turn.call_args.args[1], ensure_ascii=False))
             self.assertTrue(message_requests[-1].keys().isdisjoint(
                 {"allow_local_model", "allow_context_extraction", "allow_adaptive_question"}))
 
@@ -721,7 +726,7 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         with patch("app.main.provider_config", return_value=config), \
              patch("app.main.model_configured", return_value=True), \
              patch("app.main.probe_provider", return_value=LOCAL_READY_PROBE), \
-             patch("app.main.generate_interview_extraction", return_value=[]), \
+             patch("app.main.generate_interactive_dialogue_turn", return_value=interactive_result()), \
              patch("app.main.last_call_trace", return_value=trace), \
              patch("app.main.last_extraction_diagnostic", return_value=diagnostic):
             await self.page.goto(self.base_url)

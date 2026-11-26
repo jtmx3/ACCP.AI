@@ -1367,7 +1367,7 @@ def generate_interactive_dialogue_turn(text: str, dialogue_context: dict[str, An
                        "ask_assessment_reason", "pause", "review_summary", "unknown", "not_remembered",
                        "decline_disclosure"}
     allowed_moves = {"ask_follow_up", "acknowledge", "answer_question", "close"}
-    if (not isinstance(parsed, dict) or set(parsed) != required_keys
+    if (not isinstance(parsed, dict) or not required_keys.issubset(parsed)
             or (parsed.get("user_intent") is not None and parsed.get("user_intent") not in allowed_intents)
             or parsed.get("conversation_move") not in allowed_moves
             or not isinstance(parsed.get("reply_text"), str)

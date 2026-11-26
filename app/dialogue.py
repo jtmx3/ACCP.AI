@@ -155,6 +155,28 @@ def build_dialogue_context(state: dict[str, Any], current_text: str | None = Non
     return context
 
 
+_COMMON_QUESTION_WORDS = frozenset({
+    "هل", "شو", "ما", "متى", "كيف", "وين", "اين", "اي", "اذا", "كان", "كانت",
+    "او", "و", "في", "على", "من", "عن", "الى", "مع", "لك", "لديك", "عندك",
+    "ممكن", "بتقدر", "تقدر", "هلأ", "الان", "تقريبا", "بس", "هو", "هي", "انت",
+})
+
+
+def _uncommon_question_terms(text: str) -> set[str]:
+    normalized = normalize_arabic(text)
+    return {word for word in re.findall(r"[a-z0-9]+|[\u0621-\u064a]+", normalized)
+            if word not in _COMMON_QUESTION_WORDS}
+
+
+def _questions_are_near_duplicates(first: str, second: str) -> bool:
+    first_terms = _uncommon_question_terms(first)
+    second_terms = _uncommon_question_terms(second)
+    if not first_terms or not second_terms:
+        return False
+    union = first_terms | second_terms
+    return bool(union) and len(first_terms & second_terms) / len(union) >= 0.78
+
+
 def validate_dialogue_reply(text: str, *, should_stop: bool, urgent_stop: bool = False,
                             context: dict[str, Any] | None = None,
                             recent_questions: list[str] | None = None) -> tuple[bool, str | None]:
@@ -178,7 +200,8 @@ def validate_dialogue_reply(text: str, *, should_stop: bool, urgent_stop: bool =
         r"(?:ما|شو)\s+(?:هو\s+|هي\s+)?(?:اسم الحساب|اسم المستخدم|المعرف|رقم الهاتف|رقم الواتساب|الرابط)",
         r"تم\s+تقديم\s+(?:ال)?بلاغ", r"قدمت\s+(?:ال)?بلاغ\s+رسمي(?:ا|ً)?", r"قدمنا\s+(?:ال)?بلاغ",
     )
-    if any(re.search(pattern, normalized, re.IGNORECASE) for pattern in forbidden_patterns):
+    if any(re.search(normalize_arabic(pattern), normalized, re.IGNORECASE)
+           for pattern in forbidden_patterns):
         return False, "unsafe_solicitation_or_unsupported_action_claim"
     if not urgent_stop and re.search(r"(?<!\d)911(?!\d)|النجده|الطوارئ|الاسعاف|خطر جسدي", normalized):
         return False, "unsolicited_emergency_content"
@@ -188,7 +211,9 @@ def validate_dialogue_reply(text: str, *, should_stop: bool, urgent_stop: bool =
     for previous in (recent_questions or [])[-3:]:
         if isinstance(previous, str) and previous.strip():
             previous_normalized = normalize_arabic(previous).strip(" ؟?")
-            if previous_normalized and previous_normalized == normalized.strip(" ؟?"):
+            if (previous_normalized and (
+                    previous_normalized == normalized.strip(" ؟?")
+                    or _questions_are_near_duplicates(previous_normalized, normalized.strip(" ؟?")))):
                 return False, "repeated_recent_question"
     return True, None
 

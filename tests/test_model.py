@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from app.model import (
     generate_grounded_answer,
+    generate_interactive_dialogue_turn,
     generate_interview_extraction,
     last_call_trace,
     last_extraction_diagnostic,
@@ -749,6 +750,32 @@ class OptionalModelTests(unittest.TestCase):
         self.assertEqual(invalid["rejection_code"], "invalid_json")
         self.assertFalse(invalid["json_valid"])
         self.assertEqual(truncated["rejection_code"], "truncated_json")
+
+    def test_interactive_contract_ignores_extra_json_keys_but_keeps_required_types_strict(self):
+        fact = {"field": "threat", "status": "reported", "value": True,
+                "current_quote": "في شخص يهددني"}
+        with_extra_keys = {
+            "facts": [fact], "user_intent": None, "conversation_move": "acknowledge",
+            "reply_text": "وصلتني المعلومة كما ذكرتها.",
+            "confidence": 0.91, "notes": "descriptive metadata; not part of the contract",
+        }
+        invalid_required_type = {**with_extra_keys, "reply_text": ["not", "text"]}
+        with patch("app.model._chat", side_effect=[
+                json.dumps(with_extra_keys, ensure_ascii=False),
+                json.dumps(invalid_required_type, ensure_ascii=False)]):
+            accepted = generate_interactive_dialogue_turn(
+                "في شخص يهددني", {"recent_messages": []}, "threat")
+            rejected = generate_interactive_dialogue_turn(
+                "في شخص يهددني", {"recent_messages": []}, "threat")
+
+        self.assertIsNotNone(accepted)
+        self.assertEqual(accepted["facts"], [{"field": "threat", "status": "reported",
+                                               "value": True, "quote": "في شخص يهددني"}])
+        self.assertTrue(accepted["diagnostic"]["accepted"])
+        self.assertNotIn("confidence", accepted)
+        self.assertNotIn("notes", accepted)
+        self.assertIsNone(rejected)
+        self.assertEqual(last_extraction_diagnostic()["rejection_code"], "unsupported_field_or_status")
 
     def test_diagnostic_codes_distinguish_unsupported_field_and_status(self):
         field = {"facts": [{"field": "direct_danger", "status": "reported", "value": True, "quote": "threat"}]}

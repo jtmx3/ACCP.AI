@@ -10,7 +10,7 @@ from typing import Any
 from app.dialogue import compose_fallback_question, first_turn_empathy_preface
 from app.nlu import analyze_message
 from app.stopping import evaluate_stopping_decision
-from app.triage import classify_track
+from app.triage import aggravated_digital_abuse, classify_track
 
 POLICY_VERSION = "ACCP-TRIAGE-0.1.0"
 SCHEMA_VERSION = 1
@@ -2077,7 +2077,7 @@ def _assessment(state: dict[str, Any]) -> dict[str, Any]:
     elif incident_track == "defamation_or_abuse":
         abuse_text = normalize(" ".join(str(facts.get(key, {}).get("value") or "") for key in ("narrative", "details")))
         public = any(term in abuse_text for term in ("تعليق", "منشور", "بوست", "ستوري", "عام"))
-        aggravated = any(term in abuse_text for term in ("كرر", "متكرر", "للمره الثانيه", "مرات", "عاد التشهير", "اتهم عائلتي"))
+        aggravated = aggravated_digital_abuse(abuse_text)
         score = 55 if _reported_true(state, "repeated") or aggravated else 45 if public else 35
         route = "مراجعة بشرية أولية لإساءة لفظية رقمية"
         priority_rule = "R55_REPEATED_DIGITAL_ABUSE" if score == 55 else "R45_DIGITAL_VERBAL_ABUSE" if score == 45 else "R35_PRIVATE_DIGITAL_ABUSE"

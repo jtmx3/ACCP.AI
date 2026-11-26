@@ -129,6 +129,13 @@ class RetrievalAndTriageRegressionTests(unittest.TestCase):
             ("بعتلي رسالة خاصة فيها شتم", 35),
             ("شتمني بتعليق على منشور عام بفيسبوك", 45),
             ("كرر التشهير في منشور عام واتهم عائلتي زورًا", 55),
+            ("كتب عني كلام كاذب ومسيء وشهّر بعائلتي بمنشور عام على إنستغرام", 55),
+            ("شتمني في منشور عام وذكر عائلتي", 55),
+            ("شتمني في منشور عام وذكر عيلتي", 55),
+            ("شتمني في منشور عام وذكر أهلي", 55),
+            ("شتمني في منشور عام وكتب كلام كاذب", 55),
+            ("شتمني في منشور عام مع تشهير", 55),
+            ("شتمني في منشور عام وشهر فيني", 55),
         )
         for narrative, expected in cases:
             state = new_state("defamation-score")
@@ -182,6 +189,32 @@ class InteractiveDialogueContractTests(unittest.TestCase):
                                                  recent_questions=[])[0])
         self.assertFalse(validate_dialogue_reply("هل تكرر؟", should_stop=False,
                                                  recent_questions=["هل تكرر؟"])[0])
+
+    def test_reply_validator_normalizes_hamza_variants_before_forbidden_pattern_checks(self):
+        replies = (
+            "ممكن أرسل رقم الهاتف حتى نتحقق؟",
+            "ممكن أرفق الأدلة هنا للتأكد؟",
+            "ارفق الادله هنا من فضلك؟",
+        )
+        for reply in replies:
+            with self.subTest(reply=reply):
+                self.assertEqual(validate_dialogue_reply(
+                    reply, should_stop=False, recent_questions=[]),
+                    (False, "unsafe_solicitation_or_unsupported_action_claim"))
+
+    def test_reply_validator_rejects_high_jaccard_question_paraphrase_but_allows_distinct_topic(self):
+        previous = "هل تكرر التهديد أو استمر التواصل؟"
+        near_duplicate = "هل استمر التواصل أو تكرر التهديد نفسه؟"
+        accepted, reason = validate_dialogue_reply(
+            near_duplicate, should_stop=False, recent_questions=[previous])
+        self.assertFalse(accepted)
+        self.assertEqual(reason, "repeated_recent_question")
+
+        accepted, reason = validate_dialogue_reply(
+            "متى بدأ التهديد وأول تواصل تقريبًا؟", should_stop=False,
+            recent_questions=[previous])
+        self.assertTrue(accepted)
+        self.assertIsNone(reason)
 
     def test_interactive_dialogue_makes_one_local_call_without_session_secrets(self):
         request_text = "ما حدد مهلة للدفع"

@@ -13,6 +13,17 @@ TRACK_LABELS = {
     "exploratory_intake": "استيضاح أولي",
 }
 
+_AGGRAVATED_ABUSE_MARKERS = tuple(normalize_arabic(term) for term in (
+    "كرر", "متكرر", "للمرة الثانية", "مرات", "عاد التشهير", "اتهم عائلتي",
+    "عائلتي", "عيلتي", "اهلي", "كلام كاذب", "تشهير", "شهر فيني",
+))
+
+
+def aggravated_digital_abuse(text: str) -> bool:
+    """Whether text contains an explicit configured aggravating abuse indicator."""
+    normalized = normalize_arabic(text)
+    return any(marker in normalized for marker in _AGGRAVATED_ABUSE_MARKERS)
+
 
 def _fact(state: dict[str, Any], key: str) -> dict[str, Any]:
     value = state.get("facts", {}).get(key, {})
@@ -120,7 +131,7 @@ def route_assessment(state: dict[str, Any]) -> dict[str, Any]:
         normalized = normalize_arabic(text)
         public = any(term in normalized for term in ("تعليق", "منشور", "بوست", "ستوري", "عام"))
         repeated = _reported_true(state, "repeated")
-        aggravated = any(term in normalized for term in ("كرر", "متكرر", "للمره الثانيه", "مرات", "عاد التشهير", "اتهم عائلتي"))
+        aggravated = aggravated_digital_abuse(text)
         score = 45 if public else 35
         if repeated or aggravated:
             score = 55

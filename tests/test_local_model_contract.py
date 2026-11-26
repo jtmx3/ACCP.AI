@@ -53,6 +53,7 @@ class LocalModelContractTests(unittest.TestCase):
             self.assertFalse(config["adaptive_question_generation_enabled"])
 
             session_id, token, revision, state = self._new_session()
+            self.assertNotIn("local_model_enabled", state)
             self.assertFalse(state["adaptive_questions_enabled"])
             response = self.client.put(
                 f"/api/sessions/{session_id}/adaptive-question-settings",
@@ -60,6 +61,29 @@ class LocalModelContractTests(unittest.TestCase):
                 json={"expected_revision": revision, "enabled": True},
             )
             self.assertEqual(response.status_code, 409, response.text)
+            rejected = self.client.put(
+                f"/api/sessions/{session_id}/local-model-settings",
+                headers={"X-Case-Token": token},
+                json={"expected_revision": revision, "enabled": True},
+            )
+            self.assertEqual(rejected.status_code, 409, rejected.text)
+
+    def test_new_session_defaults_model_on_only_when_loopback_model_is_reachable_and_can_be_disabled(self):
+        env = {"MODEL_PROVIDER": "ollama", "MODEL_BASE_URL": "http://127.0.0.1:11434/v1",
+               "MODEL_NAME": "synthetic-local-test"}
+        reachable = {"configured": True, "service_reachable": True, "model_available": True}
+        with patch.dict(os.environ, env, clear=True), patch("app.main.probe_provider", return_value=reachable):
+            session_id, token, revision, state = self._new_session()
+            self.assertTrue(state["local_model_enabled"])
+            self.assertTrue(state["adaptive_questions_enabled"])
+            response = self.client.put(
+                f"/api/sessions/{session_id}/local-model-settings",
+                headers={"X-Case-Token": token},
+                json={"expected_revision": revision, "enabled": False},
+            )
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertFalse(response.json()["session"]["local_model_enabled"])
+        self.assertFalse(response.json()["session"]["adaptive_questions_enabled"])
 
     def test_adaptive_option_is_available_with_local_ollama_but_can_be_disabled(self):
         env = {"MODEL_PROVIDER": "ollama", "MODEL_BASE_URL": "http://127.0.0.1:11434/v1",
@@ -100,7 +124,7 @@ class LocalModelContractTests(unittest.TestCase):
             session_id, token, revision, _ = self._new_session()
             headers = {"X-Case-Token": token}
             settings = self.client.put(
-                f"/api/sessions/{session_id}/adaptive-question-settings",
+                f"/api/sessions/{session_id}/local-model-settings",
                 headers=headers,
                 json={"expected_revision": revision, "enabled": True},
             )
@@ -120,17 +144,16 @@ class LocalModelContractTests(unittest.TestCase):
                 response = self.client.post(
                     f"/api/sessions/{session_id}/messages",
                     headers=headers,
-                    json={"expected_revision": revision, "text": user_text, "kind": "answer",
-                          "allow_adaptive_question": True},
+                    json={"expected_revision": revision, "text": user_text, "kind": "answer"},
                 )
 
             self.assertEqual(response.status_code, 200, response.text)
             result = response.json()
             self.assertTrue(result["adaptive_question"]["attempted"])
             self.assertTrue(result["adaptive_question"]["accepted"])
-            self.assertEqual(result["local_model_purpose"], "adaptive_question")
+            self.assertEqual(result["local_model_purpose"], "current_message_extraction")
             self.assertTrue(result["adaptive_context_sent"])
-            self.assertFalse(result["local_context_sent"])
+            self.assertTrue(result["local_context_sent"])
             self.assertEqual(result["session"]["pending_slot"], "initial_time")
             self.assertEqual(result["session"]["messages"][-1]["text"], generated["question"])
 
@@ -168,6 +191,20 @@ class LocalModelContractTests(unittest.TestCase):
         self.assertEqual(_validate_adaptive_question(
             "ما اسم التطبيق ورقم الحساب؟", "platform", context)[1],
             "forbidden_sensitive_data_request")
+
+    def test_adaptive_question_relevance_accepts_natural_paraphrases_and_rejects_off_topic_text(self):
+        context = {"base_question": "متى بدأ التصرف أو وصلك أول تواصل؟", "recent_bot_questions": [],
+                   "features": {"initial_time": "unknown"}}
+        for question in (
+            "وبالنسبة لأول تواصل، متى بلش تقريبًا؟",
+            "قديش صار من وقت ما بعتلك أول رسالة؟",
+            "بتتذكر تقريبًا بأي يوم بدأ يحكي معك؟",
+        ):
+            with self.subTest(question=question):
+                self.assertEqual(_validate_adaptive_question(question, "initial_time", context), (True, None))
+        self.assertEqual(_validate_adaptive_question(
+            "هل عندك لقطات شاشة أو رسائل تثبت ذلك؟", "initial_time", context)[1],
+            "slot_topic_mismatch")
 
 
 if __name__ == "__main__":

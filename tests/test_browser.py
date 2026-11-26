@@ -14,6 +14,9 @@ from playwright.async_api import async_playwright, expect
 from app import main
 from app.store import Store
 
+LOCAL_READY_PROBE = {"configured": True, "service_reachable": True, "model_available": True,
+                     "models_count": 1, "failure_code": None}
+
 
 def browser_state(session_id, revision, marker, *, stage="interview", messages=None):
     return {
@@ -50,7 +53,8 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(self.server.started, "uvicorn test server did not start")
         self.base_url = f"http://127.0.0.1:{self.port}"
         self.playwright = await async_playwright().start()
-        self.browser = await self.playwright.chromium.launch(headless=True)
+        chromium_path = "/usr/bin/chromium" if Path("/usr/bin/chromium").exists() else None
+        self.browser = await self.playwright.chromium.launch(headless=True, executable_path=chromium_path)
         self.context = await self.browser.new_context(accept_downloads=True)
         self.page = await self.context.new_page()
 
@@ -106,9 +110,9 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         await expect(self.page.locator("#runtime-mode")).to_contain_text("نموذج Ollama المحلي — نجح اختبار التوليد الثابت")
         await expect(self.page.locator("#runtime-detail")).to_contain_text("12 مللي ثانية")
 
-    async def test_partial_model_filter_is_reported_after_consented_send(self):
+    async def test_partial_model_filter_is_reported_after_session_enabled_send(self):
         config = {"provider": "ollama", "mode": "local_model", "model": "synthetic-test",
-                  "configuration_complete": True, "configured": True, "local": False}
+                  "configuration_complete": True, "configured": True, "local": True}
         async def intercept(route):
             if route.request.url.endswith("/api/provider/status"):
                 await route.fulfill(json={"config": config, "probe": {"configured": True,
@@ -122,14 +126,15 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
                  "filtered_fact_fields": ["identity"], "latency_ms": 12}
         with patch("app.main.provider_config", return_value=config), \
              patch("app.main.model_configured", return_value=True), \
+             patch("app.main.probe_provider", return_value=LOCAL_READY_PROBE), \
              patch("app.main.generate_interview_extraction", return_value=[{
                  "field": "platform", "status": "reported", "value": "إنستغرام", "quote": "إنستغرام"}]), \
              patch("app.main.last_call_trace", return_value=trace):
             await self.page.goto(self.base_url)
             await self.page.locator("#start-case").click()
-            await expect(self.page.locator("#model-consent-row")).to_be_visible()
+            await expect(self.page.locator("#local-model-setting-row")).to_be_visible()
+            self.assertTrue(await self.page.locator("#local-model-enabled").is_checked())
             await self.page.locator("#message").fill("ظهر حساب مزيف على إنستغرام")
-            await self.page.locator("#model-consent").check()
             await self.page.locator("#send").click()
             await expect(self.page.locator("#runtime-detail")).to_contain_text("عدد الوقائع المقبولة 1")
             await expect(self.page.locator("#runtime-detail")).to_contain_text("عدد المقترحات المصفاة 1")
@@ -153,12 +158,12 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         await self.page.route("**/api/provider/status", intercept)
         with patch("app.main.provider_config", return_value=config), \
              patch("app.main.model_configured", return_value=True), \
+             patch("app.main.probe_provider", return_value=LOCAL_READY_PROBE), \
              patch("app.main.generate_interview_extraction", return_value=[]), \
              patch("app.main.last_call_trace", return_value=trace):
             await self.page.goto(self.base_url)
             await self.page.locator("#start-case").click()
             await self.page.locator("#message").fill("في شخص عم يهددني على واتساب.")
-            await self.page.locator("#model-consent").check()
             await self.page.locator("#send").click()
             await expect(self.page.locator("#runtime-mode")).to_contain_text("رد صالح")
             await expect(self.page.locator("#runtime-mode")).to_contain_text("بلا وقائع مستخرجة")
@@ -193,13 +198,13 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         await self.page.route("**/api/provider/status", intercept)
         with patch("app.main.provider_config", return_value=config), \
              patch("app.main.model_configured", return_value=True), \
+             patch("app.main.probe_provider", return_value=LOCAL_READY_PROBE), \
              patch("app.main.generate_interview_extraction", return_value=understanding), \
              patch("app.main.last_call_trace", return_value=trace), \
              patch("app.main.last_extraction_diagnostic", return_value=diagnostic):
             await self.page.goto(self.base_url)
             await self.page.locator("#start-case").click()
             await self.page.locator("#message").fill("لا، ما حدد مهلة أو موعد للدفع.")
-            await self.page.locator("#model-consent").check()
             await self.page.locator("#send").click()
             await expect(self.page.locator("#runtime-detail")).to_contain_text("تفسير غير مدعوم لم يُطبّق")
             await expect(self.page.locator("#runtime-detail")).to_contain_text("الامتناع عن الإفصاح")
@@ -254,12 +259,12 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         await self.page.route("**/api/provider/status", intercept)
         with patch("app.main.provider_config", return_value=config), \
              patch("app.main.model_configured", return_value=True), \
+             patch("app.main.probe_provider", return_value=LOCAL_READY_PROBE), \
              patch("app.main.generate_interview_extraction", return_value=[]), \
              patch("app.main.last_call_trace", return_value=trace):
             await self.page.goto(self.base_url)
             await self.page.locator("#start-case").click()
             await self.page.locator("#message").fill("في شخص عم يهددني على واتساب.")
-            await self.page.locator("#model-consent").check()
             await self.page.locator("#send").click()
             await expect(self.page.locator("#runtime-mode")).to_contain_text("استُبعدت جميع مقترحات")
             await expect(self.page.locator("#runtime-detail")).to_contain_text("وصف الواقعة [value_inconsistent]")
@@ -448,7 +453,7 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         await self.page.locator("#start-case").click()
         await expect(self.page.locator("#stage-badge")).to_have_text("مقابلة")
         await self._send("في حساب على إنستغرام يستخدم اسمي وصورتي وبحكي للناس إنه أنا")
-        await expect(self.page.locator("#chat")).to_contain_text("هل بتعرف هوية الشخص")
+        await expect(self.page.locator("#chat")).to_contain_text("بتعرف مين الشخص")
         await expect(self.page.locator("#chat")).to_contain_text("إنستغرام")
 
         await self.page.locator("#pause-case").click()
@@ -579,8 +584,10 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(b_post["body"]["text"], "B next turn")
         self.assertEqual(unexpected, [])
 
-    async def test_model_consent_is_optional_and_changes_scope_by_mode(self):
-        env = {"MODEL_PROVIDER": "ollama", "MODEL_BASE_URL": "http://127.0.0.1:11434/v1", "MODEL_NAME": "test"}
+    async def test_local_model_setting_is_session_scoped_and_changes_scope_by_mode(self):
+        env = {"MODEL_PROVIDER": "ollama", "MODEL_BASE_URL": "http://127.0.0.1:11434/v1", "MODEL_NAME": "test",
+               "ACCP_ADAPTIVE_MODEL_QUESTIONS": "0"}
+        reachable = {"configured": True, "service_reachable": True, "model_available": True}
         outbound = []
         message_requests = []
 
@@ -612,62 +619,49 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
                 await self._send(text)
             return await response_info.value
 
-        with patch.dict("os.environ", env), \
+        with patch.dict("os.environ", env), patch("app.main.probe_provider", return_value=reachable), \
              patch("app.main.generate_interview_extraction", side_effect=fake_extraction) as extract, \
              patch("app.main.generate_grounded_answer", wraps=main.generate_grounded_answer) as answer, \
              patch("app.model._chat", side_effect=fake_chat) as provider:
             await self.page.goto(self.base_url)
             await self.page.locator("#start-case").click()
-            await expect(self.page.locator("#model-consent-row")).to_be_visible()
-            await expect(self.page.locator("#context-consent-row")).to_be_visible()
-            self.assertFalse(await self.page.locator("#model-consent").is_checked())
-            self.assertFalse(await self.page.locator("#context-consent").is_checked())
+            await expect(self.page.locator("#local-model-setting-row")).to_be_visible()
+            self.assertTrue(await self.page.locator("#local-model-enabled").is_checked())
 
             await send_and_wait("في شخص يهددني على واتساب")
-            await expect(self.page.locator("#status-message")).to_contain_text("تم حفظ الرسالة وتحديث الحالة بالقواعد المحلية.")
             await expect(self.page.locator("#chat .question-plan").last).to_contain_text("تفاصيل الواقعة")
-            extract.assert_not_called()
-            self.assertFalse(await self.page.locator("#model-consent").is_checked())
-            self.assertFalse(message_requests[-1]["allow_local_model"])
-            await self.page.locator("#model-consent").check()
-            await send_and_wait("لا")
-            await expect(self.page.locator("#status-message")).to_contain_text("نص الرسالة الحالية فقط")
             self.assertEqual(extract.call_count, 1, f"requests={message_requests!r}")
-            self.assertEqual(extract.call_args.args[:2], ("لا", "details"))
-            self.assertEqual(len(extract.call_args.args), 2)
-            self.assertFalse(await self.page.locator("#model-consent").is_checked())
-            self.assertFalse(await self.page.locator("#context-consent").is_checked())
-            self.assertTrue(message_requests[-1]["allow_local_model"])
-            self.assertFalse(message_requests[-1]["allow_context_extraction"])
-
-            await self.page.locator("#model-consent").check()
-            await self.page.locator("#context-consent").check()
-            await send_and_wait("قال لي إذا ما دفعت رح أنشر صوري")
-            self.assertEqual(extract.call_count, 2, f"requests={message_requests!r}")
+            self.assertNotIn("allow_local_model", message_requests[-1])
+            self.assertNotIn("allow_context_extraction", message_requests[-1])
             self.assertTrue(extract.call_args.args[2]["untrusted_user_data"])
-            await expect(self.page.locator("#status-message")).to_contain_text("سياق محدود")
-            self.assertTrue(message_requests[-1]["allow_local_model"])
-            self.assertTrue(message_requests[-1]["allow_context_extraction"])
+            await self.page.locator("#local-model-enabled").uncheck()
+            await expect(self.page.locator("#status-message")).to_contain_text("تم إيقاف النموذج")
+            self.assertTrue((await send_and_wait("لا")).ok)
+            await expect(self.page.locator("#status-message")).to_contain_text("تم حفظ الرسالة وتحديث الحالة بالقواعد المحلية.")
+            extract.assert_called_once()
+            self.assertNotIn("allow_local_model", message_requests[-1])
+
+            await self.page.locator("#local-model-enabled").check()
+            await send_and_wait("لا")
+            self.assertEqual(extract.call_count, 2, f"requests={message_requests!r}")
+            self.assertEqual(extract.call_args.args[:2], ("لا", "details"))
+            self.assertTrue(extract.call_args.args[2]["untrusted_user_data"])
+            self.assertNotIn("allow_local_model", message_requests[-1])
+
+            await send_and_wait("قال لي إذا ما دفعت رح أنشر صوري")
+            self.assertEqual(extract.call_count, 3, f"requests={message_requests!r}")
+            self.assertTrue(extract.call_args.args[2]["untrusted_user_data"])
+            self.assertTrue(message_requests[-1].keys().isdisjoint(
+                {"allow_local_model", "allow_context_extraction", "allow_adaptive_question"}))
 
             await self.page.locator("#jurisdiction").select_option("AU")
             await expect(self.page.locator("#status-message")).to_contain_text("تم تحديث الاختصاص")
             await self.page.locator("#toggle-mode").click()
-            await expect(self.page.locator("#model-consent-copy")).to_contain_text("مقتطفات المصادر المختارة")
-            await send_and_wait("كيف أحفظ الأدلة واللقطات؟")
-            await expect(self.page.locator("#status-message")).to_contain_text("تم حفظ الرسالة وتحديث الحالة بالقواعد المحلية.")
-            answer.assert_not_called()
-            provider.assert_not_called()
-            self.assertFalse(await self.page.locator("#model-consent").is_checked())
-            self.assertFalse(message_requests[-1]["allow_local_model"])
-
-            await self.page.locator("#model-consent").check()
             question_response = await send_and_wait("كيف أحفظ الأدلة واللقطات؟")
             question_payload = await question_response.json()
             self.assertTrue(question_payload["local_data_sent"],
                             f"payload={question_payload!r}, requests={message_requests!r}")
-            await expect(self.page.locator("#status-message")).to_contain_text("نص السؤال الحالي")
-            await expect(self.page.locator("#model-consent")).not_to_be_checked()
-            self.assertTrue(message_requests[-1]["allow_local_model"])
+            self.assertNotIn("allow_local_model", message_requests[-1])
             answer.assert_called_once()
             provider.assert_called_once()
             question, sources = answer.call_args.args
@@ -726,13 +720,13 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         await self.page.route("**/api/provider/status", intercept)
         with patch("app.main.provider_config", return_value=config), \
              patch("app.main.model_configured", return_value=True), \
+             patch("app.main.probe_provider", return_value=LOCAL_READY_PROBE), \
              patch("app.main.generate_interview_extraction", return_value=[]), \
              patch("app.main.last_call_trace", return_value=trace), \
              patch("app.main.last_extraction_diagnostic", return_value=diagnostic):
             await self.page.goto(self.base_url)
             await self.page.locator("#start-case").click()
             await self.page.locator("#message").fill("في شخص عم يهددني على واتساب.")
-            await self.page.locator("#model-consent").check()
             await self.page.locator("#send").click()
             detail = self.page.locator("#runtime-detail")
             await expect(detail).to_contain_text("استجابة المزود: وصل رد")

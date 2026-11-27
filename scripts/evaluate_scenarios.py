@@ -133,7 +133,11 @@ def _check_events(actual: list[dict[str, Any]], expected: list[dict[str, Any]]) 
             if event.get("kind") != requirement.get("kind") or event.get("relation") != requirement.get("relation"):
                 continue
             amount = str(event.get("amount"))
-            if requirement.get("amount_contains") not in amount:
+            amount_contains = requirement.get("amount_contains")
+            if not isinstance(amount_contains, str):
+                problems.append(f"invalid amount_contains in expected money event {requirement!r}")
+                continue
+            if amount_contains not in amount:
                 continue
             found = event
             break
@@ -402,6 +406,8 @@ def run(dataset_path: Path, output_path: Path, mode: str = "rules") -> dict[str,
     if mode == "model":
         if not model_configured():
             blocked_reason = "provider_not_configured"
+        elif preflight is None:
+            blocked_reason = "provider_preflight_failed"
         elif not preflight["service_reachable"] or not preflight["model_available"]:
             blocked_reason = preflight.get("failure_code") or "provider_preflight_failed"
         else:

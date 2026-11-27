@@ -116,6 +116,7 @@ def run_suite(path: Path, mode: str, provider: dict[str, Any],
                         and _user_intent(turn["text"]) is None
                         and classify_current_danger(turn["text"], before.get("pending_slot")) is not True)
                     model_facts = None
+                    model_turn: dict[str, Any] | None = None
                     model_diagnostic: dict[str, Any] = {}
                     model_trace: dict[str, Any] = {}
                     if extraction_eligible:

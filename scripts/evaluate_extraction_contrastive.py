@@ -118,7 +118,9 @@ def _quote_grounding(case: dict[str, Any], proposal: dict[str, Any] | None) -> d
 def score_case(case: dict[str, Any], accepted_facts: list[dict[str, Any]],
                filtered_facts: list[dict[str, Any]], message_plan: dict[str, Any],
                diagnostic: dict[str, Any], trace: dict[str, Any], elapsed_ms: float) -> dict[str, Any]:
-    expected_goals = set(case.get("expected_goals", []))
+    expected_goals_value = case.get("expected_goals", [])
+    expected_goals = ({goal for goal in expected_goals_value if isinstance(goal, str)}
+                      if isinstance(expected_goals_value, list) else set())
     response_valid = diagnostic.get("accepted") is True
     supported_goals = set(message_plan.get("goals", [])) if response_valid else set()
     unsupported_goals = set(message_plan.get("unsupported_goals", [])) if response_valid else set()
@@ -126,7 +128,8 @@ def score_case(case: dict[str, Any], accepted_facts: list[dict[str, Any]],
     raw_model_output = _model_output_snapshot(diagnostic.get("raw_response"))
     raw_goal_values = raw_model_output.get("message_goals")
     raw_goals_scored = isinstance(raw_goal_values, list) and all(isinstance(goal, str) for goal in raw_goal_values)
-    raw_model_goals = set(raw_goal_values) if raw_goals_scored else set()
+    raw_model_goals = ({goal for goal in raw_goal_values if isinstance(goal, str)}
+                       if raw_goals_scored and isinstance(raw_goal_values, list) else set())
     expected_facts = _fact_maps(case.get("expected_facts", []))
     accepted = _fact_maps(accepted_facts)
     filtered = _fact_maps(filtered_facts)

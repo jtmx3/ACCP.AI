@@ -179,21 +179,22 @@ def _provider_turn_metrics(api_result: dict[str, Any], model_trace: dict[str, An
     else:
         fallback_category = "no_accepted_extraction"
 
-    ignored_fields = sorted({item.get("field") for item in merge_trace
-                             if item.get("disposition") == "ignored" and item.get("field")})
-    accepted_fields = sorted({item.get("field") for item in proposals if item.get("field")})
+    ignored_fields = sorted({item["field"] for item in merge_trace
+                             if item.get("disposition") == "ignored" and isinstance(item.get("field"), str)})
+    accepted_fields = sorted({item["field"] for item in proposals if isinstance(item.get("field"), str)})
     accepted_dispositions: dict[str, int] = {}
     accepted_merge_trace = [item for item in merge_trace if item.get("field") in set(accepted_fields)]
     for item in accepted_merge_trace:
         disposition = item.get("disposition", "unrecorded")
         accepted_dispositions[disposition] = accepted_dispositions.get(disposition, 0) + 1
     merge_rejected = sorted(set(ignored_fields) & set(accepted_fields))
-    routed_fields = sorted({item.get("field") for item in accepted_merge_trace
-                            if item.get("disposition") == "routed_to_rules"})
-    correction_fields = sorted({item.get("field") for item in accepted_merge_trace
-                                if item.get("disposition") == "applied_correction"})
-    conflict_fields = sorted({item.get("field") for item in accepted_merge_trace
-                              if item.get("disposition") in {"conflict_created", "applied_conflict"}})
+    routed_fields = sorted({item["field"] for item in accepted_merge_trace
+                            if item.get("disposition") == "routed_to_rules" and isinstance(item.get("field"), str)})
+    correction_fields = sorted({item["field"] for item in accepted_merge_trace
+                                if item.get("disposition") == "applied_correction" and isinstance(item.get("field"), str)})
+    conflict_fields = sorted({item["field"] for item in accepted_merge_trace
+                              if item.get("disposition") in {"conflict_created", "applied_conflict"}
+                              and isinstance(item.get("field"), str)})
     return {"attempted": attempted, "fallback_used": fallback_used,
             "fallback_category": fallback_category, "extraction_outcome": outcome,
             "response_valid": model_trace.get("response_valid"),
@@ -303,6 +304,7 @@ def run_suite(suite_path: Path, mode: str = "rules", with_context: bool = False)
                         and classify_current_danger(text, before.get("pending_slot")) is not True)
                     provider_eligible_turns += int(extraction_eligible)
                     model_facts = None
+                    model_turn: dict[str, Any] | None = None
                     model_trace: dict[str, Any] = {}
                     model_diag: dict[str, Any] = {}
                     model_elapsed_ms: float | None = None

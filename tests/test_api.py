@@ -355,8 +355,10 @@ class ApiIntegrationTests(unittest.TestCase):
             "بعرف رقم الواتساب بس.",
             "عندي صور التهديد وإيصال التحويل.",
         ]
+        state = None
         for text in turns:
             state = self.turn(text)
+        assert state is not None
         self.assertEqual(state["stage"], "review")
         self.assertEqual(state["assessment"]["priority_score"], 90)
         facts = state["facts"]

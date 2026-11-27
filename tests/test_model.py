@@ -136,6 +136,7 @@ class OptionalModelTests(unittest.TestCase):
             {"field": "paid_amount", "status": "denied", "value": None, "quote": "ما دفعت"},
         ]}
         facts = validate_interview_facts(text, json.dumps(valid, ensure_ascii=False))
+        assert facts is not None
         self.assertEqual([item["field"] for item in facts], ["requested_amount", "paid_amount"])
         bad_quote = {"facts": [dict(valid["facts"][0], quote="طلب مني ٢٠٠ دينار")]}
         self.assertEqual(validate_interview_facts(text, json.dumps(bad_quote, ensure_ascii=False)), [])
@@ -410,8 +411,10 @@ class OptionalModelTests(unittest.TestCase):
         envelope = {"choices": [{"message": {"content": json.dumps(facts, ensure_ascii=False)}}]}
         with patch("app.model.urllib.request.urlopen", return_value=io.BytesIO(json.dumps(envelope).encode("utf-8"))):
             result = generate_interview_extraction(text, "narrative")
+        assert result is not None
         self.assertEqual([fact["field"] for fact in result], ["platform"])
         trace = last_call_trace()
+        assert trace is not None
         self.assertTrue(trace["result_accepted"])
         self.assertEqual(trace["status"], "partially_accepted")
         self.assertEqual(trace["filtered_fact_count"], 1)
@@ -443,13 +446,16 @@ class OptionalModelTests(unittest.TestCase):
             extracted_trace = last_call_trace()
 
         self.assertEqual(empty, [])
+        assert empty_trace is not None
         self.assertEqual(empty_trace["extraction_outcome"], "valid_empty")
         self.assertTrue(empty_trace["response_valid"])
         self.assertFalse(empty_trace["result_accepted"])
         self.assertEqual(filtered, [])
+        assert filtered_trace is not None
         self.assertEqual(filtered_trace["extraction_outcome"], "all_facts_filtered")
         self.assertEqual(filtered_trace["filtered_fact_code_counts"], {"value_inconsistent": 1})
         self.assertFalse(filtered_trace["result_accepted"])
+        assert extracted_trace is not None
         self.assertEqual(extracted_trace["extraction_outcome"], "extracted")
         self.assertTrue(extracted_trace["result_accepted"])
         for body in request_bodies:
@@ -486,6 +492,7 @@ class OptionalModelTests(unittest.TestCase):
                "MODEL_NAME": "fixture:latest", "OLLAMA_REASONING_EFFORT": "low"}
         with patch.dict(os.environ, env, clear=True), patch("app.model.urllib.request.urlopen", side_effect=fake_urlopen):
             result = generate_interview_extraction(text, "narrative")
+        assert result is not None
         self.assertEqual(result[0]["field"], "narrative")
         self.assertEqual(bodies[0]["reasoning_effort"], "low")
         self.assertNotIn("reasoning", bodies[0])
@@ -497,6 +504,7 @@ class OptionalModelTests(unittest.TestCase):
             result = generate_interview_extraction("في شخص عم يهددني على واتساب.", "narrative")
         trace = last_call_trace()
         self.assertIsNone(result)
+        assert trace is not None
         self.assertEqual(trace["failure_code"], "empty_response")
         self.assertEqual(trace["extraction_outcome"], "provider_failed")
         self.assertFalse(trace["response_valid"])
@@ -504,8 +512,11 @@ class OptionalModelTests(unittest.TestCase):
     def test_invalid_provider_envelope_has_safe_failure_code_and_type(self):
         with patch("app.model.urllib.request.urlopen", return_value=io.BytesIO(b"{}")):
             self.assertIsNone(generate_interview_extraction("شخص هددني", "narrative"))
-        self.assertEqual(last_call_trace()["failure_code"], "invalid_provider_response")
+        trace = last_call_trace()
+        assert trace is not None
+        self.assertEqual(trace["failure_code"], "invalid_provider_response")
         diagnostic = last_extraction_diagnostic()
+        assert diagnostic is not None
         self.assertEqual(diagnostic["provider_error_type"], "KeyError")
         self.assertIsNone(diagnostic["raw_response"])
 
@@ -514,6 +525,7 @@ class OptionalModelTests(unittest.TestCase):
         candidate = {"facts": [{"field": "threat", "status": "reported", "value": True, "quote": text}]}
         with patch("app.model._chat", return_value=json.dumps(candidate, ensure_ascii=False)) as chat:
             result = generate_interview_extraction(text, "narrative")
+        assert result is not None
         self.assertEqual(result[0]["field"], "threat")
         sent = json.loads(chat.call_args.args[0][1]["content"])
         self.assertEqual(set(sent), {"pending_question_slot", "current_user_message", "allowed_fact_fields_and_types"})
@@ -734,8 +746,10 @@ class OptionalModelTests(unittest.TestCase):
         self.assertEqual(result, [])
         self.assertEqual(len(captured), 1)
         self.assertLess(len(captured[0]), 8030)
-        self.assertEqual(last_call_trace()["request_body_bytes"], len(captured[0]))
-        self.assertEqual(last_call_trace()["provider_attempt_count"], 1)
+        trace = last_call_trace()
+        assert trace is not None
+        self.assertEqual(trace["request_body_bytes"], len(captured[0]))
+        self.assertEqual(trace["provider_attempt_count"], 1)
 
     def test_malformed_extraction_falls_back_but_semantic_fact_is_filtered(self):
         text = "طلب مني 100 دينار"
@@ -769,13 +783,16 @@ class OptionalModelTests(unittest.TestCase):
                 "في شخص يهددني", {"recent_messages": []}, "threat")
 
         self.assertIsNotNone(accepted)
+        assert accepted is not None
         self.assertEqual(accepted["facts"], [{"field": "threat", "status": "reported",
                                                "value": True, "quote": "في شخص يهددني"}])
         self.assertTrue(accepted["diagnostic"]["accepted"])
         self.assertNotIn("confidence", accepted)
         self.assertNotIn("notes", accepted)
         self.assertIsNone(rejected)
-        self.assertEqual(last_extraction_diagnostic()["rejection_code"], "unsupported_field_or_status")
+        rejection_diagnostic = last_extraction_diagnostic()
+        assert rejection_diagnostic is not None
+        self.assertEqual(rejection_diagnostic["rejection_code"], "unsupported_field_or_status")
 
     def test_diagnostic_codes_distinguish_unsupported_field_and_status(self):
         field = {"facts": [{"field": "direct_danger", "status": "reported", "value": True, "quote": "threat"}]}
@@ -821,12 +838,16 @@ class OptionalModelTests(unittest.TestCase):
             return raw
         with patch("app.model._chat", side_effect=fake_chat):
             self.assertEqual(generate_interview_extraction(text, "narrative"), [])
-        self.assertEqual(last_extraction_diagnostic()["filtered_facts"][0]["filter_code"], "quote_mismatch")
-        self.assertEqual(last_extraction_diagnostic()["raw_response"], raw)
-        self.assertNotIn("raw_response", last_call_trace())
-        self.assertEqual(last_call_trace()["failure_code"], "all_facts_filtered")
-        self.assertEqual(last_call_trace()["extraction_outcome"], "all_facts_filtered")
-        self.assertEqual(last_call_trace()["filtered_fact_count"], 1)
+        diagnostic = last_extraction_diagnostic()
+        trace = last_call_trace()
+        assert diagnostic is not None
+        assert trace is not None
+        self.assertEqual(diagnostic["filtered_facts"][0]["filter_code"], "quote_mismatch")
+        self.assertEqual(diagnostic["raw_response"], raw)
+        self.assertNotIn("raw_response", trace)
+        self.assertEqual(trace["failure_code"], "all_facts_filtered")
+        self.assertEqual(trace["extraction_outcome"], "all_facts_filtered")
+        self.assertEqual(trace["filtered_fact_count"], 1)
 
 
 if __name__ == "__main__":

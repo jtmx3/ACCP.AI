@@ -437,7 +437,8 @@ def _validate_adaptive_question(question: str, slot: str, context: dict[str, Any
                for group in ADAPTIVE_SLOT_CONCEPT_GROUPS[slot]):
         return False, "slot_topic_mismatch"
     base = str(context.get("base_question") or "")
-    recent = context.get("recent_bot_questions") if isinstance(context.get("recent_bot_questions"), list) else []
+    recent_value = context.get("recent_bot_questions")
+    recent = recent_value if isinstance(recent_value, list) else []
     previous = [base, *(item for item in recent if isinstance(item, str))]
     if any(item and _normalize_arabic(item).strip(" ؟?") == normalized.strip(" ؟?") for item in previous):
         return False, "repeated_question"
@@ -520,9 +521,11 @@ def validate_extractive_claims(payload: str, sources: list[dict[str, Any]]) -> d
                 return None
             source_id = claim.get("source_id")
             quote = claim.get("quote")
-            source = source_map.get(source_id) if isinstance(source_id, str) else None
+            if not isinstance(source_id, str) or not isinstance(quote, str):
+                return None
+            source = source_map.get(source_id)
             excerpt = source.get("excerpt") if source else None
-            if not isinstance(quote, str) or not quote.strip() or not isinstance(excerpt, str) or quote not in excerpt:
+            if not quote.strip() or not isinstance(excerpt, str) or quote not in excerpt:
                 return None
             checked.append((source_id, quote))
         used_ids = list(dict.fromkeys(source_id for source_id, _ in checked))
@@ -547,10 +550,11 @@ def generate_grounded_answer(question: str, sources: list[dict[str, Any]]) -> di
     ]
     draft = _chat(messages, purpose="grounded_answer")
     result = validate_extractive_claims(draft, sources) if draft else None
-    if last_call_trace() and last_call_trace().get("attempted"):
+    call_trace = last_call_trace()
+    if call_trace and call_trace.get("attempted"):
         _update_call_trace(result_accepted=result is not None,
-                           status="accepted" if result is not None else (last_call_trace() or {}).get("status", "rejected"),
-                           failure_code=None if result is not None else (last_call_trace() or {}).get("failure_code") or "schema_rejected")
+                           status="accepted" if result is not None else call_trace.get("status", "rejected"),
+                           failure_code=None if result is not None else call_trace.get("failure_code") or "schema_rejected")
     return result
 
 
@@ -1166,7 +1170,7 @@ def validate_interview_facts_diagnostic(text: str, payload: str,
                 "paid": {"paid_amount", "paid_amount_relation"},
             }
             event_kind = target_event.get("kind")
-            if field not in event_fields.get(event_kind, set()):
+            if not isinstance(event_kind, str) or field not in event_fields.get(event_kind, set()):
                 reason = ("context_reference_invalid", f"{prefix} target event kind cannot support the proposed field.")
             elif operation not in {"same", "support", "correct"}:
                 reason = ("context_reference_invalid", f"{prefix} target event does not authorize this operation.")
@@ -1205,6 +1209,9 @@ def validate_interview_facts_diagnostic(text: str, payload: str,
             quote = _align_verbatim_quote(text, quote)
             if quote is None:
                 reason = reason or ("quote_mismatch", f"{prefix}.quote does not match a current-message span after match-only normalization.")
+        quote_text = quote if isinstance(quote, str) else ""
+        value_text = value if isinstance(value, str) else ""
+        normalized_quote = ""
         if isinstance(quote, str):
             normalized_quote = _normalize_arabic(quote)
             if (reason is None and status in {"unknown", "not_remembered", "declined"}
@@ -1237,23 +1244,23 @@ def validate_interview_facts_diagnostic(text: str, payload: str,
                 reason = ("value_inconsistent", f"Reported {field!r} conflicts with explicit absence in its quote.")
             if reason is None and field == "deadline":
                 digits = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
-                normalized_value = _normalize_arabic(value).translate(digits).strip(" .،؛")
-                normalized_source = _normalize_arabic(quote).translate(digits)
+                normalized_value = _normalize_arabic(value_text).translate(digits).strip(" .،؛")
+                normalized_source = _normalize_arabic(quote_text).translate(digits)
                 if not normalized_value or normalized_value not in normalized_source:
                     reason = ("value_inconsistent", "Reported deadline value must remain a verbatim source-language span and preserve clock precision/daypart; translations and paraphrases are not accepted.")
             if (reason is None and field == "deadline"
-                    and not _deadline_value_preserves_temporal_qualifiers(value, quote)):
+                    and not _deadline_value_preserves_temporal_qualifiers(value_text, quote_text)):
                 reason = ("value_inconsistent", "Reported deadline value does not preserve the complete quoted temporal constraint, including direction, clock precision/daypart, and offset.")
             if reason is None and field == "narrative" and value != quote:
                 reason = ("value_inconsistent", "The narrative value must be exactly the quoted span.")
             if reason is None and field == "identity" and not reference_operation_supported:
-                normalized_value = _normalize_arabic(value)
+                normalized_value = _normalize_arabic(value_text)
                 victim_owned_markers = ("اسمي", "صورتي", "حسابي", "رقمي")
                 if any(marker in normalized_value for marker in victim_owned_markers):
                     reason = ("value_inconsistent", "Reported identity refers to the reporter's own identifier, not the suspect.")
                 elif normalized_value not in normalized_quote:
                     reason = ("value_inconsistent", "Reported identity value is not literally supported by its quote.")
-            if reason is None and field == "contact" and not _contact_value_is_specific(value, quote) and not reference_operation_supported:
+            if reason is None and field == "contact" and not _contact_value_is_specific(value_text, quote_text) and not reference_operation_supported:
                 reason = ("value_inconsistent", "The contact value is a generic channel, not a supported identifier or explicitly available contact.")
             if reason is None and field in RELATION_VALUES and value not in RELATION_VALUES[field]:
                 reason = ("value_inconsistent", f"Reported relation field {field!r} must use a documented relation value.")
@@ -1262,7 +1269,7 @@ def validate_interview_facts_diagnostic(text: str, payload: str,
             )):
                 reason = ("value_inconsistent", "Repeated harm lacks an explicit harm-context marker in its quote.")
             if reason is None and field in {"requested_amount", "paid_amount"} and not reference_operation_supported:
-                if not _amount_is_exactly_supported(value, quote):
+                if not _amount_is_exactly_supported(value_text, quote_text):
                     reason = ("value_inconsistent", f"The full numeric amount and any stated currency for {field!r} must match the quote exactly.")
         elif reason is None and status == "denied":
             if field in BINARY_FIELDS and value is not False:

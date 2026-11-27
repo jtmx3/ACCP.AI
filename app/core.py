@@ -130,7 +130,8 @@ def _normalize_match(text: str) -> str:
 
 def new_state(session_id: str) -> dict[str, Any]:
     stamp = now_iso()
-    opening = {"id": "m1", "role": "assistant", "text": QUESTIONS["narrative"], "created_at": stamp, "kind": "question"}
+    opening: dict[str, Any] = {"id": "m1", "role": "assistant", "text": QUESTIONS["narrative"],
+                               "created_at": stamp, "kind": "question"}
     opening["question_plan"] = question_plan({"facts": {}, "money_events": []}, "narrative")
     state = {"schema_version": SCHEMA_VERSION, "session_id": session_id, "stage": "interview", "revision": 0,
             "created_at": stamp, "updated_at": stamp, "messages": [opening], "facts": {}, "money_events": [],
@@ -873,7 +874,7 @@ def _temporal_candidate_matches(key: str, candidate: dict[str, Any], text: str,
         return False, "temporal_value_not_supported_by_quote"
     if rule_fact and rule_fact.get("message_id") and rule_fact.get("quote"):
         rule_quote = rule_fact.get("quote")
-        if rule_quote in text and _temporal_event_field(rule_quote, pending) != key:
+        if isinstance(rule_quote, str) and rule_quote in text and _temporal_event_field(rule_quote, pending) != key:
             return False, "temporal_rule_fact_event_mismatch"
     return True, ""
 
@@ -1254,8 +1255,9 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
         r"(?:بعرفه|بعرفها|اعرفه|اعرفها)(?=$|[\s،؛.!؟?])", normalize(text)))
     identity_unknown = explicit_identity_unknown or (pending == "identity" and pending_unknown_status is not None)
     if identity_unknown:
-        _set_answer(state, "identity", None, "unknown" if explicit_identity_unknown else pending_unknown_status,
-                    text, mid, question_id, changed)
+        identity_status = "unknown" if explicit_identity_unknown else pending_unknown_status
+        if identity_status is not None:
+            _set_answer(state, "identity", None, identity_status, text, mid, question_id, changed)
     elif known_identity_without_identifier:
         _set_answer(state, "identity", "هوية أو حساب معروف بحسب الإفادة؛ لم يُدرج المعرّف",
                     "reported", text, mid, question_id, changed)
@@ -1284,7 +1286,9 @@ def _extract(state: dict[str, Any], text: str, mid: str, pending: str | None) ->
     evidence_positive, evidence_denied, evidence_types, evidence_unknown = _evidence_polarity(text, allow_bare=pending == "evidence")
     if pending == "evidence" or evidence_positive or evidence_denied:
         if evidence_unknown or (pending == "evidence" and pending_unknown_status):
-            _set_answer(state, "evidence", None, evidence_unknown or pending_unknown_status,
+            evidence_status = (_unknown_status_for_pending(text, "evidence") if evidence_unknown
+                               else pending_unknown_status)
+            _set_answer(state, "evidence", None, evidence_status or "unknown",
                         text, mid, question_id, changed)
         elif evidence_positive:
             _set_answer(state, "evidence", "; ".join(evidence_types), "reported", text, mid, question_id, changed)
@@ -2121,7 +2125,8 @@ def _assessment(state: dict[str, Any]) -> dict[str, Any]:
     if facts.get("deadline", {}).get("status") == "reported" and any(marker in deadline_value for marker in ("اليوم", "خلال ساعة", "بعد ساعة", "بكرا", "غدا")):
         risk_indicators.append("مهلة قريبة بحسب الإفادة؛ لا تغيّر هذه الإشارة الوقائع أو الدرجة وحدها")
     reasons.extend(risk_indicators)
-    unresolved_fields = [LABELS.get(key, key) for key, fact in facts.items() if fact.get("status") == "unresolved"]
+    unresolved_fields = [LABELS.get(key, key) or key for key, fact in facts.items()
+                         if fact.get("status") == "unresolved"]
     if unresolved_fields:
         reasons.append("بقيت حقول غير محسومة بعد محاولة التوضيح: " + "، ".join(unresolved_fields))
     # Completeness is about known fields, not confidence or proof.
@@ -2147,7 +2152,8 @@ def explain_assessment(state: dict[str, Any]) -> str:
         body = f"الدرجة الحالية {score}/100 هي ناتج قاعدة فرز تجريبية، وليست احتمالًا إحصائيًا أو إثباتًا."
         fields = assessment.get("supporting_fields", [])
         if fields:
-            body += " الحقول التي فعّلت القاعدة: " + "، ".join(LABELS.get(field, field) for field in fields) + "."
+            body += " الحقول التي فعّلت القاعدة: " + "، ".join(
+                LABELS.get(str(field), str(field)) for field in fields) + "."
     danger = state.get("facts", {}).get("direct_danger", {})
     if danger.get("status") == "denied":
         body += " الخطر المباشر الحالي مسجل كمنفي بحسب إفادتك، ولا أستنتج منه سبب الدرجة الأخرى."
@@ -2257,6 +2263,14 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
     question_id = state["messages"][-2]["id"] if len(state["messages"]) >= 2 and state["messages"][-2]["role"] == "assistant" else None
     for candidate in model_facts or []:
         key = candidate.get("field")
+        if not isinstance(key, str):
+            _trace_model_merge(key, "ignored", "model_fact_missing_valid_field")
+            continue
+        candidate_status = candidate.get("status")
+        candidate_quote = candidate.get("quote")
+        if not isinstance(candidate_status, str) or not isinstance(candidate_quote, str):
+            _trace_model_merge(key, "ignored", "model_fact_missing_valid_status_or_quote")
+            continue
         if key in {"initial_time", "latest_time", "discovery_time", "account_creation_time"}:
             if key == "initial_time" and _discovery_is_only_known_time(text):
                 _trace_model_merge(key, "ignored", "discovery_time_is_not_event_start")
@@ -2307,7 +2321,7 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
                 _trace_model_merge(key, "agrees_with_rules", "same_message_fact_matches_rule_extraction",
                                    rule_extraction_agrees=True, rule_extraction_outcome="agrees")
             else:
-                if _record(state, key, candidate["status"], candidate["value"], candidate["quote"],
+                if _record(state, key, candidate_status, candidate.get("value"), candidate_quote,
                            user_msg["id"], question_id, "optional_model_extraction", candidate):
                     changed.add(key)
                 _trace_model_merge(key, "conflict_created", "same_turn_rule_model_disagreement_requires_user_resolution",
@@ -2325,7 +2339,7 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
         old = state["facts"].get(key)
         was_correction = bool(old and any(marker in normalize(candidate.get("quote", "")) for marker in
                                            ("تصحيح", "قصدي", "اقصد", "عدّل", "عدلي", "المعلومة الصحيحة", "بدل")))
-        if _record(state, key, candidate["status"], candidate["value"], candidate["quote"],
+        if _record(state, key, candidate_status, candidate.get("value"), candidate_quote,
                    user_msg["id"], question_id, "optional_model_extraction", candidate):
             changed.add(key)
             disposition = "applied_conflict" if state["facts"].get(key, {}).get("status") == "conflict" else (
@@ -2401,7 +2415,7 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
                             and not (turn_signal.get("wrap_up") or turn_signal.get("fatigue")
                                      or turn_signal.get("protest"))
                             and pending in _relevant_slots(state) and not _has(state, pending))
-    if pending_still_needed and intent is None:
+    if pending_still_needed and intent is None and isinstance(pending, str):
         if changed - {pending}:
             _finalize_changed_facts(state, changed)
             state["pending_slot"] = pending
@@ -2486,7 +2500,7 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
                  else _next_slot(state))
     if next_slot is None and not _validate_interview_completion(state):
         next_slot = _next_slot(state)
-    if next_slot:
+    if isinstance(next_slot, str) and next_slot:
         if previous_stage in {"review", "urgent_stop"} and pending is None:
             state["stage"] = "urgent_stop" if previous_stage == "urgent_stop" else "review"
             state["pending_slot"] = None
@@ -2507,7 +2521,8 @@ def handle_turn(state: dict[str, Any], text: str, model_facts: list[dict[str, An
         if temporal_conflict:
             _add_question_message(state, next_slot, None, response_kind)
         else:
-            _add_question_message(state, next_slot, (why_reply + "\n\n" if why_reply else "") + question_text, response_kind)
+            _add_question_message(state, next_slot,
+                                  (why_reply + "\n\n" if why_reply else "") + (question_text or ""), response_kind)
         return state
     state["pending_slot"] = None
     state["stage"] = "review"
@@ -2575,6 +2590,8 @@ def resume_state(state: dict[str, Any]) -> dict[str, Any]:
             return state
         state["stage"] = "interview"
         slot = state.get("pending_slot") or _next_slot(state)
+        if not isinstance(slot, str) or slot not in QUESTIONS:
+            slot = "narrative"
         state["pending_slot"] = slot
         text = QUESTIONS.get(slot, "تقدر تراجع الملخص أو تضيف معلومة جديدة.")
         _add_question_message(state, slot, "رجعنا للجلسة المحفوظة.\n\n" + text, "question")
@@ -2590,7 +2607,8 @@ def display_status(fact: dict[str, Any] | None) -> str:
         "declined": "فضّل المستخدم عدم الإجابة", "unresolved": "غير محسومة بعد الاستيضاح",
         "conflict": "تعارض فعلي يحتاج إلى توضيح",
     }
-    return statuses.get(fact.get("status"), "حالة غير متاحة")
+    status = fact.get("status")
+    return statuses.get(status, "حالة غير متاحة") if isinstance(status, str) else "حالة غير متاحة"
 
 
 def display_value(fact: dict[str, Any] | None) -> str:
@@ -2642,12 +2660,12 @@ def _report_correction_notes(state: dict[str, Any], message_times: dict[str, Any
         "previous_value": original_amount,
         "previous_quote": root_event.get("quote") if root_event else None,
         "previous_message_id": source_message_id,
-        "previous_message_at": message_times.get(source_message_id),
+        "previous_message_at": message_times.get(source_message_id) if isinstance(source_message_id, str) else None,
         "immediate_previous_value": previous.get("value") if previous else None,
         "immediate_previous_quote": previous.get("quote") if previous else None,
         "correction_quote": correction_event.get("quote"),
         "correction_message_id": correction_message_id,
-        "correction_message_at": message_times.get(correction_message_id),
+        "correction_message_at": message_times.get(correction_message_id) if isinstance(correction_message_id, str) else None,
         "money_event_id": correction_event.get("id"),
     }]
 
@@ -2655,7 +2673,10 @@ def _report_correction_notes(state: dict[str, Any], message_times: dict[str, Any
 def report_data(state: dict[str, Any]) -> dict[str, Any]:
     assessment = _assessment(state)
     current_confirmation = confirmation_is_current(state)
-    message_times = {message.get("id"): message.get("created_at") for message in state.get("messages", [])}
+    message_times: dict[str, Any] = {
+        message["id"]: message.get("created_at") for message in state.get("messages", [])
+        if isinstance(message, dict) and isinstance(message.get("id"), str)
+    }
     facts = {}
     for key, fact in state.get("facts", {}).items():
         facts[key] = {**fact, "source_message_at": message_times.get(fact.get("message_id")),
@@ -2664,17 +2685,22 @@ def report_data(state: dict[str, Any]) -> dict[str, Any]:
                          for item in state.get("money_corrections", [])]
     corrections_by_event: dict[str, list[dict[str, Any]]] = {}
     for correction in money_corrections:
-        corrections_by_event.setdefault(correction.get("target_event_id"), []).append(correction)
+        target_event_id = correction.get("target_event_id")
+        if isinstance(target_event_id, str):
+            corrections_by_event.setdefault(target_event_id, []).append(correction)
     money_events = []
     for event in state.get("money_events", []):
         root_event_id = event.get("target_event_id") if event.get("relation") == "correction" else event.get("id")
         corrections = corrections_by_event.get(root_event_id, []) if event.get("relation") != "correction" else []
+        source_message_id = event.get("message_id")
+        relation_message_id = (corrections[-1].get("message_id") if corrections
+                               else event.get("relation_message_id"))
         money_events.append({**event,
             "current_amount": corrections[-1].get("amount") if corrections else event.get("amount"),
             "corrections": corrections,
             "is_correction_record": event.get("relation") == "correction",
-            "source_message_at": message_times.get(event.get("message_id")),
-            "relation_message_at": message_times.get(corrections[-1].get("message_id")) if corrections else message_times.get(event.get("relation_message_id"))})
+            "source_message_at": message_times.get(source_message_id) if isinstance(source_message_id, str) else None,
+            "relation_message_at": message_times.get(relation_message_id) if isinstance(relation_message_id, str) else None})
     unknown_fields = [key for key, fact in facts.items() if fact.get("status") == "unknown"]
     not_remembered_fields = [key for key, fact in facts.items() if fact.get("status") == "not_remembered"]
     declined_fields = [key for key, fact in facts.items() if fact.get("status") == "declined"]

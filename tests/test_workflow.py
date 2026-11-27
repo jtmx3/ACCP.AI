@@ -34,6 +34,7 @@ class InterviewWorkflowTests(unittest.TestCase):
         self.assertNotIn("direct_danger", QUESTIONS)
         for slot in QUESTIONS:
             plan = question_plan(self.state, slot)
+            assert plan is not None
             with self.subTest(slot=slot):
                 self.assertEqual(plan["slot"], slot)
                 self.assertTrue(plan["field_label"])

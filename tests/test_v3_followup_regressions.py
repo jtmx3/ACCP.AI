@@ -110,6 +110,7 @@ class ValidatedMessagePlanTests(unittest.TestCase):
              patch("app.model._chat", return_value=json.dumps(payload, ensure_ascii=False)):
             result = generate_interview_extraction(text, "narrative")
         self.assertEqual(result, [])
+        assert result is not None
         self.assertEqual(result.message_plan["goals"], ["ask_guidance"])
         self.assertEqual(result.message_plan["guidance_question"], text)
         self.assertTrue(result.diagnostic["accepted"])

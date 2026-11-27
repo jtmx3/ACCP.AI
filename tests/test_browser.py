@@ -693,6 +693,7 @@ class BrowserWorkflowTests(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(await source_links.count(), 0)
         for index in range(await source_links.count()):
             href = await source_links.nth(index).get_attribute("href")
+            assert href is not None
             self.assertTrue(href.startswith("https://faq.whatsapp.com/"))
         details = self.page.locator("#chat .citation-details").first
         self.assertFalse(await details.evaluate("element => element.open"))

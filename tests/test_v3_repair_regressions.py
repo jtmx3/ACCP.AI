@@ -21,6 +21,18 @@ ART15 = "JO-CYBERCRIME-LAW-ART15-2023"
 
 
 class ConversationFactIntegrityRegressionTests(unittest.TestCase):
+    def test_unknown_evidence_answer_is_saved_as_unknown_instead_of_boolean_status(self):
+        state = new_state("unknown-evidence-status")
+        state["pending_slot"] = "evidence"
+        text = "ما بعرف إذا عندي لقطات شاشة"
+
+        handle_turn(state, text)
+
+        evidence = state["facts"]["evidence"]
+        self.assertEqual(evidence["status"], "unknown")
+        self.assertIsNone(evidence["value"])
+        self.assertEqual(evidence["quote"], text)
+
     def test_wrap_up_does_not_become_identity_when_identity_is_pending(self):
         state = new_state("wrap-up-identity")
         handle_turn(state, "في واحد شتمني بتعليق على منشور عندي على فيسبوك")
@@ -227,6 +239,7 @@ class InteractiveDialogueContractTests(unittest.TestCase):
             result = generate_interactive_dialogue_turn(request_text, {"recent_messages": []}, "deadline")
         self.assertEqual(urlopen.call_count, 1)
         self.assertIsNotNone(result)
+        assert result is not None
         self.assertEqual(result["facts"], [])
         request = urlopen.call_args.args[0]
         sent = json.loads(request.data.decode("utf-8"))

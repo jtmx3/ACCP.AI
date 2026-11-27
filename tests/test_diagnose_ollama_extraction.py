@@ -69,6 +69,7 @@ class DiagnoseOllamaExtractionTests(unittest.TestCase):
             path = Path(temp) / "context.json"
             path.write_text(json.dumps(valid, ensure_ascii=False), encoding="utf-8")
             result = load_bounded_context(path)
+            assert result is not None
             self.assertLessEqual(result["serialized_char_count"], 4500)
             invalid = {**valid, "session_token": "should-not-be-here"}
             path.write_text(json.dumps(invalid), encoding="utf-8")

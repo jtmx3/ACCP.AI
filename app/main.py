@@ -5,6 +5,7 @@ import os
 import re
 import time
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, Response
 from fastapi.responses import JSONResponse
@@ -311,7 +312,9 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
                               else bool(body.allow_local_model))
     context_enabled_for_turn = model_enabled_for_turn and (session_setting_present or body.allow_context_extraction)
     pending = snapshot.get("pending_slot")
-    pending_guidance = snapshot.get("pending_guidance")
+    pending_guidance_value = snapshot.get("pending_guidance")
+    pending_guidance: dict[str, Any] = (pending_guidance_value
+                                        if isinstance(pending_guidance_value, dict) else {})
     resolving_pending_guidance = bool(isinstance(pending_guidance, dict)
                                       and pending_guidance.get("status") == "awaiting_platform")
     urgent = classify_current_danger(text, pending) is True
@@ -357,6 +360,7 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
     model_message_plan: dict[str, Any] = {"goals": [], "unsupported_goals": [], "guidance_question": None}
     message_plan_applied = False
     extraction_context = None
+    dialogue_context: dict[str, Any] = {}
     local_extraction_sent = False
     local_question_sent = False
     reset_call_trace()
@@ -426,9 +430,12 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
         intent = None
 
     pending_guidance_turn = resolving_pending_guidance or mixed_pending_guidance
-    guidance_question = (pending_guidance.get("query") if pending_guidance_turn else
-                         message_interpretation.get("guidance_question")
-                         or extract_guidance_question(text) or text)
+    guidance_question_value = (pending_guidance.get("query") if pending_guidance_turn else
+                               message_interpretation.get("guidance_question")
+                               or extract_guidance_question(text) or text)
+    guidance_question = (guidance_question_value.strip()
+                         if isinstance(guidance_question_value, str) and guidance_question_value.strip()
+                         else text)
     local_guidance_context = ""
     guidance_platform, guidance_platform_ambiguous = _saved_platform_for_guidance(snapshot)
     if (question_mode or mixed_guidance) and not resolving_pending_guidance:
@@ -663,7 +670,8 @@ def post_message(session_id: str, body: TurnRequest, x_case_token: str = Header(
         field = item.get("field") if isinstance(item.get("field"), str) else None
         code = item.get("filter_code") if isinstance(item.get("filter_code"), str) else "other_validation"
         detail = item.get("filter_detail") if isinstance(item.get("filter_detail"), str) else "لم يُسجل تفصيل التحقق."
-        filtered_diagnostics.append({"field": field, "field_label": LABELS.get(field, "معلومة إضافية"),
+        field_label = LABELS.get(field, "معلومة إضافية") if isinstance(field, str) else "معلومة إضافية"
+        filtered_diagnostics.append({"field": field, "field_label": field_label,
                                      "code": code, "detail": detail})
     if local_extraction_sent and not filtered_diagnostics:
         trace_fields = (provider_call or {}).get("filtered_fact_fields", [])

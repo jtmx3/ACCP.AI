@@ -84,6 +84,7 @@ class ProviderStatusTests(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertEqual(result["provider"], "ollama")
         self.assertEqual(result["model"], "fixture-model")
+        assert trace is not None
         self.assertTrue(trace["result_accepted"])
         self.assertIsInstance(trace["latency_ms"], (int, float))
         self.assertEqual(request_bodies[0]["reasoning_effort"], "low")

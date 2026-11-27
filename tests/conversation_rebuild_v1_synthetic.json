@@ -1,0 +1,28 @@
+{
+  "suite": "conversation_rebuild_v1_synthetic",
+  "version": "1.0",
+  "authorship": "synthetic cases authored for regression; not independently human-reviewed",
+  "frozen_before_implementation": true,
+  "cases": [
+    {"id":"R01","messages":["واحد شتمني بتعليق عام على فيسبوك، بعرف حسابه ومعي لقطة شاشة."],"expected_track":"defamation_or_abuse","expected_first_focus":"details_or_identity_or_evidence","direct_danger":false,"expected_priority_band":"low_or_medium"},
+    {"id":"R02","messages":["بعتلي رسالة خاصة فيها سب وإهانة، وعندي نسخة من المحادثة."],"expected_track":"defamation_or_abuse","expected_first_focus":"platform_or_identity","direct_danger":false,"expected_priority_band":"low_or_medium"},
+    {"id":"R03","messages":["كتب عني كلام كاذب ومسيء بمنشور عام على إنستغرام، وما بعرف صاحب الحساب."],"expected_track":"defamation_or_abuse","expected_first_focus":"identity_or_evidence","direct_danger":false,"expected_priority_band":"low_or_medium"},
+    {"id":"R04","messages":["في حساب على إنستا بحكي للناس إنه أنا وعم يراسلهم باسمي."],"expected_track":"impersonation_or_harassment","expected_first_focus":"platform_or_time_or_identity_or_evidence","direct_danger":false,"expected_priority_band":"medium"},
+    {"id":"R05","messages":["لقيت حساب يستخدم اسمي وصورتي."],"expected_track":"exploratory_intake","expected_first_focus":"clarify_identity_claim","direct_danger":false,"expected_priority_band":"undetermined"},
+    {"id":"R06","messages":["في حساب اسمه قريب من اسمي وصورته مختلفة، وما حكى للناس إنه أنا."],"expected_track":"exploratory_intake","expected_first_focus":"clarify_behavior","direct_danger":false,"expected_priority_band":"undetermined"},
+    {"id":"R07","messages":["حساب معجبين حاط صورتي واسم الفنان اللي بحبه، ومكتوب بوضوح إنه فانز."],"expected_track":"exploratory_intake","expected_first_focus":"clarify_behavior","direct_danger":false,"expected_priority_band":"undetermined"},
+    {"id":"R08","messages":["شخص يلاحقني برسائل متكررة على تيليغرام رغم إني طلبت منه يوقف."],"expected_track":"impersonation_or_harassment","expected_first_focus":"time_or_identity_or_evidence","direct_danger":false,"expected_priority_band":"medium"},
+    {"id":"R09","messages":["زميلي يهدد ينشر صوري الخاصة إذا ما رجعت أحكي معه، وما نشرها لحد الآن."],"expected_track":"extortion_fraud_takeover","expected_first_focus":"time_or_repetition_or_identity_or_evidence","direct_danger":false,"expected_priority_band":"high"},
+    {"id":"R10","messages":["طلب مني 200 دينار وإلا ينشر الصور، وما دفعت."],"expected_track":"extortion_fraud_takeover","expected_first_focus":"deadline_or_publication_or_time","direct_danger":false,"expected_priority_band":"high"},
+    {"id":"R11","messages":["حدا دخل على حسابي بدون إذني وغيّر كلمة المرور."],"expected_track":"extortion_fraud_takeover","expected_first_focus":"time_or_account_recovery_or_identity","direct_danger":false,"expected_priority_band":"high"},
+    {"id":"R12","messages":["حوّلت 75 دينار بعد ما وعدني يبيعني جهاز، وبعدين اختفى."],"expected_track":"extortion_fraud_takeover","expected_first_focus":"time_or_payment_method_or_identity_or_evidence","direct_danger":false,"expected_priority_band":"high"},
+    {"id":"R13","messages":["بدي أشتكي على موضوع إلكتروني."],"expected_track":"exploratory_intake","expected_first_focus":"open_incident_description","direct_danger":false,"expected_priority_band":"undetermined"},
+    {"id":"R14","messages":["شو حقوقي إذا حدا شتمني على الإنترنت بالأردن؟"],"expected_track":"exploratory_intake","expected_first_focus":"answer_guidance_not_emergency","direct_danger":false,"expected_priority_band":"undetermined"},
+    {"id":"R15","messages":["شو عقوبة الذم والقدح الإلكتروني بالأردن؟"],"expected_track":"exploratory_intake","expected_first_focus":"answer_guidance_not_emergency","direct_danger":false,"expected_priority_band":"undetermined"},
+    {"id":"R16","messages":["شخص قال إنه جاي لعندي هسا ومعه سكين."],"expected_track":"direct_danger","expected_first_focus":"reactive_safety_stop","direct_danger":true,"expected_priority_band":"urgent"},
+    {"id":"R17","messages":["خايفة ينشر صوري الخاصة، ما في تهديد مباشر وما حدا قريب مني."],"expected_track":"exploratory_intake","expected_first_focus":"clarify_digital_event_without_physical_danger","direct_danger":false,"expected_priority_band":"undetermined"},
+    {"id":"R18","messages":["ما طلب مني مصاري ولا دفعت، لكنه يهددني بنشر المحادثة."],"expected_track":"extortion_fraud_takeover","expected_first_focus":"time_or_repetition_or_publication_or_identity","direct_danger":false,"expected_priority_band":"high"},
+    {"id":"R19","messages":["ما زال يبعثلي رسائل على واتساب، بس ما هددني ولا صار ضرر ثاني."],"expected_track":"impersonation_or_harassment","expected_first_focus":"clarify_repeated_harm_vs_contact","direct_danger":false,"expected_priority_band":"medium"},
+    {"id":"R20","messages":["عندي سكرينشوت وإيميلات محفوظة تثبت الرسائل المسيئة."],"expected_track":"exploratory_intake","expected_first_focus":"ask_what_incident_the_evidence_relates_to","direct_danger":false,"expected_priority_band":"undetermined"}
+  ]
+}

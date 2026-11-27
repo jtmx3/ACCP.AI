@@ -1,0 +1,556 @@
+{
+  "source_artifact": "reports/evaluation/conversation-v3-rules-before.json",
+  "synthetic_internal_cases": true,
+  "provider_calls_attempted": 0,
+  "integrated_system": {
+    "passed_cases": 3,
+    "total_cases": 14,
+    "case_rate": 0.21428571428571427,
+    "passed_assertions": 31,
+    "total_assertions": 55,
+    "assertion_rate": 0.5636363636363636
+  },
+  "guidance": {
+    "passed": 3,
+    "checks": 11,
+    "rate": 0.2727272727272727
+  },
+  "repeat_question_checks": {
+    "checked": 2,
+    "repeated_or_unresolved": 1
+  },
+  "model_extraction_only": "not_recorded_in_source_artifact",
+  "results": [
+    {
+      "case_id": "V3-Q01-account-protection-no-question-mark",
+      "turns": [
+        {
+          "turn": null,
+          "checks": [
+            {
+              "check": "no_fact:narrative",
+              "passed": false,
+              "detail": {
+                "field": "narrative",
+                "status": "reported",
+                "value": "كيف أحمي حسابي",
+                "quote": "كيف أحمي حسابي",
+                "message_id": "m2",
+                "question_id": "m1",
+                "updated_at": "2026-11-06T15:10:45+00:00",
+                "history": []
+              }
+            },
+            {
+              "check": "assistant_answer",
+              "passed": false,
+              "detail": []
+            },
+            {
+              "check": "citation_topic:account_security",
+              "passed": false,
+              "detail": []
+            }
+          ],
+          "passed": false
+        }
+      ],
+      "passed": false
+    },
+    {
+      "case_id": "V3-Q02-time-and-evidence-guidance-in-one-message",
+      "turns": [
+        {
+          "turn": null,
+          "checks": [
+            {
+              "check": "fact:initial_time",
+              "passed": false,
+              "detail": "fact absent"
+            },
+            {
+              "check": "assistant_answer",
+              "passed": true,
+              "detail": [
+                {
+                  "kind": "answer",
+                  "text": "ما عندي مصدر موثوق محلي لهذا السؤال قبل تحديد البلد أو الاختصاص. لا أستنتج قانونًا أو جهة تواصل من دون مصدر واختصاص واضحين.",
+                  "citations": []
+                }
+              ]
+            },
+            {
+              "check": "single_followup",
+              "passed": true,
+              "detail": [
+                {
+                  "kind": "question",
+                  "text": "نكمل من السؤال السابق: احكيلي شو صار معك."
+                }
+              ]
+            },
+            {
+              "check": "citation_topic:evidence",
+              "passed": false,
+              "detail": []
+            }
+          ],
+          "passed": false
+        }
+      ],
+      "passed": false
+    },
+    {
+      "case_id": "V3-Q03-recurrence-denial-and-guidance-mixed-turn",
+      "turns": [
+        {
+          "turn": null,
+          "checks": [
+            {
+              "check": "fact:platform",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "fact:requested_amount",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "fact:initial_time",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "fact:publication_threat",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "pending_slot",
+              "passed": false,
+              "detail": "paid_amount"
+            }
+          ],
+          "passed": false
+        },
+        {
+          "turn": null,
+          "checks": [
+            {
+              "check": "fact:direct_danger",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "fact:repeated",
+              "passed": false,
+              "detail": "fact absent"
+            },
+            {
+              "check": "fact:latest_time",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "not_pending:direct_danger",
+              "passed": true,
+              "detail": "repeated"
+            },
+            {
+              "check": "not_pending:repeated",
+              "passed": false,
+              "detail": "repeated"
+            },
+            {
+              "check": "assistant_answer",
+              "passed": false,
+              "detail": []
+            },
+            {
+              "check": "single_followup",
+              "passed": true,
+              "detail": [
+                {
+                  "kind": "question",
+                  "text": "هل تكرر التهديد أو المضايقة المؤثرة؟ ليس مجرد استمرار الرسائل أو التواصل."
+                }
+              ]
+            },
+            {
+              "check": "citation_topic:evidence",
+              "passed": false,
+              "detail": []
+            }
+          ],
+          "passed": false
+        }
+      ],
+      "passed": false
+    },
+    {
+      "case_id": "V3-KNOWN-V02-finding-account-versus-opening-date",
+      "turns": [
+        {
+          "turn": null,
+          "checks": [
+            {
+              "check": "fact:discovery_time",
+              "passed": false,
+              "detail": "fact absent"
+            },
+            {
+              "check": "fact:account_creation_time",
+              "passed": false,
+              "detail": "fact absent"
+            },
+            {
+              "check": "no_fact:initial_time",
+              "passed": true,
+              "detail": "absent"
+            }
+          ],
+          "passed": false
+        }
+      ],
+      "passed": false
+    },
+    {
+      "case_id": "V3-KNOWN-V03-explicit-identity-claim-new-verb",
+      "turns": [
+        {
+          "turn": null,
+          "checks": [
+            {
+              "check": "fact:impersonation",
+              "passed": false,
+              "detail": "fact absent"
+            },
+            {
+              "check": "fact:details",
+              "passed": false,
+              "detail": "fact absent"
+            },
+            {
+              "check": "no_fact:account_access",
+              "passed": true,
+              "detail": "absent"
+            }
+          ],
+          "passed": false
+        }
+      ],
+      "passed": false
+    },
+    {
+      "case_id": "V3-KNOWN-V04-unknown-actor-independent-from-saved-chat",
+      "turns": [
+        {
+          "turn": null,
+          "checks": [
+            {
+              "check": "fact:identity",
+              "passed": false,
+              "detail": "fact absent"
+            },
+            {
+              "check": "fact:evidence",
+              "passed": true,
+              "detail": "matched"
+            }
+          ],
+          "passed": false
+        }
+      ],
+      "passed": false
+    },
+    {
+      "case_id": "V3-Q04-discovery-and-creation-distinct-times",
+      "turns": [
+        {
+          "turn": null,
+          "checks": [
+            {
+              "check": "fact:discovery_time",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "fact:account_creation_time",
+              "passed": false,
+              "detail": "fact absent"
+            },
+            {
+              "check": "no_fact:initial_time",
+              "passed": true,
+              "detail": "absent"
+            }
+          ],
+          "passed": false
+        }
+      ],
+      "passed": false
+    },
+    {
+      "case_id": "V3-Q05-original-account-access-does-not-imply-compromise",
+      "turns": [
+        {
+          "turn": null,
+          "checks": [
+            {
+              "check": "fact:original_account_access_available",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "no_fact:account_access",
+              "passed": true,
+              "detail": "absent"
+            }
+          ],
+          "passed": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case_id": "V3-Q06-reference-same-first-payment",
+      "turns": [
+        {
+          "turn": null,
+          "checks": [
+            {
+              "check": "fact:requested_amount",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "fact:paid_amount",
+              "passed": false,
+              "detail": "fact absent"
+            },
+            {
+              "check": "fact:payment_method",
+              "passed": true,
+              "detail": "matched"
+            }
+          ],
+          "passed": false
+        },
+        {
+          "turn": null,
+          "checks": [
+            {
+              "check": "fact:paid_amount",
+              "passed": false,
+              "detail": "status: expected 'reported', got 'denied'"
+            },
+            {
+              "check": "money_event_count",
+              "passed": true,
+              "detail": 1
+            }
+          ],
+          "passed": false
+        }
+      ],
+      "passed": false
+    },
+    {
+      "case_id": "V3-Q07-guidance-post-transfer",
+      "turns": [
+        {
+          "turn": null,
+          "checks": [
+            {
+              "check": "assistant_answer",
+              "passed": true,
+              "detail": [
+                {
+                  "kind": "answer",
+                  "text": "ما عندي مصدر موثوق محلي لهذا السؤال قبل تحديد البلد أو الاختصاص. لا أستنتج قانونًا أو جهة تواصل من دون مصدر واختصاص واضحين.",
+                  "citations": []
+                }
+              ]
+            },
+            {
+              "check": "citation_topic:payment_recovery",
+              "passed": false,
+              "detail": []
+            }
+          ],
+          "passed": false
+        }
+      ],
+      "passed": false
+    },
+    {
+      "case_id": "V3-Q08-instagram-impersonation-reporting",
+      "turns": [
+        {
+          "turn": null,
+          "checks": [
+            {
+              "check": "no_fact:narrative",
+              "passed": false,
+              "detail": {
+                "field": "narrative",
+                "status": "reported",
+                "value": "كيف أبلّغ عن حساب ينتحل شخصيتي على إنستغرام",
+                "quote": "كيف أبلّغ عن حساب ينتحل شخصيتي على إنستغرام",
+                "message_id": "m2",
+                "question_id": "m1",
+                "updated_at": "2026-11-06T15:10:45+00:00",
+                "history": []
+              }
+            },
+            {
+              "check": "assistant_answer",
+              "passed": false,
+              "detail": []
+            },
+            {
+              "check": "citation_topic:impersonation_reporting",
+              "passed": false,
+              "detail": []
+            }
+          ],
+          "passed": false
+        }
+      ],
+      "passed": false
+    },
+    {
+      "case_id": "V3-Q09-similar-or-fan-account-is-not-automatic-impersonation",
+      "turns": [
+        {
+          "turn": null,
+          "checks": [
+            {
+              "check": "no_fact:account_access",
+              "passed": true,
+              "detail": "absent"
+            },
+            {
+              "check": "not_true:impersonation",
+              "passed": true,
+              "detail": {
+                "field": "impersonation",
+                "status": "denied",
+                "value": false,
+                "quote": "في حساب معجبين مشابه لاسمي وصورتي لكنه يوضح أنه حساب معجبين ولا يدعي أنه أنا",
+                "message_id": "m2",
+                "question_id": "m1",
+                "updated_at": "2026-11-06T15:10:45+00:00",
+                "history": []
+              }
+            }
+          ],
+          "passed": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case_id": "V3-Q10-confirmed-requested-amount-correction-preserves-paid-event",
+      "turns": [
+        {
+          "turn": null,
+          "checks": [
+            {
+              "check": "fact:requested_amount",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "fact:paid_amount",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "money_event_count",
+              "passed": true,
+              "detail": 2
+            }
+          ],
+          "passed": true
+        },
+        {
+          "turn": null,
+          "checks": [
+            {
+              "check": "fact:requested_amount",
+              "passed": false,
+              "detail": "value did not contain '120': '100 دينار'"
+            },
+            {
+              "check": "fact:paid_amount",
+              "passed": true,
+              "detail": "matched"
+            },
+            {
+              "check": "money_event_count",
+              "passed": true,
+              "detail": 2
+            },
+            {
+              "check": "money_relations:requested",
+              "passed": false,
+              "detail": {
+                "expected": [
+                  "initial",
+                  "correction"
+                ],
+                "actual": [
+                  "initial"
+                ]
+              }
+            },
+            {
+              "check": "money_relations:paid",
+              "passed": true,
+              "detail": {
+                "expected": [
+                  "initial"
+                ],
+                "actual": [
+                  "initial"
+                ]
+              }
+            }
+          ],
+          "passed": false
+        }
+      ],
+      "passed": false
+    },
+    {
+      "case_id": "V3-Q11-country-required-only-for-local-reporting",
+      "turns": [
+        {
+          "turn": null,
+          "checks": [
+            {
+              "check": "assistant_answer",
+              "passed": true,
+              "detail": [
+                {
+                  "kind": "answer",
+                  "text": "ما عندي مصدر موثوق محلي لهذا السؤال قبل تحديد البلد أو الاختصاص. لا أستنتج قانونًا أو جهة تواصل من دون مصدر واختصاص واضحين.",
+                  "citations": []
+                }
+              ]
+            },
+            {
+              "check": "ask_jurisdiction",
+              "passed": true,
+              "detail": "ما عندي مصدر موثوق محلي لهذا السؤال قبل تحديد البلد أو الاختصاص. لا أستنتج قانونًا أو جهة تواصل من دون مصدر واختصاص واضحين."
+            }
+          ],
+          "passed": true
+        }
+      ],
+      "passed": true
+    }
+  ]
+}

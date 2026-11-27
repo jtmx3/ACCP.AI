@@ -10,6 +10,7 @@ from app import main
 from app.conversation import MAX_CONTEXT_CHARS, build_bounded_context, interpret_message
 from app.core import new_state
 from app.store import Store
+from tests.interactive_fixtures import interactive_result
 
 
 class BoundedConversationContextTests(unittest.TestCase):
@@ -49,6 +50,12 @@ class BoundedConversationContextTests(unittest.TestCase):
         self.assertIn("ask_why", result["goals"])
         self.assertTrue(result["may_contain_multiple_goals"])
 
+    def test_why_before_answer_is_not_misclassified_as_a_pending_slot_answer(self):
+        result = interpret_message("قبل ما أجاوب، ليش بدك تعرف إذا نزلها؟", "published")
+        self.assertIn("ask_why", result["goals"])
+        self.assertNotIn("answer_pending_question", result["goals"])
+        self.assertEqual(result["fact_text"], "قبل ما أجاوب")
+
 
 class ContextConsentApiTests(unittest.TestCase):
     def setUp(self):
@@ -72,35 +79,35 @@ class ContextConsentApiTests(unittest.TestCase):
     def test_context_is_not_sent_unless_separately_authorized(self):
         calls = []
 
-        def fake_extraction(text, pending, context=None, interpretation=None):
-            calls.append({"text": text, "pending": pending, "context": context, "interpretation": interpretation})
-            return []
+        def fake_interactive(text, dialogue_context, pending):
+            calls.append({"text": text, "pending": pending, "context": dialogue_context})
+            return interactive_result()
 
-        provider = {"provider": "openai-compatible", "model": "synthetic-test", "mode": "external_model",
+        provider = {"provider": "ollama", "model": "synthetic-test", "mode": "local_model",
                     "configuration_complete": True}
         with patch("app.main.model_configured", return_value=True), \
              patch("app.main.provider_config", return_value=provider), \
-             patch("app.main.generate_interview_extraction", side_effect=fake_extraction), \
+             patch("app.main.generate_interactive_dialogue_turn", side_effect=fake_interactive), \
              patch("app.main.last_call_trace", return_value={"attempted": True, "latency_ms": 1}):
             first = self.client.post(f"/api/sessions/{self.case_id}/messages", headers=self.headers,
                 json={"expected_revision": self.revision, "text": "شخص هددني", "kind": "answer",
-                      "allow_external_extraction": True})
+                      "allow_local_model": True})
             self.assertEqual(first.status_code, 200, first.text)
             first_result = first.json()
             self.revision = first_result["session"]["revision"]
-            self.assertIsNone(calls[0]["context"])
-            self.assertFalse(first_result["external_context_sent"])
+            self.assertTrue(calls[0]["context"]["recent_messages"])
+            self.assertIn("شخص هددني", json.dumps(calls[0]["context"], ensure_ascii=False))
+            self.assertNotIn("session_id", calls[0]["context"])
+            self.assertNotIn("token", calls[0]["context"])
 
             second = self.client.post(f"/api/sessions/{self.case_id}/messages", headers=self.headers,
                 json={"expected_revision": self.revision, "text": "اليوم دفعت 130 دينار", "kind": "answer",
-                      "allow_external_extraction": True, "allow_context_extraction": True})
+                      "allow_local_model": True, "allow_context_extraction": True})
             self.assertEqual(second.status_code, 200, second.text)
-            self.assertIsNotNone(calls[1]["context"])
+            self.assertIsNotNone(calls[1]["context"].get("related_facts"))
             result = second.json()
-            self.assertTrue(result["external_context_sent"])
-            self.assertLessEqual(result["provider_call"]["context_char_count"], MAX_CONTEXT_CHARS)
-            self.assertEqual(result["provider_call"]["context_message_count"] <= 4, True)
-            self.assertIsNotNone(calls[1]["interpretation"])
+            self.assertEqual(result["local_model_purpose"], "interactive_dialogue_turn")
+            self.assertLessEqual(len(json.dumps(calls[1]["context"], ensure_ascii=False)), 5500)
 
     def test_mixed_why_question_saves_scoped_facts_then_reasks_pending_question(self):
         with patch("app.main.model_configured", return_value=False):
@@ -108,7 +115,7 @@ class ContextConsentApiTests(unittest.TestCase):
                 json={"expected_revision": self.revision, "text": "في شخص يهددني على واتساب", "kind": "answer"})
             self.assertEqual(first.status_code, 200, first.text)
             self.revision = first.json()["session"]["revision"]
-            self.assertEqual(first.json()["session"]["pending_slot"], "direct_danger")
+            self.assertEqual(first.json()["session"]["pending_slot"], "details")
 
             text = "ما بعرف مين هو، بس عندي رقم الواتساب اللي تواصل معي منه، وما بدي أكتبه هون، ليش بتسأل؟"
             result = self.client.post(f"/api/sessions/{self.case_id}/messages", headers=self.headers,
@@ -119,11 +126,10 @@ class ContextConsentApiTests(unittest.TestCase):
         self.assertEqual(state["facts"]["contact"]["status"], "reported")
         self.assertEqual(state["facts"]["contact_identifier_disclosure"]["status"], "declined")
         self.assertNotIn("direct_danger", state["facts"])
-        self.assertEqual(state["pending_slot"], "direct_danger")
+        self.assertEqual(state["pending_slot"], "details")
         last = state["messages"][-1]
-        self.assertEqual(last["kind"], "clarification")
-        self.assertEqual(last["question_plan"]["slot"], "direct_danger")
-        self.assertIn("بخطر مباشر", last["text"])
+        self.assertEqual(last["question_plan"]["slot"], "details")
+        self.assertNotIn("بخطر مباشر", last["text"])
 
     def test_mixed_guidance_question_saves_evidence_and_resumes_pending_question(self):
         guidance = {"text": "احتفظ بنسخة أصلية من الرسائل ولا تعدلها.", "citations": []}
@@ -133,7 +139,7 @@ class ContextConsentApiTests(unittest.TestCase):
                 json={"expected_revision": self.revision, "text": "في شخص يهددني على واتساب", "kind": "answer"})
             self.assertEqual(first.status_code, 200, first.text)
             self.revision = first.json()["session"]["revision"]
-            self.assertEqual(first.json()["session"]["pending_slot"], "direct_danger")
+            self.assertEqual(first.json()["session"]["pending_slot"], "details")
 
             text = "عندي لقطات شاشة للرسائل، كيف أوثقها؟"
             result = self.client.post(f"/api/sessions/{self.case_id}/messages", headers=self.headers,
@@ -142,12 +148,11 @@ class ContextConsentApiTests(unittest.TestCase):
         state = result.json()["session"]
         self.assertEqual(state["facts"]["evidence"]["status"], "reported")
         self.assertNotIn("direct_danger", state["facts"])
-        self.assertEqual(state["pending_slot"], "direct_danger")
+        self.assertEqual(state["pending_slot"], "details")
         assistant = [message for message in state["messages"] if message.get("role") == "assistant"]
         self.assertTrue(any(message.get("kind") == "answer" and guidance["text"] in message["text"]
                             for message in assistant))
-        self.assertEqual(assistant[-1]["kind"], "clarification")
-        self.assertEqual(assistant[-1]["question_plan"]["slot"], "direct_danger")
+        self.assertEqual(assistant[-1]["question_plan"]["slot"], "details")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,599 @@
+{
+  "evaluation_version": "guidance-rag-real-corpus-examples-v1",
+  "created_at": "2026-11-06T18:28:33.823922+00:00",
+  "synthetic_internal_cases": true,
+  "mode": "rules_rag_real_corpus",
+  "provider": "rules",
+  "provider_calls": 0,
+  "ollama_live_test": "not_run",
+  "corpus_version": "2026-11-06.1",
+  "implementation": "app.rag.answer_question and its actual retrieve/load_corpus path; no RAG function was mocked",
+  "summary": {
+    "passed": 16,
+    "total": 16,
+    "failed": 0
+  },
+  "results": [
+    {
+      "case_id": "generic-natural-advice-no-platform",
+      "query": "بدي نصيحة أحافظ فيها على حسابي.",
+      "expected": "clarify",
+      "passed": true,
+      "resolved_topics": [
+        "account_security"
+      ],
+      "resolved_platform": null,
+      "resolved_jurisdiction": null,
+      "answer_text": "لأي تطبيق تقصد؟ اذكر اسم التطبيق، مثل واتساب أو إنستغرام، لأعرض إرشادات موثقة تخصه فقط.",
+      "citations": []
+    },
+    {
+      "case_id": "generic-protect-phrase-no-platform",
+      "query": "كيف أحمي حسابي",
+      "expected": "clarify",
+      "passed": true,
+      "resolved_topics": [
+        "account_security"
+      ],
+      "resolved_platform": null,
+      "resolved_jurisdiction": null,
+      "answer_text": "لأي تطبيق تقصد؟ اذكر اسم التطبيق، مثل واتساب أو إنستغرام، لأعرض إرشادات موثقة تخصه فقط.",
+      "citations": []
+    },
+    {
+      "case_id": "generic-keep-phrase-no-platform",
+      "query": "كيف أحافظ على حسابي",
+      "expected": "clarify",
+      "passed": true,
+      "resolved_topics": [
+        "account_security"
+      ],
+      "resolved_platform": null,
+      "resolved_jurisdiction": null,
+      "answer_text": "لأي تطبيق تقصد؟ اذكر اسم التطبيق، مثل واتساب أو إنستغرام، لأعرض إرشادات موثقة تخصه فقط.",
+      "citations": []
+    },
+    {
+      "case_id": "generic-secure-phrase-no-platform",
+      "query": "بدي نصيحة لتأمين الحساب",
+      "expected": "clarify",
+      "passed": true,
+      "resolved_topics": [
+        "account_security"
+      ],
+      "resolved_platform": null,
+      "resolved_jurisdiction": null,
+      "answer_text": "لأي تطبيق تقصد؟ اذكر اسم التطبيق، مثل واتساب أو إنستغرام، لأعرض إرشادات موثقة تخصه فقط.",
+      "citations": []
+    },
+    {
+      "case_id": "explicit-whatsapp-protection",
+      "query": "كيف أحمي حسابي على واتساب؟",
+      "expected": "whatsapp",
+      "passed": true,
+      "resolved_topics": [
+        "account_security"
+      ],
+      "resolved_platform": "whatsapp",
+      "resolved_jurisdiction": null,
+      "answer_text": "هذه مقتطفات موثقة من دون افتراض بلدك؛ المصادر الوطنية ليست مسارات محلية خارج بلدها:\n[1] Account security tips — WhatsApp Help Center, Meta\n- إذا كان بإمكانك فتح حسابك، راجع إعدادات الأمان الرسمية في WhatsApp وفعّل التحقق بخطوتين؛ أضف بريدًا إلكترونيًا وفق خيار الإعداد أو الاسترداد الذي يعرضه التطبيق.\n- استخدم قفل التطبيق أو مفتاح المرور/قفل الجهاز إذا كانت الميزة متاحة على جهازك.\n- هذه إعدادات خاصة بـWhatsApp؛ لا تثبت وحدها وقوع دخول غير مصرح به أو تنفيه.\nنطاق المصدر: إرشادات خاصة بمنصة واتساب فقط.\nالمقتطف الداعم: «تذكر نصائح أمان الحساب في مركز مساعدة WhatsApp ميزات مثل التحقق بخطوتين والبريد الإلكتروني للاسترداد ومفتاح المرور وقفل التطبيق وقفل الدردشات. تذكر المساعدة أن ميزات الحماية موجهة لحماية الحساب الذي ما زال المستخدم يستطيع الوصول إليه.»\n[2] Check devices linked to your account and unlink a device you don’t recognize — WhatsApp Help Center, Meta\n- راجع قائمة الأجهزة المرتبطة بحساب WhatsApp دوريًا.\n- إذا كنت تعتقد أن شخصًا يصل عبر WhatsApp Web، سجّل الخروج من الجلسات النشطة من هاتفك وفق تعليمات مركز المساعدة.\n- لا تكشف هذه الصفحة هوية من استخدم الحساب أو وقت ومكان الوصول؛ لا تستنتج ذلك من مجرد وجود جهاز مرتبط.\nنطاق المصدر: إرشادات خاصة بمنصة واتساب فقط.\nالمقتطف الداعم: «توصي مساعدة WhatsApp بالتحقق دوريًا من الأجهزة المرتبطة بالحساب. وإذا اعتقد المستخدم أن شخصًا يصل إلى الحساب عبر WhatsApp Web، تذكر الصفحة إمكان تسجيل الخروج من جلسات WhatsApp Web النشطة من الهاتف.»\n[3] About two-step verification — WhatsApp Help Center, Meta\n- فعّل التحقق بخطوتين من إعدادات WhatsApp واتبع الخيارات التي يعرضها التطبيق؛ يصفه المصدر بأنه طبقة مصادقة إضافية اختيارية.\n- يمكن أن تتضمن خيارات المصادقة رقم الهاتف أو كلمة مرور أو بريدًا إلكترونيًا، بحسب الإعداد المتاح.\n- مفتاح المرور يعتمد على نظام أمان الجهاز إذا كان مدعومًا؛ راجع صفحة المساعدة الرسمية للتعليمات الحالية.\nنطاق المصدر: إرشادات خاصة بمنصة واتساب فقط.\nالمقتطف الداعم: «توضح مساعدة WhatsApp أن التحقق بخطوتين ميزة اختيارية تضيف طبقة أمان إلى الحساب باستخدام شكلين من المصادقة، مثل الجمع بين رمز SMS وكلمة مرور. كما تشرح المساعدة أن مفتاح المرور يربط الحساب بنظام أمان الجهاز مثل البصمة أو الوجه أو قفل الشاشة.»\nهذه مقتطفات من المصادر فقط؛ لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية. إذا لم يُجب المقتطف عن سؤالك، أمتنع عن إضافة استنتاج.",
+      "citations": [
+        {
+          "id": "GLOBAL-WA-ACCOUNT-SECURITY-2026",
+          "title": "Account security tips",
+          "publisher": "WhatsApp Help Center, Meta",
+          "url": "https://faq.whatsapp.com/1095301557782068",
+          "published_or_updated": null,
+          "ingested_at": "2026-11-06",
+          "geography": "GLOBAL",
+          "guidance_scope": "global_platform",
+          "topics": [
+            "account_security"
+          ],
+          "platforms": [
+            "whatsapp"
+          ],
+          "scope_note": "إرشادات خاصة بمنصة واتساب فقط.",
+          "content_version": "2026-11-06.1",
+          "excerpt": "تذكر نصائح أمان الحساب في مركز مساعدة WhatsApp ميزات مثل التحقق بخطوتين والبريد الإلكتروني للاسترداد ومفتاح المرور وقفل التطبيق وقفل الدردشات. تذكر المساعدة أن ميزات الحماية موجهة لحماية الحساب الذي ما زال المستخدم يستطيع الوصول إليه."
+        },
+        {
+          "id": "GLOBAL-WA-LINKED-DEVICES-2026",
+          "title": "Check devices linked to your account and unlink a device you don’t recognize",
+          "publisher": "WhatsApp Help Center, Meta",
+          "url": "https://faq.whatsapp.com/1428782138011916",
+          "published_or_updated": null,
+          "ingested_at": "2026-11-06",
+          "geography": "GLOBAL",
+          "guidance_scope": "global_platform",
+          "topics": [
+            "account_security",
+            "device_session_management"
+          ],
+          "platforms": [
+            "whatsapp"
+          ],
+          "scope_note": "إرشادات خاصة بمنصة واتساب فقط.",
+          "content_version": "2026-11-06.1",
+          "excerpt": "توصي مساعدة WhatsApp بالتحقق دوريًا من الأجهزة المرتبطة بالحساب. وإذا اعتقد المستخدم أن شخصًا يصل إلى الحساب عبر WhatsApp Web، تذكر الصفحة إمكان تسجيل الخروج من جلسات WhatsApp Web النشطة من الهاتف."
+        },
+        {
+          "id": "GLOBAL-WA-TWO-STEP-2026",
+          "title": "About two-step verification",
+          "publisher": "WhatsApp Help Center, Meta",
+          "url": "https://faq.whatsapp.com/1278661612895630",
+          "published_or_updated": null,
+          "ingested_at": "2026-11-06",
+          "geography": "GLOBAL",
+          "guidance_scope": "global_platform",
+          "topics": [
+            "account_security"
+          ],
+          "platforms": [
+            "whatsapp"
+          ],
+          "scope_note": "إرشادات خاصة بمنصة واتساب فقط.",
+          "content_version": "2026-11-06.1",
+          "excerpt": "توضح مساعدة WhatsApp أن التحقق بخطوتين ميزة اختيارية تضيف طبقة أمان إلى الحساب باستخدام شكلين من المصادقة، مثل الجمع بين رمز SMS وكلمة مرور. كما تشرح المساعدة أن مفتاح المرور يربط الحساب بنظام أمان الجهاز مثل البصمة أو الوجه أو قفل الشاشة."
+        }
+      ]
+    },
+    {
+      "case_id": "whatsapp-keep-paraphrase",
+      "query": "كيف أحافظ على حسابي بواتساب؟",
+      "expected": "whatsapp",
+      "passed": true,
+      "resolved_topics": [
+        "account_security"
+      ],
+      "resolved_platform": "whatsapp",
+      "resolved_jurisdiction": null,
+      "answer_text": "هذه مقتطفات موثقة من دون افتراض بلدك؛ المصادر الوطنية ليست مسارات محلية خارج بلدها:\n[1] Account security tips — WhatsApp Help Center, Meta\n- إذا كان بإمكانك فتح حسابك، راجع إعدادات الأمان الرسمية في WhatsApp وفعّل التحقق بخطوتين؛ أضف بريدًا إلكترونيًا وفق خيار الإعداد أو الاسترداد الذي يعرضه التطبيق.\n- استخدم قفل التطبيق أو مفتاح المرور/قفل الجهاز إذا كانت الميزة متاحة على جهازك.\n- هذه إعدادات خاصة بـWhatsApp؛ لا تثبت وحدها وقوع دخول غير مصرح به أو تنفيه.\nنطاق المصدر: إرشادات خاصة بمنصة واتساب فقط.\nالمقتطف الداعم: «تذكر نصائح أمان الحساب في مركز مساعدة WhatsApp ميزات مثل التحقق بخطوتين والبريد الإلكتروني للاسترداد ومفتاح المرور وقفل التطبيق وقفل الدردشات. تذكر المساعدة أن ميزات الحماية موجهة لحماية الحساب الذي ما زال المستخدم يستطيع الوصول إليه.»\n[2] Check devices linked to your account and unlink a device you don’t recognize — WhatsApp Help Center, Meta\n- راجع قائمة الأجهزة المرتبطة بحساب WhatsApp دوريًا.\n- إذا كنت تعتقد أن شخصًا يصل عبر WhatsApp Web، سجّل الخروج من الجلسات النشطة من هاتفك وفق تعليمات مركز المساعدة.\n- لا تكشف هذه الصفحة هوية من استخدم الحساب أو وقت ومكان الوصول؛ لا تستنتج ذلك من مجرد وجود جهاز مرتبط.\nنطاق المصدر: إرشادات خاصة بمنصة واتساب فقط.\nالمقتطف الداعم: «توصي مساعدة WhatsApp بالتحقق دوريًا من الأجهزة المرتبطة بالحساب. وإذا اعتقد المستخدم أن شخصًا يصل إلى الحساب عبر WhatsApp Web، تذكر الصفحة إمكان تسجيل الخروج من جلسات WhatsApp Web النشطة من الهاتف.»\n[3] About two-step verification — WhatsApp Help Center, Meta\n- فعّل التحقق بخطوتين من إعدادات WhatsApp واتبع الخيارات التي يعرضها التطبيق؛ يصفه المصدر بأنه طبقة مصادقة إضافية اختيارية.\n- يمكن أن تتضمن خيارات المصادقة رقم الهاتف أو كلمة مرور أو بريدًا إلكترونيًا، بحسب الإعداد المتاح.\n- مفتاح المرور يعتمد على نظام أمان الجهاز إذا كان مدعومًا؛ راجع صفحة المساعدة الرسمية للتعليمات الحالية.\nنطاق المصدر: إرشادات خاصة بمنصة واتساب فقط.\nالمقتطف الداعم: «توضح مساعدة WhatsApp أن التحقق بخطوتين ميزة اختيارية تضيف طبقة أمان إلى الحساب باستخدام شكلين من المصادقة، مثل الجمع بين رمز SMS وكلمة مرور. كما تشرح المساعدة أن مفتاح المرور يربط الحساب بنظام أمان الجهاز مثل البصمة أو الوجه أو قفل الشاشة.»\nهذه مقتطفات من المصادر فقط؛ لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية. إذا لم يُجب المقتطف عن سؤالك، أمتنع عن إضافة استنتاج.",
+      "citations": [
+        {
+          "id": "GLOBAL-WA-ACCOUNT-SECURITY-2026",
+          "title": "Account security tips",
+          "publisher": "WhatsApp Help Center, Meta",
+          "url": "https://faq.whatsapp.com/1095301557782068",
+          "published_or_updated": null,
+          "ingested_at": "2026-11-06",
+          "geography": "GLOBAL",
+          "guidance_scope": "global_platform",
+          "topics": [
+            "account_security"
+          ],
+          "platforms": [
+            "whatsapp"
+          ],
+          "scope_note": "إرشادات خاصة بمنصة واتساب فقط.",
+          "content_version": "2026-11-06.1",
+          "excerpt": "تذكر نصائح أمان الحساب في مركز مساعدة WhatsApp ميزات مثل التحقق بخطوتين والبريد الإلكتروني للاسترداد ومفتاح المرور وقفل التطبيق وقفل الدردشات. تذكر المساعدة أن ميزات الحماية موجهة لحماية الحساب الذي ما زال المستخدم يستطيع الوصول إليه."
+        },
+        {
+          "id": "GLOBAL-WA-LINKED-DEVICES-2026",
+          "title": "Check devices linked to your account and unlink a device you don’t recognize",
+          "publisher": "WhatsApp Help Center, Meta",
+          "url": "https://faq.whatsapp.com/1428782138011916",
+          "published_or_updated": null,
+          "ingested_at": "2026-11-06",
+          "geography": "GLOBAL",
+          "guidance_scope": "global_platform",
+          "topics": [
+            "account_security",
+            "device_session_management"
+          ],
+          "platforms": [
+            "whatsapp"
+          ],
+          "scope_note": "إرشادات خاصة بمنصة واتساب فقط.",
+          "content_version": "2026-11-06.1",
+          "excerpt": "توصي مساعدة WhatsApp بالتحقق دوريًا من الأجهزة المرتبطة بالحساب. وإذا اعتقد المستخدم أن شخصًا يصل إلى الحساب عبر WhatsApp Web، تذكر الصفحة إمكان تسجيل الخروج من جلسات WhatsApp Web النشطة من الهاتف."
+        },
+        {
+          "id": "GLOBAL-WA-TWO-STEP-2026",
+          "title": "About two-step verification",
+          "publisher": "WhatsApp Help Center, Meta",
+          "url": "https://faq.whatsapp.com/1278661612895630",
+          "published_or_updated": null,
+          "ingested_at": "2026-11-06",
+          "geography": "GLOBAL",
+          "guidance_scope": "global_platform",
+          "topics": [
+            "account_security"
+          ],
+          "platforms": [
+            "whatsapp"
+          ],
+          "scope_note": "إرشادات خاصة بمنصة واتساب فقط.",
+          "content_version": "2026-11-06.1",
+          "excerpt": "توضح مساعدة WhatsApp أن التحقق بخطوتين ميزة اختيارية تضيف طبقة أمان إلى الحساب باستخدام شكلين من المصادقة، مثل الجمع بين رمز SMS وكلمة مرور. كما تشرح المساعدة أن مفتاح المرور يربط الحساب بنظام أمان الجهاز مثل البصمة أو الوجه أو قفل الشاشة."
+        }
+      ]
+    },
+    {
+      "case_id": "whatsapp-secure-paraphrase",
+      "query": "بدي نصيحة لتأمين الحساب في WhatsApp",
+      "expected": "whatsapp",
+      "passed": true,
+      "resolved_topics": [
+        "account_security"
+      ],
+      "resolved_platform": "whatsapp",
+      "resolved_jurisdiction": null,
+      "answer_text": "هذه مقتطفات موثقة من دون افتراض بلدك؛ المصادر الوطنية ليست مسارات محلية خارج بلدها:\n[1] Account security tips — WhatsApp Help Center, Meta\n- إذا كان بإمكانك فتح حسابك، راجع إعدادات الأمان الرسمية في WhatsApp وفعّل التحقق بخطوتين؛ أضف بريدًا إلكترونيًا وفق خيار الإعداد أو الاسترداد الذي يعرضه التطبيق.\n- استخدم قفل التطبيق أو مفتاح المرور/قفل الجهاز إذا كانت الميزة متاحة على جهازك.\n- هذه إعدادات خاصة بـWhatsApp؛ لا تثبت وحدها وقوع دخول غير مصرح به أو تنفيه.\nنطاق المصدر: إرشادات خاصة بمنصة واتساب فقط.\nالمقتطف الداعم: «تذكر نصائح أمان الحساب في مركز مساعدة WhatsApp ميزات مثل التحقق بخطوتين والبريد الإلكتروني للاسترداد ومفتاح المرور وقفل التطبيق وقفل الدردشات. هذه إعدادات تخص حساب WhatsApp؛ وتختلف الخيارات المتاحة بحسب الجهاز وإصدار التطبيق.»\n[2] Check devices linked to your account and unlink a device you don’t recognize — WhatsApp Help Center, Meta\n- راجع قائمة الأجهزة المرتبطة بحساب WhatsApp دوريًا.\n- إذا كنت تعتقد أن شخصًا يصل عبر WhatsApp Web، سجّل الخروج من الجلسات النشطة من هاتفك وفق تعليمات مركز المساعدة.\n- لا تكشف هذه الصفحة هوية من استخدم الحساب أو وقت ومكان الوصول؛ لا تستنتج ذلك من مجرد وجود جهاز مرتبط.\nنطاق المصدر: إرشادات خاصة بمنصة واتساب فقط.\nالمقتطف الداعم: «توصي مساعدة WhatsApp بالتحقق دوريًا من الأجهزة المرتبطة بالحساب. وإذا اعتقد المستخدم أن شخصًا يصل إلى الحساب عبر WhatsApp Web، تذكر الصفحة إمكان تسجيل الخروج من جلسات WhatsApp Web النشطة من الهاتف.»\n[3] About two-step verification — WhatsApp Help Center, Meta\n- فعّل التحقق بخطوتين من إعدادات WhatsApp واتبع الخيارات التي يعرضها التطبيق؛ يصفه المصدر بأنه طبقة مصادقة إضافية اختيارية.\n- يمكن أن تتضمن خيارات المصادقة رقم الهاتف أو كلمة مرور أو بريدًا إلكترونيًا، بحسب الإعداد المتاح.\n- مفتاح المرور يعتمد على نظام أمان الجهاز إذا كان مدعومًا؛ راجع صفحة المساعدة الرسمية للتعليمات الحالية.\nنطاق المصدر: إرشادات خاصة بمنصة واتساب فقط.\nالمقتطف الداعم: «توضح مساعدة WhatsApp أن التحقق بخطوتين ميزة اختيارية تضيف طبقة أمان إلى الحساب باستخدام شكلين من المصادقة، مثل الجمع بين رمز SMS وكلمة مرور. كما تشرح المساعدة أن مفتاح المرور يربط الحساب بنظام أمان الجهاز مثل البصمة أو الوجه أو قفل الشاشة.»\nهذه مقتطفات من المصادر فقط؛ لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية. إذا لم يُجب المقتطف عن سؤالك، أمتنع عن إضافة استنتاج.",
+      "citations": [
+        {
+          "id": "GLOBAL-WA-ACCOUNT-SECURITY-2026",
+          "title": "Account security tips",
+          "publisher": "WhatsApp Help Center, Meta",
+          "url": "https://faq.whatsapp.com/1095301557782068",
+          "published_or_updated": null,
+          "ingested_at": "2026-11-06",
+          "geography": "GLOBAL",
+          "guidance_scope": "global_platform",
+          "topics": [
+            "account_security"
+          ],
+          "platforms": [
+            "whatsapp"
+          ],
+          "scope_note": "إرشادات خاصة بمنصة واتساب فقط.",
+          "content_version": "2026-11-06.1",
+          "excerpt": "تذكر نصائح أمان الحساب في مركز مساعدة WhatsApp ميزات مثل التحقق بخطوتين والبريد الإلكتروني للاسترداد ومفتاح المرور وقفل التطبيق وقفل الدردشات. هذه إعدادات تخص حساب WhatsApp؛ وتختلف الخيارات المتاحة بحسب الجهاز وإصدار التطبيق."
+        },
+        {
+          "id": "GLOBAL-WA-LINKED-DEVICES-2026",
+          "title": "Check devices linked to your account and unlink a device you don’t recognize",
+          "publisher": "WhatsApp Help Center, Meta",
+          "url": "https://faq.whatsapp.com/1428782138011916",
+          "published_or_updated": null,
+          "ingested_at": "2026-11-06",
+          "geography": "GLOBAL",
+          "guidance_scope": "global_platform",
+          "topics": [
+            "account_security",
+            "device_session_management"
+          ],
+          "platforms": [
+            "whatsapp"
+          ],
+          "scope_note": "إرشادات خاصة بمنصة واتساب فقط.",
+          "content_version": "2026-11-06.1",
+          "excerpt": "توصي مساعدة WhatsApp بالتحقق دوريًا من الأجهزة المرتبطة بالحساب. وإذا اعتقد المستخدم أن شخصًا يصل إلى الحساب عبر WhatsApp Web، تذكر الصفحة إمكان تسجيل الخروج من جلسات WhatsApp Web النشطة من الهاتف."
+        },
+        {
+          "id": "GLOBAL-WA-TWO-STEP-2026",
+          "title": "About two-step verification",
+          "publisher": "WhatsApp Help Center, Meta",
+          "url": "https://faq.whatsapp.com/1278661612895630",
+          "published_or_updated": null,
+          "ingested_at": "2026-11-06",
+          "geography": "GLOBAL",
+          "guidance_scope": "global_platform",
+          "topics": [
+            "account_security"
+          ],
+          "platforms": [
+            "whatsapp"
+          ],
+          "scope_note": "إرشادات خاصة بمنصة واتساب فقط.",
+          "content_version": "2026-11-06.1",
+          "excerpt": "توضح مساعدة WhatsApp أن التحقق بخطوتين ميزة اختيارية تضيف طبقة أمان إلى الحساب باستخدام شكلين من المصادقة، مثل الجمع بين رمز SMS وكلمة مرور. كما تشرح المساعدة أن مفتاح المرور يربط الحساب بنظام أمان الجهاز مثل البصمة أو الوجه أو قفل الشاشة."
+        }
+      ]
+    },
+    {
+      "case_id": "explicit-instagram-protection",
+      "query": "كيف أؤمن حسابي الأصلي على إنستغرام إذا كنت ما زلت أستطيع الدخول؟",
+      "expected": "instagram",
+      "passed": true,
+      "resolved_topics": [
+        "account_security"
+      ],
+      "resolved_platform": "instagram",
+      "resolved_jurisdiction": null,
+      "answer_text": "هذه مقتطفات موثقة من دون افتراض بلدك؛ المصادر الوطنية ليست مسارات محلية خارج بلدها:\n[1] If you think your Instagram account has been hacked — Instagram Help Center, Meta\n- إذا كنت قلقًا على أمان حساب Instagram، افتح أدوات الأمان الرسمية داخل التطبيق.\n- راجع كلمة المرور وفعّل المصادقة الثنائية، وتحقق من بيانات التواصل والجلسات والتطبيقات المرتبطة.\n- هذه إرشادات للحساب داخل Instagram؛ قدرتك على الدخول لا تثبت وحدها وقوع اختراق أو عدمه.\nنطاق المصدر: إرشادات خاصة بمنصة إنستغرام فقط.\nالمقتطف الداعم: «توضح مساعدة Instagram أن من يعتقد أن حسابه اختُرق وما زال يستطيع الدخول يمكنه استخدام أدوات أمان الحساب، مثل تغيير كلمة المرور وتفعيل المصادقة الثنائية والتحقق من بيانات التواصل ومراجعة الجلسات والتطبيقات المرتبطة. القدرة على الدخول لا تثبت أن اختراقًا وقع أو لم يقع.»\nهذه مقتطفات من المصادر فقط؛ لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية. إذا لم يُجب المقتطف عن سؤالك، أمتنع عن إضافة استنتاج.",
+      "citations": [
+        {
+          "id": "GLOBAL-IG-SECURITY-2026",
+          "title": "If you think your Instagram account has been hacked",
+          "publisher": "Instagram Help Center, Meta",
+          "url": "https://help.instagram.com/149494825257596",
+          "published_or_updated": null,
+          "ingested_at": "2026-11-06",
+          "geography": "GLOBAL",
+          "guidance_scope": "global_platform",
+          "topics": [
+            "account_security",
+            "account_recovery"
+          ],
+          "platforms": [
+            "instagram"
+          ],
+          "scope_note": "إرشادات خاصة بمنصة إنستغرام فقط.",
+          "content_version": "2026-11-06.1",
+          "excerpt": "توضح مساعدة Instagram أن من يعتقد أن حسابه اختُرق وما زال يستطيع الدخول يمكنه استخدام أدوات أمان الحساب، مثل تغيير كلمة المرور وتفعيل المصادقة الثنائية والتحقق من بيانات التواصل ومراجعة الجلسات والتطبيقات المرتبطة. القدرة على الدخول لا تثبت أن اختراقًا وقع أو لم يقع."
+        }
+      ]
+    },
+    {
+      "case_id": "previous-instagram-context",
+      "query": "بدي نصيحة أحافظ فيها على حسابي.",
+      "expected": "instagram",
+      "passed": true,
+      "resolved_topics": [
+        "account_security"
+      ],
+      "resolved_platform": "instagram",
+      "resolved_jurisdiction": null,
+      "answer_text": "هذه مقتطفات موثقة من دون افتراض بلدك؛ المصادر الوطنية ليست مسارات محلية خارج بلدها:\n[1] If you think your Instagram account has been hacked — Instagram Help Center, Meta\n- إذا كنت قلقًا على أمان حساب Instagram، افتح أدوات الأمان الرسمية داخل التطبيق.\n- راجع كلمة المرور وفعّل المصادقة الثنائية، وتحقق من بيانات التواصل والجلسات والتطبيقات المرتبطة.\n- هذه إرشادات للحساب داخل Instagram؛ قدرتك على الدخول لا تثبت وحدها وقوع اختراق أو عدمه.\nنطاق المصدر: إرشادات خاصة بمنصة إنستغرام فقط.\nالمقتطف الداعم: «توضح مساعدة Instagram أن من يعتقد أن حسابه اختُرق وما زال يستطيع الدخول يمكنه استخدام أدوات أمان الحساب، مثل تغيير كلمة المرور وتفعيل المصادقة الثنائية والتحقق من بيانات التواصل ومراجعة الجلسات والتطبيقات المرتبطة.»\nهذه مقتطفات من المصادر فقط؛ لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية. إذا لم يُجب المقتطف عن سؤالك، أمتنع عن إضافة استنتاج.",
+      "citations": [
+        {
+          "id": "GLOBAL-IG-SECURITY-2026",
+          "title": "If you think your Instagram account has been hacked",
+          "publisher": "Instagram Help Center, Meta",
+          "url": "https://help.instagram.com/149494825257596",
+          "published_or_updated": null,
+          "ingested_at": "2026-11-06",
+          "geography": "GLOBAL",
+          "guidance_scope": "global_platform",
+          "topics": [
+            "account_security",
+            "account_recovery"
+          ],
+          "platforms": [
+            "instagram"
+          ],
+          "scope_note": "إرشادات خاصة بمنصة إنستغرام فقط.",
+          "content_version": "2026-11-06.1",
+          "excerpt": "توضح مساعدة Instagram أن من يعتقد أن حسابه اختُرق وما زال يستطيع الدخول يمكنه استخدام أدوات أمان الحساب، مثل تغيير كلمة المرور وتفعيل المصادقة الثنائية والتحقق من بيانات التواصل ومراجعة الجلسات والتطبيقات المرتبطة."
+        }
+      ]
+    },
+    {
+      "case_id": "current-whatsapp-overrides-prior-instagram",
+      "query": "بدي نصيحة أحافظ فيها على حسابي.",
+      "expected": "whatsapp",
+      "passed": true,
+      "resolved_topics": [
+        "account_security"
+      ],
+      "resolved_platform": "whatsapp",
+      "resolved_jurisdiction": null,
+      "answer_text": "هذه مقتطفات موثقة من دون افتراض بلدك؛ المصادر الوطنية ليست مسارات محلية خارج بلدها:\n[1] Account security tips — WhatsApp Help Center, Meta\n- إذا كان بإمكانك فتح حسابك، راجع إعدادات الأمان الرسمية في WhatsApp وفعّل التحقق بخطوتين؛ أضف بريدًا إلكترونيًا وفق خيار الإعداد أو الاسترداد الذي يعرضه التطبيق.\n- استخدم قفل التطبيق أو مفتاح المرور/قفل الجهاز إذا كانت الميزة متاحة على جهازك.\n- هذه إعدادات خاصة بـWhatsApp؛ لا تثبت وحدها وقوع دخول غير مصرح به أو تنفيه.\nنطاق المصدر: إرشادات خاصة بمنصة واتساب فقط.\nالمقتطف الداعم: «تذكر نصائح أمان الحساب في مركز مساعدة WhatsApp ميزات مثل التحقق بخطوتين والبريد الإلكتروني للاسترداد ومفتاح المرور وقفل التطبيق وقفل الدردشات. تذكر المساعدة أن ميزات الحماية موجهة لحماية الحساب الذي ما زال المستخدم يستطيع الوصول إليه.»\n[2] Check devices linked to your account and unlink a device you don’t recognize — WhatsApp Help Center, Meta\n- راجع قائمة الأجهزة المرتبطة بحساب WhatsApp دوريًا.\n- إذا كنت تعتقد أن شخصًا يصل عبر WhatsApp Web، سجّل الخروج من الجلسات النشطة من هاتفك وفق تعليمات مركز المساعدة.\n- لا تكشف هذه الصفحة هوية من استخدم الحساب أو وقت ومكان الوصول؛ لا تستنتج ذلك من مجرد وجود جهاز مرتبط.\nنطاق المصدر: إرشادات خاصة بمنصة واتساب فقط.\nالمقتطف الداعم: «توصي مساعدة WhatsApp بالتحقق دوريًا من الأجهزة المرتبطة بالحساب. وإذا اعتقد المستخدم أن شخصًا يصل إلى الحساب عبر WhatsApp Web، تذكر الصفحة إمكان تسجيل الخروج من جلسات WhatsApp Web النشطة من الهاتف.»\n[3] About two-step verification — WhatsApp Help Center, Meta\n- فعّل التحقق بخطوتين من إعدادات WhatsApp واتبع الخيارات التي يعرضها التطبيق؛ يصفه المصدر بأنه طبقة مصادقة إضافية اختيارية.\n- يمكن أن تتضمن خيارات المصادقة رقم الهاتف أو كلمة مرور أو بريدًا إلكترونيًا، بحسب الإعداد المتاح.\n- مفتاح المرور يعتمد على نظام أمان الجهاز إذا كان مدعومًا؛ راجع صفحة المساعدة الرسمية للتعليمات الحالية.\nنطاق المصدر: إرشادات خاصة بمنصة واتساب فقط.\nالمقتطف الداعم: «توضح مساعدة WhatsApp أن التحقق بخطوتين ميزة اختيارية تضيف طبقة أمان إلى الحساب باستخدام شكلين من المصادقة، مثل الجمع بين رمز SMS وكلمة مرور. كما تشرح المساعدة أن مفتاح المرور يربط الحساب بنظام أمان الجهاز مثل البصمة أو الوجه أو قفل الشاشة.»\nهذه مقتطفات من المصادر فقط؛ لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية. إذا لم يُجب المقتطف عن سؤالك، أمتنع عن إضافة استنتاج.",
+      "citations": [
+        {
+          "id": "GLOBAL-WA-ACCOUNT-SECURITY-2026",
+          "title": "Account security tips",
+          "publisher": "WhatsApp Help Center, Meta",
+          "url": "https://faq.whatsapp.com/1095301557782068",
+          "published_or_updated": null,
+          "ingested_at": "2026-11-06",
+          "geography": "GLOBAL",
+          "guidance_scope": "global_platform",
+          "topics": [
+            "account_security"
+          ],
+          "platforms": [
+            "whatsapp"
+          ],
+          "scope_note": "إرشادات خاصة بمنصة واتساب فقط.",
+          "content_version": "2026-11-06.1",
+          "excerpt": "تذكر نصائح أمان الحساب في مركز مساعدة WhatsApp ميزات مثل التحقق بخطوتين والبريد الإلكتروني للاسترداد ومفتاح المرور وقفل التطبيق وقفل الدردشات. تذكر المساعدة أن ميزات الحماية موجهة لحماية الحساب الذي ما زال المستخدم يستطيع الوصول إليه."
+        },
+        {
+          "id": "GLOBAL-WA-LINKED-DEVICES-2026",
+          "title": "Check devices linked to your account and unlink a device you don’t recognize",
+          "publisher": "WhatsApp Help Center, Meta",
+          "url": "https://faq.whatsapp.com/1428782138011916",
+          "published_or_updated": null,
+          "ingested_at": "2026-11-06",
+          "geography": "GLOBAL",
+          "guidance_scope": "global_platform",
+          "topics": [
+            "account_security",
+            "device_session_management"
+          ],
+          "platforms": [
+            "whatsapp"
+          ],
+          "scope_note": "إرشادات خاصة بمنصة واتساب فقط.",
+          "content_version": "2026-11-06.1",
+          "excerpt": "توصي مساعدة WhatsApp بالتحقق دوريًا من الأجهزة المرتبطة بالحساب. وإذا اعتقد المستخدم أن شخصًا يصل إلى الحساب عبر WhatsApp Web، تذكر الصفحة إمكان تسجيل الخروج من جلسات WhatsApp Web النشطة من الهاتف."
+        },
+        {
+          "id": "GLOBAL-WA-TWO-STEP-2026",
+          "title": "About two-step verification",
+          "publisher": "WhatsApp Help Center, Meta",
+          "url": "https://faq.whatsapp.com/1278661612895630",
+          "published_or_updated": null,
+          "ingested_at": "2026-11-06",
+          "geography": "GLOBAL",
+          "guidance_scope": "global_platform",
+          "topics": [
+            "account_security"
+          ],
+          "platforms": [
+            "whatsapp"
+          ],
+          "scope_note": "إرشادات خاصة بمنصة واتساب فقط.",
+          "content_version": "2026-11-06.1",
+          "excerpt": "توضح مساعدة WhatsApp أن التحقق بخطوتين ميزة اختيارية تضيف طبقة أمان إلى الحساب باستخدام شكلين من المصادقة، مثل الجمع بين رمز SMS وكلمة مرور. كما تشرح المساعدة أن مفتاح المرور يربط الحساب بنظام أمان الجهاز مثل البصمة أو الوجه أو قفل الشاشة."
+        }
+      ]
+    },
+    {
+      "case_id": "ambiguous-two-platform-question",
+      "query": "كيف أحمي حسابي على واتساب أو إنستغرام؟",
+      "expected": "clarify",
+      "passed": true,
+      "resolved_topics": [
+        "account_security"
+      ],
+      "resolved_platform": null,
+      "resolved_jurisdiction": null,
+      "answer_text": "ظهر أكثر من تطبيق أو تعارضت معلومات المنصة. أي تطبيق تقصد في هذا السؤال؟ سأقتصر على مصدره الرسمي.",
+      "citations": []
+    },
+    {
+      "case_id": "unsupported-signal-platform",
+      "query": "كيف أحمي حسابي على سيجنال؟",
+      "expected": "abstain",
+      "passed": true,
+      "resolved_topics": [
+        "account_security"
+      ],
+      "resolved_platform": "signal",
+      "resolved_jurisdiction": null,
+      "answer_text": "ما عندي في قاعدة المعرفة الحالية مصدر رسمي مناسب لمنصة سيجنال لهذا الموضوع؛ لن أعرض خطوات من منصة أخرى.",
+      "citations": []
+    },
+    {
+      "case_id": "unrelated-baking-question",
+      "query": "طريقة تحضير الكعكة والخبز المنزلي",
+      "expected": "abstain",
+      "passed": true,
+      "resolved_topics": [],
+      "resolved_platform": null,
+      "resolved_jurisdiction": null,
+      "answer_text": "لا يوجد في قاعدة المعرفة مقتطف كافٍ يجيب عن هذا السؤال. لا أستنتج خطوات أو نتائج غير مدعومة بمصدر موثوق.",
+      "citations": []
+    },
+    {
+      "case_id": "whatsapp-compromised-account-recovery",
+      "query": "كيف أستعيد حسابي المخترق على واتساب؟",
+      "expected": "recovery",
+      "passed": true,
+      "resolved_topics": [
+        "account_recovery",
+        "account_security"
+      ],
+      "resolved_platform": "whatsapp",
+      "resolved_jurisdiction": null,
+      "answer_text": "هذه مقتطفات موثقة من دون افتراض بلدك؛ المصادر الوطنية ليست مسارات محلية خارج بلدها:\n[1] Account security tips — WhatsApp Help Center, Meta\n- إذا كان بإمكانك فتح حسابك، راجع إعدادات الأمان الرسمية في WhatsApp وفعّل التحقق بخطوتين؛ أضف بريدًا إلكترونيًا وفق خيار الإعداد أو الاسترداد الذي يعرضه التطبيق.\n- استخدم قفل التطبيق أو مفتاح المرور/قفل الجهاز إذا كانت الميزة متاحة على جهازك.\n- هذه إعدادات خاصة بـWhatsApp؛ لا تثبت وحدها وقوع دخول غير مصرح به أو تنفيه.\nنطاق المصدر: إرشادات خاصة بمنصة واتساب فقط.\nالمقتطف الداعم: «تذكر نصائح أمان الحساب في مركز مساعدة WhatsApp ميزات مثل التحقق بخطوتين والبريد الإلكتروني للاسترداد ومفتاح المرور وقفل التطبيق وقفل الدردشات. هذه إعدادات تخص حساب WhatsApp؛ وتختلف الخيارات المتاحة بحسب الجهاز وإصدار التطبيق.»\n[2] How to recover a compromised account — WhatsApp Help Center, Meta\n- إذا كان جهازك آمنًا وفقدت الوصول إلى حساب WhatsApp، أعد تسجيل رقمك الكامل واتبع التعليمات الرسمية لإدخال رمز التسجيل ذي الستة أرقام الذي يصلك عبر SMS أو مكالمة.\n- لا تشارك رمز التسجيل مع أحد. تقول المساعدة إن إعادة التسجيل بالرمز تُخرج الأجهزة الأخرى تلقائيًا.\n- إذا طُلب PIN للتحقق بخطوتين ولا تعرفه، راجع تعليمات WhatsApp؛ وتذكر الصفحة الانتظار سبعة أيام قبل المحاولة مجددًا.\n- بعد استعادة الوصول، فعّل ميزات الأمان وراجع الأجهزة المرتبطة. لا يستطيع WhatsApp تحديد هوية من دخل أو وقت ومكان الدخول.\nنطاق المصدر: إرشادات خاصة بمنصة واتساب فقط.\nالمقتطف الداعم: «توضح مساعدة WhatsApp أنه عند أمان الجهاز واستيلاء شخص آخر على الحساب أو فقدان الوصول، يمكن استعادة الحساب بإعادة تسجيل رقم الهاتف الكامل ثم إدخال رمز من ستة أرقام يصل عبر SMS أو مكالمة. توصي المساعدة بعد استعادة الحساب بتفعيل ميزات الحماية ومراجعة الأجهزة المرتبطة، ولا تستطيع تحديد هوية من دخل أو وقت ومكان دخوله.»\n[3] Check devices linked to your account and unlink a device you don’t recognize — WhatsApp Help Center, Meta\n- راجع قائمة الأجهزة المرتبطة بحساب WhatsApp دوريًا.\n- إذا كنت تعتقد أن شخصًا يصل عبر WhatsApp Web، سجّل الخروج من الجلسات النشطة من هاتفك وفق تعليمات مركز المساعدة.\n- لا تكشف هذه الصفحة هوية من استخدم الحساب أو وقت ومكان الوصول؛ لا تستنتج ذلك من مجرد وجود جهاز مرتبط.\nنطاق المصدر: إرشادات خاصة بمنصة واتساب فقط.\nالمقتطف الداعم: «توصي مساعدة WhatsApp بالتحقق دوريًا من الأجهزة المرتبطة بالحساب. وإذا اعتقد المستخدم أن شخصًا يصل إلى الحساب عبر WhatsApp Web، تذكر الصفحة إمكان تسجيل الخروج من جلسات WhatsApp Web النشطة من الهاتف.»\nهذه مقتطفات من المصادر فقط؛ لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية. إذا لم يُجب المقتطف عن سؤالك، أمتنع عن إضافة استنتاج.",
+      "citations": [
+        {
+          "id": "GLOBAL-WA-ACCOUNT-SECURITY-2026",
+          "title": "Account security tips",
+          "publisher": "WhatsApp Help Center, Meta",
+          "url": "https://faq.whatsapp.com/1095301557782068",
+          "published_or_updated": null,
+          "ingested_at": "2026-11-06",
+          "geography": "GLOBAL",
+          "guidance_scope": "global_platform",
+          "topics": [
+            "account_security"
+          ],
+          "platforms": [
+            "whatsapp"
+          ],
+          "scope_note": "إرشادات خاصة بمنصة واتساب فقط.",
+          "content_version": "2026-11-06.1",
+          "excerpt": "تذكر نصائح أمان الحساب في مركز مساعدة WhatsApp ميزات مثل التحقق بخطوتين والبريد الإلكتروني للاسترداد ومفتاح المرور وقفل التطبيق وقفل الدردشات. هذه إعدادات تخص حساب WhatsApp؛ وتختلف الخيارات المتاحة بحسب الجهاز وإصدار التطبيق."
+        },
+        {
+          "id": "GLOBAL-WA-RECOVERY-2026",
+          "title": "How to recover a compromised account",
+          "publisher": "WhatsApp Help Center, Meta",
+          "url": "https://faq.whatsapp.com/1131652977717250",
+          "published_or_updated": null,
+          "ingested_at": "2026-11-06",
+          "geography": "GLOBAL",
+          "guidance_scope": "global_platform",
+          "topics": [
+            "account_recovery"
+          ],
+          "platforms": [
+            "whatsapp"
+          ],
+          "scope_note": "إرشادات خاصة بمنصة واتساب فقط.",
+          "content_version": "2026-11-06.1",
+          "excerpt": "توضح مساعدة WhatsApp أنه عند أمان الجهاز واستيلاء شخص آخر على الحساب أو فقدان الوصول، يمكن استعادة الحساب بإعادة تسجيل رقم الهاتف الكامل ثم إدخال رمز من ستة أرقام يصل عبر SMS أو مكالمة. توصي المساعدة بعد استعادة الحساب بتفعيل ميزات الحماية ومراجعة الأجهزة المرتبطة، ولا تستطيع تحديد هوية من دخل أو وقت ومكان دخوله."
+        },
+        {
+          "id": "GLOBAL-WA-LINKED-DEVICES-2026",
+          "title": "Check devices linked to your account and unlink a device you don’t recognize",
+          "publisher": "WhatsApp Help Center, Meta",
+          "url": "https://faq.whatsapp.com/1428782138011916",
+          "published_or_updated": null,
+          "ingested_at": "2026-11-06",
+          "geography": "GLOBAL",
+          "guidance_scope": "global_platform",
+          "topics": [
+            "account_security",
+            "device_session_management"
+          ],
+          "platforms": [
+            "whatsapp"
+          ],
+          "scope_note": "إرشادات خاصة بمنصة واتساب فقط.",
+          "content_version": "2026-11-06.1",
+          "excerpt": "توصي مساعدة WhatsApp بالتحقق دوريًا من الأجهزة المرتبطة بالحساب. وإذا اعتقد المستخدم أن شخصًا يصل إلى الحساب عبر WhatsApp Web، تذكر الصفحة إمكان تسجيل الخروج من جلسات WhatsApp Web النشطة من الهاتف."
+        }
+      ]
+    },
+    {
+      "case_id": "short-extracted-guidance-span-full-topic",
+      "query": "شو أعمل؟",
+      "expected": "payment",
+      "passed": true,
+      "resolved_topics": [
+        "payment_recovery"
+      ],
+      "resolved_platform": null,
+      "resolved_jurisdiction": null,
+      "answer_text": "هذه مقتطفات موثقة من دون افتراض بلدك؛ المصادر الوطنية ليست مسارات محلية خارج بلدها:\n[1] What To Do if You Were Scammed — Federal Trade Commission, United States\n- إذا كان التحويل مرتبطًا باحتيال أو دفع لمحتال، فتواصل سريعًا مع البنك أو التطبيق أو الشركة التي عالجت التحويل.\n- اسألهم إن كان يمكن إيقاف العملية أو عكسها أو ما الخيارات المتاحة لوسيلة الدفع هذه.\n- لا يوجد ضمان للاسترداد؛ تفاصيل الحقوق والقنوات في المصدر تخص الولايات المتحدة.\nنطاق المصدر: إرشاد عام من مصدر وطني؛ لا يمثل قانونًا أو جهة محلية.\nالمقتطف الداعم: «توصي لجنة التجارة الفيدرالية الأمريكية من دفع لمحتال بالتواصل سريعًا مع البنك أو التطبيق أو الشركة التي عالجت الدفع وسؤالهم عن الخيارات المتاحة مثل إيقاف العملية أو عكسها إن أمكن.»\nهذه مقتطفات من المصادر فقط؛ لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية. إذا لم يُجب المقتطف عن سؤالك، أمتنع عن إضافة استنتاج.",
+      "citations": [
+        {
+          "id": "US-FTC-SCAM-2026",
+          "title": "What To Do if You Were Scammed",
+          "publisher": "Federal Trade Commission, United States",
+          "url": "https://consumer.ftc.gov/articles/what-do-if-you-were-scammed",
+          "published_or_updated": "2026-06",
+          "ingested_at": "2026-11-06",
+          "geography": "US",
+          "guidance_scope": "general_practice",
+          "topics": [
+            "payment_recovery"
+          ],
+          "platforms": [],
+          "scope_note": "إرشاد عام من مصدر وطني؛ لا يمثل قانونًا أو جهة محلية.",
+          "content_version": "2026-11-06.1",
+          "excerpt": "توصي لجنة التجارة الفيدرالية الأمريكية من دفع لمحتال بالتواصل سريعًا مع البنك أو التطبيق أو الشركة التي عالجت الدفع وسؤالهم عن الخيارات المتاحة مثل إيقاف العملية أو عكسها إن أمكن."
+        }
+      ]
+    },
+    {
+      "case_id": "explicit-jordan-overrides-saved-us",
+      "query": "ما هي وسائل التواصل مع وحدة الجرائم الإلكترونية بالأردن؟",
+      "expected": "jordan",
+      "passed": true,
+      "resolved_topics": [
+        "cybercrime_reporting"
+      ],
+      "resolved_platform": null,
+      "resolved_jurisdiction": "JO",
+      "answer_text": "بحسب المقتطفات الموثقة؛ تظهر جهة المصدر ونطاقها بجوار كل مقتطف:\n[1] وحدة مكافحة الجرائم الإلكترونية — مديرية الأمن العام الأردنية، إدارة البحث الجنائي\n- في الأردن، تعرض الصفحة الرسمية لوحدة مكافحة الجرائم الإلكترونية الرقم 196 والفرعين 812594 و812232 والبريد ecrimes@psd.gov.jo.\n- تحقق من الصفحة الرسمية الحالية قبل التواصل. هذه معلومة أردنية؛ التطبيق لا يقدّم البلاغ نيابة عنك.\nالمقتطف الداعم: «تعرّف صفحة مديرية الأمن العام الأردنية وحدة مكافحة الجرائم الإلكترونية ضمن إدارة البحث الجنائي وتذكر وسائل تواصلها المنشورة: الرقم المجاني 196، والفرعين 812594 و812232، والبريد ecrimes@psd.gov.jo.»\nهذه مقتطفات من المصادر فقط؛ لا تثبت ما حدث في حالتك ولا تمثل نصيحة قانونية. إذا لم يُجب المقتطف عن سؤالك، أمتنع عن إضافة استنتاج.",
+      "citations": [
+        {
+          "id": "JO-PSD-CYBERCRIME-UNIT-2026",
+          "title": "وحدة مكافحة الجرائم الإلكترونية",
+          "publisher": "مديرية الأمن العام الأردنية، إدارة البحث الجنائي",
+          "url": "https://www.psd.gov.jo/ar-jo/%D8%A7%D9%84%D8%A5%D8%AF%D8%A7%D8%B1%D8%A7%D8%AA-%D9%88%D8%A7%D9%84%D9%88%D8%AD%D8%AF%D8%A7%D8%AA/%D8%A5%D8%AF%D8%A7%D8%B1%D8%A9-%D8%A7%D9%84%D8%A8%D8%AD%D8%AB-%D8%A7%D9%84%D8%AC%D9%86%D8%A7%D8%A6%D9%8A/%D9%88%D8%AD%D8%AF%D8%A9-%D9%85%D9%83%D8%A7%D9%81%D8%AD%D8%A9-%D8%A7%D9%84%D8%AC%D8%B1%D8%A7%D8%A6%D9%85-%D8%A7%D9%84%D8%A5%D9%84%D9%83%D8%AA%D8%B1%D9%88%D9%86%D9%8A%D8%A9/",
+          "published_or_updated": null,
+          "ingested_at": "2026-11-06",
+          "geography": "JO",
+          "guidance_scope": null,
+          "topics": [
+            "cybercrime_reporting"
+          ],
+          "platforms": [],
+          "scope_note": null,
+          "content_version": "2026-11-06.1",
+          "excerpt": "تعرّف صفحة مديرية الأمن العام الأردنية وحدة مكافحة الجرائم الإلكترونية ضمن إدارة البحث الجنائي وتذكر وسائل تواصلها المنشورة: الرقم المجاني 196، والفرعين 812594 و812232، والبريد ecrimes@psd.gov.jo."
+        }
+      ]
+    }
+  ],
+  "note": "Synthetic retrieval examples and local rule-based routing only; not an Ollama result, human review, or real-world accuracy claim."
+}

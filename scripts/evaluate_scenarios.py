@@ -133,7 +133,11 @@ def _check_events(actual: list[dict[str, Any]], expected: list[dict[str, Any]]) 
             if event.get("kind") != requirement.get("kind") or event.get("relation") != requirement.get("relation"):
                 continue
             amount = str(event.get("amount"))
-            if requirement.get("amount_contains") not in amount:
+            amount_contains = requirement.get("amount_contains")
+            if not isinstance(amount_contains, str):
+                problems.append(f"invalid amount_contains in expected money event {requirement!r}")
+                continue
+            if amount_contains not in amount:
                 continue
             found = event
             break
@@ -177,8 +181,7 @@ def _run_case(client: TestClient, case: dict[str, Any], mode: str = "rules",
                 "expected_revision": revision,
                 "text": step["text"],
                 "kind": kind,
-                "allow_external": mode == "model" and kind == "question",
-                "allow_external_extraction": mode == "model" and kind == "answer",
+                "allow_local_model": mode == "model",
             }
             response = client.post(f"/api/sessions/{session_id}/messages", headers=headers, json=body)
         elif action == "confirm":
@@ -403,6 +406,8 @@ def run(dataset_path: Path, output_path: Path, mode: str = "rules") -> dict[str,
     if mode == "model":
         if not model_configured():
             blocked_reason = "provider_not_configured"
+        elif preflight is None:
+            blocked_reason = "provider_preflight_failed"
         elif not preflight["service_reachable"] or not preflight["model_available"]:
             blocked_reason = preflight.get("failure_code") or "provider_preflight_failed"
         else:
@@ -413,11 +418,12 @@ def run(dataset_path: Path, output_path: Path, mode: str = "rules") -> dict[str,
     candidate_log: list[dict[str, Any]] = []
     merge_log: list[dict[str, Any]] = []
     evaluation_context: dict[str, Any] = {"step": None}
-    original_generator = main.generate_interview_extraction
+    original_generator = main.generate_interactive_dialogue_turn
     original_handle_turn = main.handle_turn
 
-    def capture_generator(text: str, pending_slot: str | None):
-        facts = original_generator(text, pending_slot)
+    def capture_generator(text: str, dialogue_context: dict[str, Any], pending_slot: str | None):
+        turn = original_generator(text, dialogue_context, pending_slot)
+        facts = turn.get("facts") if isinstance(turn, dict) else None
         diagnostic = last_extraction_diagnostic() or {}
         entry = {"step": evaluation_context.get("step"), "accepted": facts is not None,
                  "facts": facts or [], "diagnostic": {k: v for k, v in diagnostic.items() if k != "raw_response"}}
@@ -425,10 +431,10 @@ def run(dataset_path: Path, output_path: Path, mode: str = "rules") -> dict[str,
             entry["diagnostic"]["rejected_fact_proposals"] = _response_fact_proposals(diagnostic["raw_response"])
             entry["diagnostic"].update(_safe_response_diagnostic(diagnostic["raw_response"]))
         candidate_log.append(entry)
-        return facts
+        return turn
 
-    def capture_handle_turn(state, text: str, model_facts=None):
-        result = original_handle_turn(state, text, model_facts=model_facts)
+    def capture_handle_turn(state, text: str, model_facts=None, **kwargs):
+        result = original_handle_turn(state, text, model_facts=model_facts, **kwargs)
         for event in core.last_model_merge_trace():
             merge_log.append({"step": evaluation_context.get("step"), **event})
         return result
@@ -439,7 +445,7 @@ def run(dataset_path: Path, output_path: Path, mode: str = "rules") -> dict[str,
             if blocked_reason:
                 results = []
             elif mode == "model":
-                with patch("app.main.generate_interview_extraction", side_effect=capture_generator), \
+                with patch("app.main.generate_interactive_dialogue_turn", side_effect=capture_generator), \
                      patch("app.main.handle_turn", side_effect=capture_handle_turn):
                     results = [_run_case(client, case, mode=mode, candidate_log=candidate_log,
                                          merge_log=merge_log, evaluation_context=evaluation_context)
